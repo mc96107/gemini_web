@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Gemini Agent</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="icon" type="image/svg+xml" href="/static/icon.svg?v=2">
+    <link rel="manifest" href="/manifest.json?v=3">
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        body {
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #121212;
+        }
+        .login-card {
+            width: 100%;
+            max-width: 400px;
+            padding: 2rem;
+            border-radius: 1rem;
+            background-color: #1e1e1e;
+            border: 1px solid #333;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+</head>
+<body class="text-light">
+
+<div class="login-card">
+    <div class="text-center mb-4">
+        <h1 class="h3 mb-3"><i class="bi bi-robot text-primary"></i> Gemini Agent</h1>
+        <p class="text-muted">Please sign in to continue</p>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <ul class="nav nav-pills nav-fill mb-4" id="loginTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="passkey-tab" data-bs-toggle="pill" data-bs-target="#passkey-login" type="button" role="tab" aria-controls="passkey-login" aria-selected="true">Passkey</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="password-tab" data-bs-toggle="pill" data-bs-target="#password-login" type="button" role="tab" aria-controls="password-login" aria-selected="false">Password</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="wallet-tab" data-bs-toggle="pill" data-bs-target="#wallet-login" type="button" role="tab" aria-controls="wallet-login" aria-selected="false">Wallet</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="pattern-tab" data-bs-toggle="pill" data-bs-target="#pattern-login" type="button" role="tab" aria-controls="pattern-login" aria-selected="false">Pattern</button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="loginTabsContent">
+        <!-- Passkey Login -->
+        <div class="tab-pane fade show active" id="passkey-login" role="tabpanel" aria-labelledby="passkey-tab">
+            <div class="text-center py-4">
+                <i class="bi bi-key display-1 text-info mb-3"></i>
+                <div class="mb-3">
+                    <label for="username-passkey" class="form-label">Username (Optional)</label>
+                    <input type="text" class="form-control bg-dark text-light border-secondary" id="username-passkey" placeholder="Leave empty for auto-login">
+                </div>
+                <button id="btn-passkey-login" class="btn btn-info w-100 py-2 text-white">
+                    Sign In with Passkey
+                </button>
+                <div id="passkey-error" class="text-danger small mt-2"></div>
+            </div>
+        </div>
+
+        <!-- Password Login -->
+        <div class="tab-pane fade" id="password-login" role="tabpanel" aria-labelledby="password-tab">
+            <form action="/login" method="post">
+                <div class="mb-3">
+                    <label for="username" class="form-label">Username</label>
+                    <input type="text" class="form-control bg-dark text-light border-secondary" id="username" name="username" required autofocus>
+                </div>
+                <div class="mb-4">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" class="form-control bg-dark text-light border-secondary" id="password" name="password" required>
+                </div>
+                <button type="submit" class="btn btn-primary w-100 py-2">Sign In</button>
+            </form>
+        </div>
+
+        <!-- Wallet Login -->
+        <div class="tab-pane fade" id="wallet-login" role="tabpanel" aria-labelledby="wallet-tab">
+            <div class="text-center py-4">
+                <i class="bi bi-wallet2 display-1 text-primary mb-3"></i>
+                <p>Connect your MetaMask or Brave wallet to sign in.</p>
+                <button id="btn-wallet-login" class="btn btn-outline-primary w-100 py-2">
+                    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMTguNiAzMTguNiI+PHBhdGggZmlsbD0iI0UyN0MxMSIgZD0iTTEyOC42IDYuOGwtMjIuNSAzNi4zIDM0LjYgMjIuM3oiLz48cGF0aCBmaWxsPSIjRTI3QzExIiBkPSJNMTkwIDYuOGwyMi41IDM2LjMtMzQuNiAyMi4zeiIvPjxwYXRoIGZpbGw9IiNFNDc2MTkiIGQ9Ik05OC4zIDY5LjFsLTI5LjEtNCA1MS42IDM4LjV6Ii8+PHBhdGggZmlsbD0iI0U0NzYxOSIgZD0iTTcyMC4zIDY5LjFsMjkuMS00LTUxLjYgMzguNXoiLz48cGF0aCBmaWxsPSIjRTRDMTMzIiBkPSJNOTguNSAxOTMuOGwtMjkuNyA0LjUgMjUuNiA1NnoiLz48cGF0aCBmaWxsPSIjRTRDMjMyIiBkPSJNOTQuNCAyMjMuN2wzOC4zIDE3LjMtMjQuOC00Ny4zeiIvPjxwYXRoIGZpbGw9IiNFNUMxMzMiIGQ9Ik0yMjQuMiAyMjMuN2wtMzguMyAxNy4zIDI0LjgtNDcuM3oiLz48cGF0aCBmaWxsPSIjRTRDMjMyIiBkPSJNMjIwLjEgMTk4LjhsMjkuNyA0LjUtMjUuNiA1NnoiLz48cGF0aCBmaWxsPSIjRTRDMjMyIiBkPSJNMTU5LjMgMTI0LjNsLTI3LjIgOTEuNCAyNy4yIDE0LjIgMjcuMi0xNC4yLTExLjYtOTEuNHoiLz48cGF0aCBmaWxsPSIjRTRDMjMyIiBkPSJNMTU5LjMgMjMwLjFsLTI3LjIgMTQuMkwxNTkuMyAzMTBsMjcuMi02NS43eiIvPjxwYXRoIGZpbGw9IiNGNjhCMTgiIGQ9Ik02OC44IDY1LjFsMTAwLjUgMTguNkwxNTkuMyA2LjhsLTMwLjcgNTguM3oiLz48cGF0aCBmaWxsPSIjRjY4QjE4IiBkPSJNMjQ5LjggNjUuMWwtMTAwLjUgMTguNkwxNTkuMyA2LjhsMzAuNyA1OC4zeiIvPjxwYXRoIGZpbGw9IiNGNjhCMTgiIGQ9Ik02OS4xIDE5OC4zbDU0LjIgMzIuN0wxNTkuMyAxODdsLTM0LjgtNDYuM3oiLz48cGF0aCBmaWxsPSIjRjY4QjE4IiBkPSJNMjQ5LjUgMTk4LjNsLTU0LjIgMzIuN0wxNTkuMyAxODdsMzQuOC00Ni4zeiIvPjxwYXRoIGZpbGw9IiNGNjhCMTgiIGQ9Ik02OS4xIDE5OC4zbDI1LjYgNTZMMTU5LjMgMzEwbC0yNy4yLTY1Ljd6Ii8+PHBhdGggZmlsbD0iI0Y2OEIxOCIgZD0iTTI0OS41IDE5OC4zbC0yNS42IDU2TDE1OS4zIDMxMGwyNy4yLTY1Ljd6Ii8+PC9zdmc+" alt="MetaMask" style="height: 20px; margin-right: 10px;">
+                    Sign In with Wallet
+                </button>
+                <div id="wallet-error" class="text-danger small mt-2"></div>
+            </div>
+        </div>
+
+        <!-- Pattern Login -->
+        <div class="tab-pane fade" id="pattern-login" role="tabpanel" aria-labelledby="pattern-tab">
+            <form id="pattern-form" action="/login/pattern" method="post">
+                <div class="mb-3">
+                    <label for="username-pattern" class="form-label">Username (Optional)</label>
+                    <input type="text" class="form-control bg-dark text-light border-secondary" id="username-pattern" name="username" placeholder="Leave empty for auto-login">
+                </div>
+                <div class="mb-3 text-center">
+                    <label class="form-label d-block">Draw Pattern</label>
+                    <div id="pattern-container" class="mx-auto" style="width: 250px; height: 250px; position: relative; touch-action: none;">
+                        <svg id="pattern-svg" width="250" height="250" style="background: #252525; border-radius: 10px;"></svg>
+                    </div>
+                    <input type="hidden" id="pattern-input" name="pattern">
+                </div>
+                <button type="submit" class="btn btn-primary w-100 py-2">Sign In with Pattern</button>
+            </form>
+        </div>
+    </div>
+    
+    <div class="text-center mt-4">
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // ... (existing pattern logic)
+        const svg = document.getElementById('pattern-svg');
+        // ...
+        const patternInput = document.getElementById('pattern-input');
+        const container = document.getElementById('pattern-container');
+        const dots = [];
+        const selectedDots = [];
+        let isDrawing = false;
+        let currentLine = null;
+
+        // Create 3x3 grid
+        for (let y = 0; y < 3; y++) {
+            for (let x = 0; x < 3; x++) {
+                const cx = 50 + x * 75;
+                const cy = 50 + y * 75;
+                const index = y * 3 + x + 1;
+                
+                const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                dot.setAttribute('cx', cx);
+                dot.setAttribute('cy', cy);
+                dot.setAttribute('r', 10);
+                dot.setAttribute('fill', '#555');
+                dot.setAttribute('data-index', index);
+                svg.appendChild(dot);
+                dots.push({ cx, cy, index, element: dot });
+            }
+        }
+
+        function getMousePos(e) {
+            const rect = svg.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
+        function startDrawing(e) {
+            isDrawing = true;
+            resetPattern();
+            handleMove(e);
+        }
+
+        function handleMove(e) {
+            if (!isDrawing) return;
+            const pos = getMousePos(e);
+            
+            // Check if near a dot
+            dots.forEach(dot => {
+                const dist = Math.hypot(pos.x - dot.cx, pos.y - dot.cy);
+                if (dist < 25 && !selectedDots.includes(dot)) {
+                    selectedDots.push(dot);
+                    dot.element.setAttribute('fill', '#0d6efd');
+                    dot.element.setAttribute('r', 15);
+                    
+                    if (selectedDots.length > 1) {
+                        const prevDot = selectedDots[selectedDots.length - 2];
+                        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                        line.setAttribute('x1', prevDot.cx);
+                        line.setAttribute('y1', prevDot.cy);
+                        line.setAttribute('x2', dot.cx);
+                        line.setAttribute('y2', dot.cy);
+                        line.setAttribute('stroke', '#0d6efd');
+                        line.setAttribute('stroke-width', 4);
+                        svg.insertBefore(line, svg.firstChild);
+                    }
+                }
+            });
+
+            // Update floating line
+            if (selectedDots.length > 0) {
+                if (currentLine) currentLine.remove();
+                const lastDot = selectedDots[selectedDots.length - 1];
+                currentLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                currentLine.setAttribute('x1', lastDot.cx);
+                currentLine.setAttribute('y1', lastDot.cy);
+                currentLine.setAttribute('x2', pos.x);
+                currentLine.setAttribute('y2', pos.y);
+                currentLine.setAttribute('stroke', '#0d6efd');
+                currentLine.setAttribute('stroke-width', 2);
+                currentLine.setAttribute('stroke-dasharray', '5,5');
+                svg.appendChild(currentLine);
+            }
+        }
+
+        function stopDrawing() {
+            if (!isDrawing) return;
+            isDrawing = false;
+            if (currentLine) currentLine.remove();
+            patternInput.value = selectedDots.map(d => d.index).join('');
+        }
+
+        function resetPattern() {
+            selectedDots.length = 0;
+            svg.querySelectorAll('line').forEach(l => l.remove());
+            dots.forEach(dot => {
+                dot.element.setAttribute('fill', '#555');
+                dot.element.setAttribute('r', 10);
+            });
+            patternInput.value = '';
+        }
+
+        svg.addEventListener('mousedown', startDrawing);
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('mouseup', stopDrawing);
+
+        svg.addEventListener('touchstart', (e) => { e.preventDefault(); startDrawing(e); });
+        svg.addEventListener('touchmove', (e) => { e.preventDefault(); handleMove(e); });
+        svg.addEventListener('touchend', stopDrawing);
+
+        // --- Wallet Login ---
+        const btnWalletLogin = document.getElementById('btn-wallet-login');
+        const walletError = document.getElementById('wallet-error');
+
+        btnWalletLogin.addEventListener('click', async () => {
+            if (typeof window.ethereum === 'undefined') {
+                walletError.textContent = 'Ethereum wallet not found. Please install MetaMask.';
+                return;
+            }
+
+            try {
+                // Request account access
+                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                const address = accounts[0];
+
+                // Get challenge from server
+                const challengeRes = await fetch('/login/web3/challenge');
+                const { challenge } = await challengeRes.json();
+
+                // Request signature
+                const provider = new ethers.providers.Web3Provider(window.ethereum);
+                const signer = provider.getSigner();
+                const signature = await signer.signMessage(challenge);
+
+                // Verify signature on server
+                const formData = new FormData();
+                formData.append('address', address);
+                formData.append('signature', signature);
+
+                const verifyRes = await fetch('/login/web3/verify', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await verifyRes.json();
+                if (result.success) {
+                    window.location.href = '/';
+                } else {
+                    walletError.textContent = result.error || 'Login failed';
+                }
+            } catch (err) {
+                console.error(err);
+                walletError.textContent = err.message || 'An error occurred during wallet login';
+            }
+        });
+
+        // --- Passkey Login ---
+        const btnPasskeyLogin = document.getElementById('btn-passkey-login');
+        const passkeyError = document.getElementById('passkey-error');
+        const usernamePasskey = document.getElementById('username-passkey');
+
+        btnPasskeyLogin.addEventListener('click', async () => {
+            const username = usernamePasskey.value;
+            
+            try {
+                // Get authentication options from server
+                const formData = new FormData();
+                if (username) {
+                    formData.append('username', username);
+                }
+                
+                const optionsRes = await fetch('/login/passkey/options', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!optionsRes.ok) {
+                    const errData = await optionsRes.json();
+                    throw new Error(errData.error || 'User not found or no passkeys registered');
+                }
+
+                const options = await optionsRes.json();
+
+                // Convert base64url to Uint8Array for the browser
+                options.challenge = base64urlToUint8Array(options.challenge);
+                if (options.allowCredentials) {
+                    options.allowCredentials.forEach(cred => {
+                        cred.id = base64urlToUint8Array(cred.id);
+                    });
+                }
+
+                // Call the browser's credential API
+                const credential = await navigator.credentials.get({
+                    publicKey: options
+                });
+
+                // Prepare data for verification
+                const authData = {
+                    id: credential.id,
+                    rawId: bufferToBase64Url(credential.rawId),
+                    type: credential.type,
+                    response: {
+                        authenticatorData: bufferToBase64Url(credential.response.authenticatorData),
+                        clientDataJSON: bufferToBase64Url(credential.response.clientDataJSON),
+                        signature: bufferToBase64Url(credential.response.signature),
+                        userHandle: credential.response.userHandle ? bufferToBase64Url(credential.response.userHandle) : null
+                    }
+                };
+
+                // Verify authentication on server
+                const verifyRes = await fetch('/login/passkey/verify', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(authData)
+                });
+
+                const result = await verifyRes.json();
+                if (result.success) {
+                    window.location.href = '/';
+                } else {
+                    passkeyError.textContent = result.error || 'Passkey authentication failed';
+                }
+            } catch (err) {
+                console.error(err);
+                passkeyError.textContent = err.message || 'An error occurred during passkey login';
+            }
+        });
+
+        // Helper functions for WebAuthn
+        function base64urlToUint8Array(base64url) {
+            const padding = '='.repeat((4 - base64url.length % 4) % 4);
+            const base64 = (base64url + padding).replace(/\-/g, '+').replace(/_/g, '/');
+            const rawData = window.atob(base64);
+            const outputArray = new Uint8Array(rawData.length);
+            for (let i = 0; i < rawData.length; ++i) {
+                outputArray[i] = rawData.charCodeAt(i);
+            }
+            return outputArray;
+        }
+
+        function bufferToBase64Url(buffer) {
+            const bytes = new Uint8Array(buffer);
+            let binary = '';
+            for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            const base64 = window.btoa(binary);
+            return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+        }
+    });
+</script>
+<script>
+    /*
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+                .then(reg => console.log('SW Registered', reg))
+                .catch(err => console.log('SW Reg Error', err));
+        });
+    }
+    */
+</script>
+</body>
+</html>

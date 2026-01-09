@@ -1,0 +1,194 @@
+:root {
+    --bg-color: #121212;
+    --chat-bg: #0b0b0b;
+    --sidebar-bg: #1e1e1e;
+    --message-user-bg: #3c6e71; /* Teal muted */
+    --message-bot-bg: #2b2d42; /* Dark blue/grey */
+    --text-color: #e0e0e0;
+    --input-bg: #2d2d2d;
+    --border-color: #444;
+}
+
+body {
+    background-color: var(--bg-color) !important;
+    color: var(--text-color) !important;
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Header Styling */
+header {
+    background-color: var(--sidebar-bg) !important;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    z-index: 1000;
+}
+
+/* Chat Container */
+#chat-container {
+    background-color: var(--chat-bg);
+    padding-bottom: 2rem;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Messages */
+.message {
+    max-width: 85%;
+    margin-bottom: 1.2rem;
+    padding: 1rem 1.2rem;
+    border-radius: 1.2rem;
+    position: relative;
+    word-wrap: break-word;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+.message.user {
+    background-color: var(--message-user-bg);
+    color: #ffffff;
+    align-self: flex-end;
+    margin-left: auto;
+    border-bottom-right-radius: 0.2rem;
+}
+
+.message.bot {
+    background-color: #2d2d2d; /* Dark Grey */
+    color: #ffffff; /* Brighter white */
+    align-self: flex-start;
+    margin-right: auto;
+    border-bottom-left-radius: 0.2rem;
+}
+
+.text-muted {
+    color: #b0b0b0 !important; /* Brighter muted text */
+}
+
+/* Code Blocks */
+.message pre {
+    background-color: #1a1a1a !important;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    overflow-x: auto;
+    margin-top: 0.5rem;
+    border: 1px solid #333;
+}
+
+/* Footer / Input Area */
+footer {
+    background-color: var(--sidebar-bg) !important;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--chat-bg);
+}
+
+::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #777;
+}
+
+/* Input Field Styling */
+textarea#message-input {
+    resize: none;
+    max-height: 200px;
+    min-height: 50px; /* Enforce a minimum height */
+    background-color: var(--input-bg);
+    color: white;
+    border: 1px solid var(--border-color);
+    border-radius: 1.5rem !important; /* Pill shape */
+    padding: 0.8rem 1.2rem;
+    font-size: 1rem;
+}
+
+textarea#message-input:focus {
+    background-color: #333;
+    border-color: #666;
+    box-shadow: none;
+    color: white;
+}
+
+/* Buttons in Input Area */
+.btn-circle {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Dropdown Menu */
+.dropdown-menu {
+    background-color: var(--input-bg);
+    border-color: var(--border-color);
+}
+.dropdown-item {
+    color: var(--text-color);
+}
+.dropdown-item:hover {
+    background-color: #444;
+    color: white;
+}
+
+/* Session List Items */
+#sessions-list .list-group-item {
+    cursor: pointer;
+    transition: background-color 0.2s;
+    border-color: #333;
+    padding: 0.75rem 1.25rem;
+}
+
+#sessions-list .list-group-item:hover {
+    background-color: #333 !important;
+}
+
+#sessions-list .list-group-item.active-session {
+    background-color: #2b2d42 !important;
+    border-left: 4px solid #3c6e71;
+}
+
+#sessions-list .session-title {
+    font-weight: 500;
+    font-size: 0.9rem;
+    display: block;
+}
+
+#sessions-list .session-time {
+    font-size: 0.75rem;
+    color: #888;
+}
+/* Mobile Safe Area Fixes */
+html, body { height: 100%; margin: 0; padding: 0; }
+.container-fluid { height: 100vh; display: flex; flex-direction: column; }
+#chat-container { flex-grow: 1; overflow-y: auto; }
+footer { 
+    flex-shrink: 0; 
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom)) !important; 
+}
+@supports (height: 100dvh) {
+    .container-fluid { height: 100dvh; }
+}
+
+/* Copy Button */
+.message { position: relative; padding-right: 35px !important; }
+.copy-btn {
+    position: absolute; top: 8px; right: 8px;
+    background: transparent; border: none;
+    color: rgba(255, 255, 255, 0.3); cursor: pointer;
+    padding: 4px; border-radius: 4px;
+    transition: all 0.2s; font-size: 1rem;
+    display: flex; align-items: center; justify-content: center; z-index: 10;
+}
+.copy-btn:hover { color: rgba(255, 255, 255, 0.9); background: rgba(255, 255, 255, 0.1); }
+.message.user .copy-btn { color: rgba(255, 255, 255, 0.5); }

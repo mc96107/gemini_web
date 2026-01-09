@@ -1,0 +1,13 @@
+python-dotenv
+fastapi
+uvicorn
+python-multipart
+jinja2
+bcrypt
+itsdangerous
+eth-account
+webauthn
+
+pytest
+
+httpx

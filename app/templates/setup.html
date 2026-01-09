@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup - Gemini Agent</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="icon" type="image/svg+xml" href="/static/icon.svg?v=2">
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        body {
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #121212;
+        }
+        .setup-card {
+            width: 100%;
+            max-width: 450px;
+            padding: 2.5rem;
+            border-radius: 1rem;
+            background-color: #1e1e1e;
+            border: 1px solid #333;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body class="text-light">
+
+<div class="setup-card">
+    <div class="text-center mb-4">
+        <h1 class="h3 mb-3"><i class="bi bi-robot text-primary"></i> Initial Setup</h1>
+        <p class="text-muted">Create your administrator account to begin.</p>
+    </div>
+
+    <form action="/setup" method="post">
+        <div class="mb-3">
+            <label class="form-label">Username</label>
+            <input type="text" class="form-control bg-dark text-light border-secondary" value="admin" disabled>
+            <div class="form-text">The default administrator username is 'admin'.</div>
+        </div>
+        <div class="mb-3">
+            <label for="origin" class="form-label">Application Origin (URL)</label>
+            <input type="url" class="form-control bg-dark text-light border-secondary" id="origin" name="origin" value="http://localhost:8000" required>
+            <div class="form-text">The full URL where this app is hosted (e.g., https://myapp.example.com).</div>
+        </div>
+        <div class="mb-3">
+            <label for="rp_id" class="form-label">RP ID (Domain)</label>
+            <input type="text" class="form-control bg-dark text-light border-secondary" id="rp_id" name="rp_id" value="localhost" required>
+            <div class="form-text">The domain for WebAuthn/Passkeys (e.g., myapp.example.com). Usually the domain part of the Origin.</div>
+        </div>
+        <div class="mb-4">
+            <label for="password" class="form-label">Admin Password</label>
+            <input type="password" class="form-control bg-dark text-light border-secondary" id="password" name="password" required autofocus>
+            <div class="form-text">Choose a strong password for your local agent.</div>
+        </div>
+        <button type="submit" class="btn btn-info w-100 py-2 text-white">Complete Setup</button>
+    </form>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const originInput = document.getElementById('origin');
+        const rpIdInput = document.getElementById('rp_id');
+        
+        // Auto-fill based on current URL
+        if (window.location.origin) {
+            originInput.value = window.location.origin;
+        }
+        if (window.location.hostname) {
+            rpIdInput.value = window.location.hostname;
+        }
+    });
+</script>
+</body>
+</html>

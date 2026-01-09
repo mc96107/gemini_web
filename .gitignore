@@ -1,0 +1,40 @@
+# Environments
+.env
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+env/
+venv/
+.venv/
+venv_release/
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.benchmarks/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.egg-info/
+dist/
+build/
+
+# Application Data
+users.json
+user_sessions.json
+adm.txt
+tmp/
+
+# MCP Web Inspector
+.mcp-web-inspector/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Release Artifacts
+gemini_agent_release.py

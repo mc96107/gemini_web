@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini Termux Agent</title>
+    <link rel="manifest" href="/manifest.json?v=3">
+    <link rel="icon" type="image/svg+xml" href="/static/icon.svg?v=2">
+    <meta name="theme-color" content="#0d6efd">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="/static/icon.svg?v=2">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/github-dark.min.css">
+    <link rel="stylesheet" href="/static/style.css?v={{ range(1, 999999) | random }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+</head>
+<body class="bg-dark text-light">
+
+<div class="container-fluid d-flex flex-column vh-100 p-0">
+    <!-- Header -->
+    <header class="p-3 border-bottom border-secondary bg-black d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center gap-3">
+            <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="offcanvas" data-bs-target="#historySidebar" aria-controls="historySidebar">
+                <i class="bi bi-layout-sidebar-inset"></i>
+            </button>
+            <h1 class="h4 m-0"><i class="bi bi-robot text-primary"></i></h1>
+        </div>
+        <div class="d-flex gap-2 align-items-center">
+            <span class="badge bg-secondary me-2"><i class="bi bi-person"></i> {{ user }}</span>
+            {% if is_admin %}
+            <a href="/admin" class="btn btn-outline-info btn-sm" title="Admin"><i class="bi bi-gear"></i> <span class="d-none d-sm-inline">Admin</span></a>
+            {% endif %}
+            <button id="security-btn" class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#securityModal" title="Security"><i class="bi bi-shield-lock"></i> <span class="d-none d-sm-inline">Security</span></button>
+            <button id="reset-btn" class="btn btn-outline-warning btn-sm" title="Reset Chat"><i class="bi bi-trash"></i> <span class="d-none d-sm-inline">Reset</span></button>
+            <button id="patterns-btn" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#patternsModal" title="Patterns"><i class="bi bi-collection"></i> <span class="d-none d-sm-inline">Patterns</span></button>
+            <a href="/logout" class="btn btn-outline-danger btn-sm" title="Logout"><i class="bi bi-box-arrow-right"></i> <span class="d-none d-sm-inline">Logout</span></a>
+        </div>
+    </header>
+
+    <!-- History Sidebar (Offcanvas) -->
+    <div class="offcanvas offcanvas-start bg-dark text-light border-end border-secondary" tabindex="-1" id="historySidebar" aria-labelledby="historySidebarLabel">
+      <div class="offcanvas-header border-bottom border-secondary">
+        <h5 class="offcanvas-title" id="historySidebarLabel"><i class="bi bi-clock-history"></i> Chat History</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+      </div>
+      <div class="offcanvas-body p-0">
+        <div class="p-3 border-bottom border-secondary">
+            <button id="new-chat-btn" class="btn btn-primary w-100 mb-2"><i class="bi bi-plus-lg"></i> New Chat</button>
+        </div>
+        <div id="sessions-list" class="list-group list-group-flush">
+            <!-- Sessions will be loaded here -->
+            <div class="text-center p-3">
+                <div class="spinner-border text-info spinner-border-sm" role="status"></div>
+            </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chat Area -->
+    <div id="chat-container" class="flex-grow-1 overflow-auto p-3">
+        <div class="text-center text-muted mt-5">
+            <p>Start a conversation with Gemini.</p>
+            <p class="small">Try <code>/help</code> to see available commands.</p>
+        </div>
+    </div>
+
+    <!-- Input Area -->
+    <footer class="py-3 px-3 border-top border-secondary bg-black">
+        <form id="chat-form" class="d-flex flex-column gap-2">
+            
+            <div id="file-preview-area" class="d-none alert alert-secondary p-2 d-flex justify-content-between align-items-center mb-2">
+                <span id="file-name" class="text-truncate"></span>
+                <button type="button" class="btn-close" id="clear-file-btn"></button>
+            </div>
+
+            <div class="d-flex align-items-end gap-2">
+                <!-- Left Actions: Model & Attach -->
+                <div class="d-flex gap-1 pb-1">
+                    <div class="btn-group dropup">
+                        <button class="btn btn-secondary btn-sm rounded-circle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Select Model">
+                            <i class="bi bi-cpu"></i>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><h6 class="dropdown-header">Model Selection</h6></li>
+                            <li><a class="dropdown-item active" href="#" data-model="gemini-3-pro-preview">Gemini 3 Pro <span class="badge bg-warning text-dark ms-1">Preview</span></a></li>
+                            <li><a class="dropdown-item" href="#" data-model="gemini-3-flash-preview">Gemini 3 Flash <span class="badge bg-success ms-1">Preview</span></a></li>
+                            <li><a class="dropdown-item" href="#" data-model="gemini-2.5-pro">Gemini 2.5 Pro</a></li>
+                            <li><a class="dropdown-item" href="#" data-model="gemini-2.5-flash">Gemini 2.5 Flash</a></li>
+                            <li><a class="dropdown-item" href="#" data-model="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</a></li>
+                        </ul>
+                    </div>
+                    <input type="hidden" name="model" id="model-input" value="gemini-3-pro-preview">
+                    
+                    <label class="btn btn-outline-secondary btn-sm rounded-circle" for="file-upload" title="Attach File">
+                        <i class="bi bi-paperclip"></i>
+                    </label>
+                    <input type="file" id="file-upload" name="file" class="d-none">
+                </div>
+
+                <!-- Text Input -->
+                <div class="flex-grow-1">
+                    <textarea class="form-control bg-dark text-light border-secondary shadow-none" id="message-input" name="message" rows="2" placeholder="Message Gemini..." required style="border-radius: 20px;"></textarea>
+                </div>
+                
+                <!-- Send Button -->
+                <button class="btn btn-primary rounded-circle p-2" type="submit" id="send-btn" style="width: 45px; height: 45px;">
+                    <i class="bi bi-send-fill"></i>
+                </button>
+            </div>
+            
+            <div class="text-center">
+                <small class="text-muted" style="font-size: 0.7rem;">Currently using: <span id="model-label">Gemini 3 Pro</span></small>
+            </div>
+        </form>
+    </footer>
+</div>
+
+<!-- Patterns Modal -->
+<div class="modal fade" id="patternsModal" tabindex="-1" aria-labelledby="patternsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content bg-dark text-light border-secondary">
+      <div class="modal-header border-secondary">
+        <h5 class="modal-title" id="patternsModalLabel"><i class="bi bi-collection"></i> Available Patterns</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+            <input type="text" id="pattern-search" class="form-control bg-dark text-light border-secondary" placeholder="Search patterns...">
+        </div>
+        <div class="list-group" id="patterns-list">
+            <!-- Patterns will be loaded here -->
+            <div class="text-center p-3">
+                <div class="spinner-border text-info" role="status"></div>
+            </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Security Modal -->
+<div class="modal fade" id="securityModal" tabindex="-1" aria-labelledby="securityModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content bg-dark text-light border-secondary">
+      <div class="modal-header border-secondary">
+        <h5 class="modal-title" id="securityModalLabel"><i class="bi bi-shield-lock"></i> Security Settings</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-4">
+            <h6><i class="bi bi-key"></i> Passkeys</h6>
+            <p class="small text-muted">Register a Passkey for faster, more secure login without a password.</p>
+            <button id="btn-register-passkey" class="btn btn-outline-info w-100"><i class="bi bi-plus-lg"></i> Register New Passkey</button>
+            <div id="passkey-reg-status" class="mt-2 small"></div>
+        </div>
+        <hr class="border-secondary">
+        <div class="mb-4">
+            <h6><i class="bi bi-grid-3x3"></i> Login Pattern</h6>
+            <p class="small text-muted">Change your pattern-based login.</p>
+            <div class="text-center mb-3">
+                <div id="pattern-container-security" class="mx-auto" style="width: 200px; height: 200px; position: relative; touch-action: none;">
+                    <svg id="pattern-svg-security" width="200" height="200" style="background: #252525; border-radius: 10px;"></svg>
+                </div>
+                <input type="hidden" id="pattern-input-security">
+            </div>
+            <button id="btn-update-pattern" class="btn btn-outline-warning w-100">Update Pattern</button>
+            <div id="pattern-update-status" class="mt-2 small"></div>
+        </div>
+        <hr class="border-secondary">
+        <div class="mb-3">
+            <h6><i class="bi bi-wallet2"></i> Crypto Wallet</h6>
+            <p class="small text-muted">Link your Ethereum wallet (MetaMask/Brave) to sign in using your wallet.</p>
+            <div class="input-group mb-2">
+                <input type="text" id="wallet-address-input" class="form-control bg-dark text-light border-secondary" placeholder="0x..." readonly>
+                <button id="btn-link-wallet" class="btn btn-outline-primary">Link Wallet</button>
+            </div>
+            <div id="wallet-link-status" class="mt-2 small"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+<script>
+    // Security Modal Logic
+    document.addEventListener('DOMContentLoaded', () => {
+        const btnLinkWallet = document.getElementById('btn-link-wallet');
+        const walletStatus = document.getElementById('wallet-link-status');
+        const btnRegisterPasskey = document.getElementById('btn-register-passkey');
+        const passkeyStatus = document.getElementById('passkey-reg-status');
+        
+        // --- Pattern Update Logic ---
+        const svgSec = document.getElementById('pattern-svg-security');
+        const patternInputSec = document.getElementById('pattern-input-security');
+        const btnUpdatePattern = document.getElementById('btn-update-pattern');
+        const patternStatus = document.getElementById('pattern-update-status');
+        const dotsSec = [];
+        const selectedDotsSec = [];
+        let isDrawingSec = false;
+        let currentLineSec = null;
+
+        // Create 3x3 grid for security modal
+        for (let y = 0; y < 3; y++) {
+            for (let x = 0; x < 3; x++) {
+                const cx = 40 + x * 60;
+                const cy = 40 + y * 60;
+                const index = y * 3 + x + 1;
+                
+                const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                dot.setAttribute('cx', cx);
+                dot.setAttribute('cy', cy);
+                dot.setAttribute('r', 8);
+                dot.setAttribute('fill', '#555');
+                dot.setAttribute('data-index', index);
+                svgSec.appendChild(dot);
+                dotsSec.push({ cx, cy, index, element: dot });
+            }
+        }
+
+        function getMousePosSec(e) {
+            const rect = svgSec.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
+        function startDrawingSec(e) {
+            isDrawingSec = true;
+            resetPatternSec();
+            handleMoveSec(e);
+        }
+
+        function handleMoveSec(e) {
+            if (!isDrawingSec) return;
+            const pos = getMousePosSec(e);
+            
+            dotsSec.forEach(dot => {
+                const dist = Math.hypot(pos.x - dot.cx, pos.y - dot.cy);
+                if (dist < 20 && !selectedDotsSec.includes(dot)) {
+                    selectedDotsSec.push(dot);
+                    dot.element.setAttribute('fill', '#ffc107');
+                    dot.element.setAttribute('r', 12);
+                    
+                    if (selectedDotsSec.length > 1) {
+                        const prevDot = selectedDotsSec[selectedDotsSec.length - 2];
+                        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                        line.setAttribute('x1', prevDot.cx);
+                        line.setAttribute('y1', prevDot.cy);
+                        line.setAttribute('x2', dot.cx);
+                        line.setAttribute('y2', dot.cy);
+                        line.setAttribute('stroke', '#ffc107');
+                        line.setAttribute('stroke-width', 3);
+                        svgSec.insertBefore(line, svgSec.firstChild);
+                    }
+                }
+            });
+
+            if (selectedDotsSec.length > 0) {
+                if (currentLineSec) currentLineSec.remove();
+                const lastDot = selectedDotsSec[selectedDotsSec.length - 1];
+                currentLineSec = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                currentLineSec.setAttribute('x1', lastDot.cx);
+                currentLineSec.setAttribute('y1', lastDot.cy);
+                currentLineSec.setAttribute('x2', pos.x);
+                currentLineSec.setAttribute('y2', pos.y);
+                currentLineSec.setAttribute('stroke', '#ffc107');
+                currentLineSec.setAttribute('stroke-width', 2);
+                currentLineSec.setAttribute('stroke-dasharray', '5,5');
+                svgSec.appendChild(currentLineSec);
+            }
+        }
+
+        function stopDrawingSec() {
+            if (!isDrawingSec) return;
+            isDrawingSec = false;
+            if (currentLineSec) currentLineSec.remove();
+            patternInputSec.value = selectedDotsSec.map(d => d.index).join('');
+        }
+
+        function resetPatternSec() {
+            selectedDotsSec.length = 0;
+            svgSec.querySelectorAll('line').forEach(l => l.remove());
+            dotsSec.forEach(dot => {
+                dot.element.setAttribute('fill', '#555');
+                dot.element.setAttribute('r', 8);
+            });
+            patternInputSec.value = '';
+        }
+
+        svgSec.addEventListener('mousedown', startDrawingSec);
+        window.addEventListener('mousemove', handleMoveSec);
+        window.addEventListener('mouseup', stopDrawingSec);
+
+        svgSec.addEventListener('touchstart', (e) => { e.preventDefault(); startDrawingSec(e); });
+        svgSec.addEventListener('touchmove', (e) => { e.preventDefault(); handleMoveSec(e); });
+        svgSec.addEventListener('touchend', stopDrawingSec);
+
+        btnUpdatePattern.addEventListener('click', async () => {
+            const pattern = patternInputSec.value;
+            if (!pattern) {
+                patternStatus.textContent = 'Please draw a pattern first.';
+                patternStatus.className = 'mt-2 small text-danger';
+                return;
+            }
+
+            try {
+                const formData = new FormData();
+                formData.append('pattern', pattern);
+                const res = await fetch('/user/update-pattern', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await res.json();
+                if (result.success) {
+                    patternStatus.textContent = 'Pattern updated successfully!';
+                    patternStatus.className = 'mt-2 small text-success';
+                } else {
+                    patternStatus.textContent = result.error || 'Update failed';
+                    patternStatus.className = 'mt-2 small text-danger';
+                }
+            } catch (err) {
+                patternStatus.textContent = err.message;
+                patternStatus.className = 'mt-2 small text-danger';
+            }
+        });
+
+        btnLinkWallet.addEventListener('click', async () => {
+            if (typeof window.ethereum === 'undefined') {
+                walletStatus.textContent = 'Ethereum wallet not found.';
+                walletStatus.className = 'mt-2 small text-danger';
+                return;
+            }
+
+            try {
+                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                const address = accounts[0];
+
+                const challengeRes = await fetch('/login/web3/challenge');
+                const { challenge } = await challengeRes.json();
+
+                const provider = new ethers.providers.Web3Provider(window.ethereum);
+                const signer = provider.getSigner();
+                const signature = await signer.signMessage(challenge);
+
+                const formData = new FormData();
+                formData.append('address', address);
+                formData.append('signature', signature);
+
+                const res = await fetch('/user/link-wallet', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await res.json();
+                if (result.success) {
+                    walletStatus.textContent = 'Wallet linked successfully!';
+                    walletStatus.className = 'mt-2 small text-success';
+                    document.getElementById('wallet-address-input').value = address;
+                } else {
+                    walletStatus.textContent = result.error || 'Linking failed';
+                    walletStatus.className = 'mt-2 small text-danger';
+                }
+            } catch (err) {
+                walletStatus.textContent = err.message;
+                walletStatus.className = 'mt-2 small text-danger';
+            }
+        });
+
+        btnRegisterPasskey.addEventListener('click', async () => {
+            try {
+                const optionsRes = await fetch('/register/passkey/options');
+                const options = await optionsRes.json();
+
+                options.challenge = base64urlToUint8Array(options.challenge);
+                options.user.id = base64urlToUint8Array(options.user.id);
+                if (options.excludeCredentials) {
+                    options.excludeCredentials.forEach(cred => {
+                        cred.id = base64urlToUint8Array(cred.id);
+                    });
+                }
+
+                const credential = await navigator.credentials.create({
+                    publicKey: options
+                });
+
+                const regData = {
+                    id: credential.id,
+                    rawId: bufferToBase64Url(credential.rawId),
+                    type: credential.type,
+                    response: {
+                        attestationObject: bufferToBase64Url(credential.response.attestationObject),
+                        clientDataJSON: bufferToBase64Url(credential.response.clientDataJSON),
+                    }
+                };
+
+                const verifyRes = await fetch('/register/passkey/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(regData)
+                });
+
+                const result = await verifyRes.json();
+                if (result.success) {
+                    passkeyStatus.textContent = 'Passkey registered successfully!';
+                    passkeyStatus.className = 'mt-2 small text-success';
+                } else {
+                    passkeyStatus.textContent = result.error || 'Registration failed';
+                    passkeyStatus.className = 'mt-2 small text-danger';
+                }
+            } catch (err) {
+                passkeyStatus.textContent = err.message;
+                passkeyStatus.className = 'mt-2 small text-danger';
+            }
+        });
+
+        function base64urlToUint8Array(base64url) {
+            const padding = '='.repeat((4 - base64url.length % 4) % 4);
+            const base64 = (base64url + padding).replace(/\-/g, '+').replace(/_/g, '/');
+            const rawData = window.atob(base64);
+            const outputArray = new Uint8Array(rawData.length);
+            for (let i = 0; i < rawData.length; ++i) {
+                outputArray[i] = rawData.charCodeAt(i);
+            }
+            return outputArray;
+        }
+
+        function bufferToBase64Url(buffer) {
+            const bytes = new Uint8Array(buffer);
+            let binary = '';
+            for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            const base64 = window.btoa(binary);
+            return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+        }
+    });
+</script>
+<script src="/static/script.js?v={{ range(1, 999999) | random }}"></script>
+<script>
+    /*
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+                .then(reg => console.log('SW Registered', reg))
+                .catch(err => console.log('SW Reg Error', err));
+        });
+    }
+    */
+</script>
+</body>
+</html>
