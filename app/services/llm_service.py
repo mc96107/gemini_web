@@ -23,19 +23,42 @@ class GeminiAgent:
                     if not data: return {}
                     # Migration for old flat format
                     if isinstance(next(iter(data.values())), str):
-                        return {uid: {"active_session": suid, "sessions": [suid]} for uid, suid in data.items()}
+                        return {uid: {"active_session": suid, "sessions": [suid], "session_tools": {}} for uid, suid in data.items()}
                     # Ensure all entries have the expected keys
                     for uid in data:
                         if "sessions" not in data[uid]:
                             data[uid]["sessions"] = []
                         if "active_session" not in data[uid]:
                             data[uid]["active_session"] = None
+                        if "session_tools" not in data[uid]:
+                            data[uid]["session_tools"] = {}
+                        if "pending_tools" not in data[uid]:
+                            data[uid]["pending_tools"] = []
                     return data
             except: return {}
         return {}
 
     def _save_user_data(self):
         with open(self.session_file, "w") as f: json.dump(self.user_data, f, indent=2)
+
+    def get_session_tools(self, user_id: str, session_uuid: str) -> List[str]:
+        user_info = self.user_data.get(user_id)
+        if not user_info: return []
+        if session_uuid == "pending":
+            return user_info.get("pending_tools", [])
+        return user_info.get("session_tools", {}).get(session_uuid, [])
+
+    def set_session_tools(self, user_id: str, session_uuid: str, tools: List[str]):
+        if user_id not in self.user_data:
+            self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": []}
+        
+        if session_uuid == "pending":
+            self.user_data[user_id]["pending_tools"] = tools
+        else:
+            if "session_tools" not in self.user_data[user_id]:
+                self.user_data[user_id]["session_tools"] = {}
+            self.user_data[user_id]["session_tools"][session_uuid] = tools
+        self._save_user_data()
 
     def list_patterns(self) -> List[str]:
         return sorted([k for k in PATTERNS.keys() if k != "__explanations__"])
@@ -61,17 +84,36 @@ class GeminiAgent:
 
     async def generate_response(self, user_id: str, prompt: str, model: Optional[str] = None, file_path: Optional[str] = None) -> str:
         if user_id not in self.user_data:
-            self.user_data[user_id] = {"active_session": None, "sessions": []}
+            self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": []}
         else:
             if "sessions" not in self.user_data[user_id]:
                 self.user_data[user_id]["sessions"] = []
             if "active_session" not in self.user_data[user_id]:
                 self.user_data[user_id]["active_session"] = None
+            if "session_tools" not in self.user_data[user_id]:
+                self.user_data[user_id]["session_tools"] = {}
+            if "pending_tools" not in self.user_data[user_id]:
+                self.user_data[user_id]["pending_tools"] = []
 
         session_uuid = self.user_data[user_id].get("active_session")
         current_model = model or self.model_name
         
+        # Get enabled tools for this session
+        enabled_tools = []
+        if session_uuid:
+            enabled_tools = self.get_session_tools(user_id, session_uuid)
+        else:
+            enabled_tools = self.get_session_tools(user_id, "pending")
+        
         args = [self.gemini_cmd]
+        # Security: Apply tool restrictions. Tools not in --allowed-tools will prompt (blocking in non-interactive)
+        if enabled_tools:
+            args.extend(["--allowed-tools", ",".join(enabled_tools)])
+        else:
+            args.extend(["--allowed-tools", "none"])
+        
+        args.extend(["--approval-mode", "default"])
+
         if self.yolo_mode: args.append("--yolo")
         if session_uuid: args.extend(["--resume", session_uuid])
         if current_model: args.extend(["--model", current_model])
@@ -97,6 +139,15 @@ class GeminiAgent:
                     self.user_data[user_id]["active_session"] = new_uuid
                     if new_uuid not in self.user_data[user_id]["sessions"]:
                         self.user_data[user_id]["sessions"].append(new_uuid)
+                    
+                    # Transfer pending tools
+                    pending = self.user_data[user_id].get("pending_tools", [])
+                    if pending:
+                        if "session_tools" not in self.user_data[user_id]:
+                            self.user_data[user_id]["session_tools"] = {}
+                        self.user_data[user_id]["session_tools"][new_uuid] = pending
+                        self.user_data[user_id]["pending_tools"] = []
+                        
                     self._save_user_data()
             return res
         except Exception as e: return f"Error: {str(e)}"

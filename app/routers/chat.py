@@ -52,6 +52,28 @@ async def dl_sess(request: Request, session_uuid: str = Form(...), user=Depends(
     if not user: raise HTTPException(401)
     return {"success": await agent.delete_specific_session(user, session_uuid)}
 
+@router.get("/sessions/{session_uuid}/tools")
+async def get_sess_tools(session_uuid: str, request: Request, user=Depends(get_user)):
+    agent = request.app.state.agent
+    if not user: raise HTTPException(401)
+    if session_uuid != "pending":
+        user_sessions = await agent.get_user_sessions(user)
+        if not any(s['uuid'] == session_uuid for s in user_sessions):
+            raise HTTPException(403, "Access denied")
+    return {"tools": agent.get_session_tools(user, session_uuid)}
+
+@router.post("/sessions/{session_uuid}/tools")
+async def set_sess_tools(session_uuid: str, request: Request, data: dict, user=Depends(get_user)):
+    agent = request.app.state.agent
+    if not user: raise HTTPException(401)
+    if session_uuid != "pending":
+        user_sessions = await agent.get_user_sessions(user)
+        if not any(s['uuid'] == session_uuid for s in user_sessions):
+            raise HTTPException(403, "Access denied")
+    tools = data.get("tools", [])
+    agent.set_session_tools(user, session_uuid, tools)
+    return {"success": True}
+
 @router.get("/patterns")
 async def get_pats(request: Request):
     agent = request.app.state.agent

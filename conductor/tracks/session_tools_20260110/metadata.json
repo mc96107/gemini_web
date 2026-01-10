@@ -1,0 +1,8 @@
+{
+  "track_id": "session_tools_20260110",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-10T09:31:00Z",
+  "updated_at": "2026-01-10T09:31:00Z",
+  "description": "Add tools configuration and functionality to enable tool usage. Settings should be applied and saved per chat (not globally)."
+}

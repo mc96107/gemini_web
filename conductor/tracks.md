@@ -6,3 +6,8 @@ This file tracks all major tracks for the project. Each track has its own detail
 - [x] [Admin Maintenance Features](tracks/admin_maintenance_20260108/plan.md)
 - [x] [Production Configuration](tracks/production_setup_20260108/plan.md)
 - [x] [Branding Update](tracks/branding_update_20260108/plan.md)
+
+---
+
+## [~] Track: Add tools configuration and functionality to enable tool usage. Settings should be applied and saved per chat (not globally).
+*Link: [./conductor/tracks/session_tools_20260110/](./conductor/tracks/session_tools_20260110/)*

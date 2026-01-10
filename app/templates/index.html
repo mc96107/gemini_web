@@ -97,6 +97,10 @@
                         <i class="bi bi-paperclip"></i>
                     </label>
                     <input type="file" id="file-upload" name="file" class="d-none">
+                    
+                    <button class="btn btn-outline-secondary btn-sm rounded-circle" type="button" id="tools-config-btn" data-bs-toggle="modal" data-bs-target="#toolsModal" title="Tools Settings">
+                        <i class="bi bi-wrench"></i>
+                    </button>
                 </div>
 
                 <!-- Text Input -->
@@ -178,6 +182,83 @@
             </div>
             <div id="wallet-link-status" class="mt-2 small"></div>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tools Modal -->
+<div class="modal fade" id="toolsModal" tabindex="-1" aria-labelledby="toolsModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content bg-dark text-light border-secondary">
+      <div class="modal-header border-secondary">
+        <h5 class="modal-title" id="toolsModalLabel"><i class="bi bi-wrench"></i> Tools Settings</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted mb-3">Enable or disable tools for the current session. All tools are disabled by default for security.</p>
+        
+        <div class="mb-4">
+            <h6 class="text-info small mb-2 text-uppercase fw-bold">Read-Only / Safe Tools</h6>
+            <div class="list-group list-group-flush bg-transparent">
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input tool-toggle" type="checkbox" id="tool-list_directory" value="list_directory">
+                    <label class="form-check-label" for="tool-list_directory">Read Folder (list_directory)</label>
+                </div>
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input tool-toggle" type="checkbox" id="tool-read_file" value="read_file">
+                    <label class="form-check-label" for="tool-read_file">Read File (read_file)</label>
+                </div>
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input tool-toggle" type="checkbox" id="tool-glob" value="glob">
+                    <label class="form-check-label" for="tool-glob">Find Files (glob)</label>
+                </div>
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input tool-toggle" type="checkbox" id="tool-search_file_content" value="search_file_content">
+                    <label class="form-check-label" for="tool-search_file_content">Search Text (search_file_content)</label>
+                </div>
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input tool-toggle" type="checkbox" id="tool-google_web_search" value="google_web_search">
+                    <label class="form-check-label" for="tool-google_web_search">Google Search (google_web_search)</label>
+                </div>
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input tool-toggle" type="checkbox" id="tool-web_fetch" value="web_fetch">
+                    <label class="form-check-label" for="tool-web_fetch">Web Fetch (web_fetch)</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="mb-4">
+            <h6 class="text-danger small mb-2 text-uppercase fw-bold">Modification / High-Risk Tools</h6>
+            <div class="list-group list-group-flush bg-transparent">
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input tool-toggle" type="checkbox" id="tool-replace" value="replace">
+                    <label class="form-check-label" for="tool-replace">Edit (replace)</label>
+                </div>
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input tool-toggle" type="checkbox" id="tool-write_file" value="write_file">
+                    <label class="form-check-label" for="tool-write_file">Write File (write_file)</label>
+                </div>
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input tool-toggle" type="checkbox" id="tool-run_shell_command" value="run_shell_command">
+                    <label class="form-check-label" for="tool-run_shell_command">Shell (run_shell_command)</label>
+                </div>
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input tool-toggle" type="checkbox" id="tool-save_memory" value="save_memory">
+                    <label class="form-check-label" for="tool-save_memory">Save Memory (save_memory)</label>
+                </div>
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input tool-toggle" type="checkbox" id="tool-delegate_to_agent" value="delegate_to_agent">
+                    <label class="form-check-label" for="tool-delegate_to_agent">Delegate to Agent (delegate_to_agent)</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-between gap-2 mt-4">
+            <button type="button" class="btn btn-outline-danger btn-sm" id="btn-deselect-all-tools">Deselect All</button>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-apply-tools">Apply Settings</button>
+        </div>
+        <div id="tools-status" class="mt-2 small text-center"></div>
       </div>
     </div>
   </div>

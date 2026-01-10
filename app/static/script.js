@@ -16,9 +16,89 @@ document.addEventListener('DOMContentLoaded', () => {
     const sessionsList = document.getElementById('sessions-list');
     const newChatBtn = document.getElementById('new-chat-btn');
     const historySidebar = document.getElementById('historySidebar');
+    const toolsModal = document.getElementById('toolsModal');
+    const toolsStatus = document.getElementById('tools-status');
+    const btnApplyTools = document.getElementById('btn-apply-tools');
+    const btnDeselectAllTools = document.getElementById('btn-deselect-all-tools');
+    const toolToggles = document.querySelectorAll('.tool-toggle');
 
     let currentFile = null;
     let allPatterns = [];
+
+    // Handle Tools Modal show
+    toolsModal.addEventListener('show.bs.modal', async () => {
+        // Find the active session UUID
+        const activeSessionItem = document.querySelector('.session-item.active-session');
+        let uuid = "pending";
+        if (activeSessionItem) {
+            uuid = activeSessionItem.dataset.uuid;
+        }
+
+        toolsStatus.textContent = 'Loading settings...';
+        toolsStatus.className = 'mt-2 small text-muted';
+
+        // Reset toggles first
+        toolToggles.forEach(t => t.checked = false);
+
+        try {
+            const response = await fetch(`/sessions/${uuid}/tools`);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            
+            if (data.tools) {
+                data.tools.forEach(toolName => {
+                    const toggle = document.querySelector(`.tool-toggle[value="${toolName}"]`);
+                    if (toggle) toggle.checked = true;
+                });
+            }
+            toolsStatus.textContent = '';
+        } catch (error) {
+            console.error('Error loading tool settings:', error);
+            toolsStatus.textContent = 'Failed to load settings.';
+            toolsStatus.className = 'mt-2 small text-danger';
+        }
+    });
+
+    btnApplyTools.addEventListener('click', async () => {
+        const activeSessionItem = document.querySelector('.session-item.active-session');
+        let uuid = "pending";
+        if (activeSessionItem) {
+            uuid = activeSessionItem.dataset.uuid;
+        }
+
+        const selectedTools = Array.from(toolToggles)
+            .filter(t => t.checked)
+            .map(t => t.value);
+
+        toolsStatus.textContent = 'Saving settings...';
+        toolsStatus.className = 'mt-2 small text-muted';
+
+        try {
+            const response = await fetch(`/sessions/${uuid}/tools`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tools: selectedTools })
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            if (data.success) {
+                toolsStatus.textContent = 'Settings applied successfully!';
+                toolsStatus.className = 'mt-2 small text-success';
+                setTimeout(() => {
+                    const modal = bootstrap.Modal.getInstance(toolsModal);
+                    if (modal) modal.hide();
+                }, 1000);
+            }
+        } catch (error) {
+            console.error('Error saving tool settings:', error);
+            toolsStatus.textContent = 'Failed to save settings.';
+            toolsStatus.className = 'mt-2 small text-danger';
+        }
+    });
+
+    btnDeselectAllTools.addEventListener('click', () => {
+        toolToggles.forEach(t => t.checked = false);
+    });
 
     // Load sessions when sidebar is shown
     historySidebar.addEventListener('show.bs.offcanvas', loadSessions);
