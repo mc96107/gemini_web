@@ -17,6 +17,10 @@ The Gemini Termux Agent is designed for:
 
 ## Key Features
 * **Interactive Web Chat:** A responsive chat interface featuring conversation history and dynamic UI updates.
+* **Session Auto-Restoration:** Automatically reloads the last active chat session upon login, providing a seamless continuation of previous conversations.
+* **Smart History Pagination:** Efficiently handles long chat histories by lazy-loading messages, ensuring fast initial load times regardless of conversation length.
+* **Real-Time Streaming:** Responses are streamed chunk-by-chunk using Server-Sent Events (SSE), providing immediate feedback and preventing timeouts on complex tasks.
+* **Live Tool Logs:** Transparent execution of background tools (filesystem, search, etc.) with real-time logs displayed directly in the chat.
 * **Advanced Authentication:** Support for passwordless login via Passkeys (WebAuthn) and cryptographically secure login via Ethereum wallet signatures.
 * **Per-Session Tool Security:** Granular control over Gemini CLI tools (e.g., file access, shell execution) on a per-session basis. All tools are disabled by default for maximum security, allowing users to selectively enable only the tools required for the current task.
 * **Pattern-Based Prompting:** A template system (Patterns) that allows users to leverage expert-crafted prompts for specific tasks like Agile story creation or insightful AI analysis.

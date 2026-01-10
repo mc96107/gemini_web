@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Request, Form, UploadFile, File, HTTPException, Depends
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from typing import Optional
 import os
 import shutil
+import json
 
 router = APIRouter()
 
@@ -24,14 +25,14 @@ async def get_sess(request: Request, user=Depends(get_user)):
     return await agent.get_user_sessions(user)
 
 @router.get("/sessions/{session_uuid}/messages")
-async def get_sess_messages(session_uuid: str, request: Request, user=Depends(get_user)):
+async def get_sess_messages(session_uuid: str, request: Request, limit: Optional[int] = None, offset: int = 0, user=Depends(get_user)):
     agent = request.app.state.agent
     if not user: raise HTTPException(401)
     # Security: check if this session belongs to the user
     user_sessions = await agent.get_user_sessions(user)
     if not any(s['uuid'] == session_uuid for s in user_sessions):
         raise HTTPException(403, "Access denied")
-    return await agent.get_session_messages(session_uuid)
+    return await agent.get_session_messages(session_uuid, limit=limit, offset=offset)
 
 @router.post("/sessions/switch")
 async def sw_sess(request: Request, session_uuid: str = Form(...), user=Depends(get_user)):
@@ -118,7 +119,13 @@ async def chat(request: Request, message: str = Form(...), file: Optional[Upload
             agent.yolo_mode = not agent.yolo_mode
             return {"response": f"YOLO Mode {'ENABLED' if agent.yolo_mode else 'DISABLED'}."}
         if cmd == "/help": return {"response": "Commands: /reset, /pro, /p [pattern], /yolo, /help"}
-    return {"response": await agent.generate_response(user, message, model=m_override, file_path=fpath)}
+    
+    async def event_generator():
+        async for chunk in agent.generate_response_stream(user, message, model=m_override, file_path=fpath):
+            yield f"data: {json.dumps(chunk)}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 @router.post("/reset")
 async def reset(request: Request, user=Depends(get_user)):

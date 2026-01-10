@@ -3,7 +3,7 @@ import os
 import re
 import asyncio
 import shutil
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, AsyncGenerator
 from app.core.patterns import PATTERNS
 
 class GeminiAgent:
@@ -82,7 +82,7 @@ class GeminiAgent:
             return matches[-1] if matches else None
         except: return None
 
-    async def generate_response(self, user_id: str, prompt: str, model: Optional[str] = None, file_path: Optional[str] = None) -> str:
+    async def generate_response_stream(self, user_id: str, prompt: str, model: Optional[str] = None, file_path: Optional[str] = None) -> AsyncGenerator[Dict, None]:
         if user_id not in self.user_data:
             self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": []}
         else:
@@ -106,7 +106,9 @@ class GeminiAgent:
             enabled_tools = self.get_session_tools(user_id, "pending")
         
         args = [self.gemini_cmd]
-        # Security: Apply tool restrictions. Tools not in --allowed-tools will prompt (blocking in non-interactive)
+        args.extend(["--output-format", "stream-json"])
+        
+        # Security: Apply tool restrictions
         if enabled_tools:
             args.extend(["--allowed-tools", ",".join(enabled_tools)])
         else:
@@ -123,16 +125,32 @@ class GeminiAgent:
 
         try:
             proc = await asyncio.create_subprocess_exec(*args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=self.working_dir)
-            stdout, stderr = await proc.communicate()
-            res = stdout.decode().strip()
-            err = self._filter_errors(stderr.decode().strip())
+            
+            # Read stdout line by line
+            while True:
+                line = await proc.stdout.readline()
+                if not line:
+                    break
+                line_str = line.decode().strip()
+                if not line_str: continue
+                try:
+                    data = json.loads(line_str)
+                    yield data
+                except json.JSONDecodeError:
+                    yield {"type": "raw", "content": line_str}
+            
+            await proc.wait()
+            
             if proc.returncode != 0:
+                stderr_output = await proc.stderr.read()
+                err = self._filter_errors(stderr_output.decode().strip())
                 if session_uuid and any(x in err.lower() for x in ["no session", "not found", "invalid session"]):
                     self.user_data[user_id]["active_session"] = None
-                    return await self.generate_response(user_id, prompt, model, file_path)
-                return f"Error: {err}"
+                    yield {"type": "error", "content": f"Session error: {err}"}
+                else:
+                    yield {"type": "error", "content": f"Error: {err}"}
             
-            # If we didn't have a session, find the one that was just created
+            # Session Logic
             if not session_uuid:
                 new_uuid = await self._get_latest_session_uuid()
                 if new_uuid:
@@ -140,7 +158,6 @@ class GeminiAgent:
                     if new_uuid not in self.user_data[user_id]["sessions"]:
                         self.user_data[user_id]["sessions"].append(new_uuid)
                     
-                    # Transfer pending tools
                     pending = self.user_data[user_id].get("pending_tools", [])
                     if pending:
                         if "session_tools" not in self.user_data[user_id]:
@@ -149,11 +166,27 @@ class GeminiAgent:
                         self.user_data[user_id]["pending_tools"] = []
                         
                     self._save_user_data()
-            return res
-        except Exception as e: return f"Error: {str(e)}"
+
+        except Exception as e:
+            yield {"type": "error", "content": f"Exception: {str(e)}"}
+
+    async def generate_response(self, user_id: str, prompt: str, model: Optional[str] = None, file_path: Optional[str] = None) -> str:
+        full_response = ""
+        async for chunk in self.generate_response_stream(user_id, prompt, model, file_path):
+            if chunk.get("type") == "message":
+                full_response += chunk.get("content", "")
+            elif chunk.get("type") == "error":
+                full_response += f"\n[Error: {chunk.get('content')}]"
+            elif chunk.get("type") == "raw":
+                 full_response += chunk.get("content", "") + "\n"
+        return full_response.strip()
 
     async def get_user_sessions(self, user_id: str) -> List[Dict]:
-        user_info = self.user_data.get(user_id, {"active_session": None, "sessions": []})
+        if user_id not in self.user_data:
+            self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": []}
+            self._save_user_data()
+            
+        user_info = self.user_data[user_id]
         uuids = user_info.get("sessions", [])
         if not uuids: return []
         
@@ -175,7 +208,7 @@ class GeminiAgent:
         except: 
             return [{"uuid": u, "title": "Unknown", "time": "Unknown", "active": (u == user_info.get("active_session"))} for u in uuids]
 
-    async def get_session_messages(self, session_uuid: str) -> List[Dict]:
+    async def get_session_messages(self, session_uuid: str, limit: Optional[int] = None, offset: int = 0) -> List[Dict]:
         try:
             # Try to find the session file
             uuid_start = session_uuid.split('-')[0]
@@ -190,11 +223,25 @@ class GeminiAgent:
             files.sort(key=os.path.getmtime, reverse=True)
             with open(files[0], 'r') as f:
                 data = json.load(f)
+                all_messages = data.get("messages", [])
+                
+                # Apply pagination: get latest messages first
+                total = len(all_messages)
+                if limit is not None:
+                    start = max(0, total - offset - limit)
+                    end = max(0, total - offset)
+                    messages_to_process = all_messages[start:end]
+                else:
+                    messages_to_process = all_messages
+                
                 messages = []
-                for msg in data.get("messages", []):
+                for msg in messages_to_process:
+                    content = msg.get("content", "")
+                    if not content or content.strip() == "":
+                        continue
                     messages.append({
                         "role": "user" if msg.get("type") == "user" else "bot",
-                        "content": msg.get("content", "")
+                        "content": content
                     })
                 return messages
         except: return []

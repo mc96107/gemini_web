@@ -60,7 +60,10 @@
 
     <!-- Chat Area -->
     <div id="chat-container" class="flex-grow-1 overflow-auto p-3">
-        <div class="text-center text-muted mt-5">
+        <div id="load-more-container" class="text-center d-none mb-3">
+            <button id="load-more-btn" class="btn btn-outline-secondary btn-sm">Load Older Messages</button>
+        </div>
+        <div id="chat-welcome" class="text-center text-muted mt-5">
             <p>Start a conversation with Gemini.</p>
             <p class="small">Try <code>/help</code> to see available commands.</p>
         </div>
@@ -119,6 +122,18 @@
             </div>
         </form>
     </footer>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="liveToast" class="toast align-items-center text-white bg-primary border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body" id="toast-body">
+                Notification message
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
 </div>
 
 <!-- Patterns Modal -->

@@ -21,9 +21,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnApplyTools = document.getElementById('btn-apply-tools');
     const btnDeselectAllTools = document.getElementById('btn-deselect-all-tools');
     const toolToggles = document.querySelectorAll('.tool-toggle');
+    
+    const liveToast = document.getElementById('liveToast');
+    const toastBody = document.getElementById('toast-body');
+    const loadMoreContainer = document.getElementById('load-more-container');
+    const loadMoreBtn = document.getElementById('load-more-btn');
+    const chatWelcome = document.getElementById('chat-welcome');
 
     let currentFile = null;
     let allPatterns = [];
+    let currentOffset = 0;
+    const PAGE_LIMIT = 20;
+
+    function showToast(message) {
+        if (!liveToast) return;
+        toastBody.textContent = message;
+        const toast = new bootstrap.Toast(liveToast);
+        toast.show();
+    }
 
     // Handle Tools Modal show
     toolsModal.addEventListener('show.bs.modal', async () => {
@@ -100,20 +115,81 @@ document.addEventListener('DOMContentLoaded', () => {
         toolToggles.forEach(t => t.checked = false);
     });
 
+    if (loadMoreBtn) {
+        loadMoreBtn.addEventListener('click', () => {
+            const activeSessionItem = document.querySelector('.session-item.active-session');
+            if (activeSessionItem) {
+                loadMessages(activeSessionItem.dataset.uuid, PAGE_LIMIT, currentOffset);
+            }
+        });
+    }
+
     // Load sessions when sidebar is shown
     historySidebar.addEventListener('show.bs.offcanvas', loadSessions);
 
+    // Load sessions on page load
+    loadSessions();
+
     
-    async function loadMessages(uuid) {
+    async function loadMessages(uuid, limit = PAGE_LIMIT, offset = 0, isAutoRestore = false) {
         try {
-            const response = await fetch(`/sessions/${uuid}/messages`);
+            const response = await fetch(`/sessions/${uuid}/messages?limit=${limit}&offset=${offset}`);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const messages = await response.json();
-            chatContainer.innerHTML = ''; // Clear current chat
-            if (messages.length === 0) {
-                chatContainer.innerHTML = '<div class="text-center text-muted mt-5"><p>Start a conversation with Gemini.</p><p class="small">Try <code>/help</code> to see available commands.</p></div>';
+            
+            if (offset === 0) {
+                // Clear existing messages only if it's the first page
+                chatContainer.querySelectorAll('.message').forEach(m => m.remove());
+                currentOffset = 0;
+                if (chatWelcome) chatWelcome.classList.add('d-none');
+            }
+
+            if (messages.length > 0) {
+                if (offset === 0) {
+                    messages.forEach(msg => {
+                        const msgDiv = createMessageDiv(msg.role, msg.content);
+                        if (msgDiv) chatContainer.appendChild(msgDiv);
+                    });
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                } else {
+                    // Prepend for "Load More"
+                    // We need to maintain scroll position
+                    const scrollHeightBefore = chatContainer.scrollHeight;
+                    const firstMessage = chatContainer.querySelector('.message');
+                    
+                    // Messages are in chronological order for the range.
+                    // To prepend correctly, we reverse and prepend.
+                    [...messages].reverse().forEach(msg => {
+                        const msgDiv = createMessageDiv(msg.role, msg.content);
+                        if (msgDiv) {
+                            if (firstMessage) {
+                                chatContainer.insertBefore(msgDiv, firstMessage);
+                            } else {
+                                chatContainer.appendChild(msgDiv);
+                            }
+                        }
+                    });
+                    
+                    chatContainer.scrollTop = chatContainer.scrollHeight - scrollHeightBefore;
+                }
+                
+                currentOffset += messages.length;
+                
+                // Show/Hide Load More
+                if (messages.length === limit) {
+                    if (loadMoreContainer) loadMoreContainer.classList.remove('d-none');
+                } else {
+                    if (loadMoreContainer) loadMoreContainer.classList.add('d-none');
+                }
+
+                if (isAutoRestore) {
+                    showToast('Resumed last session');
+                }
             } else {
-                messages.forEach(msg => appendMessage(msg.role, msg.content));
+                if (offset === 0) {
+                    if (chatWelcome) chatWelcome.classList.remove('d-none');
+                }
+                if (loadMoreContainer) loadMoreContainer.classList.add('d-none');
             }
         } catch (error) {
             console.error('Error loading messages:', error);
@@ -125,14 +201,27 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/sessions');
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const sessions = await response.json();
+            
+            // Auto-create if none
+            if (sessions.length === 0) {
+                const newRes = await fetch('/sessions/new', { method: 'POST' });
+                if (newRes.ok) {
+                    loadSessions();
+                    return;
+                }
+            }
+
             renderSessions(sessions);
             const activeSession = sessions.find(s => s.active);
-            if (activeSession && chatContainer.querySelectorAll('.message').length === 0) {
-                 loadMessages(activeSession.uuid);
+            
+            // Check if we need to auto-load
+            const hasMessages = chatContainer.querySelectorAll('.message').length > 0;
+            if (activeSession && !hasMessages) {
+                 loadMessages(activeSession.uuid, PAGE_LIMIT, 0, true);
             }
         } catch (error) {
             console.error('Error loading sessions:', error);
-            sessionsList.innerHTML = `<div class="alert alert-danger mx-3 mt-3">Failed to load history: ${error.message}</div>`;
+            if (sessionsList) sessionsList.innerHTML = `<div class="alert alert-danger mx-3 mt-3">Failed to load history: ${error.message}</div>`;
         }
     }
 
@@ -418,7 +507,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             errorMessage = errorData.response;
                         }
                     } catch (parseError) {
-                        // Not JSON, use the raw text if short, or just the status
                         if (text && text.length < 100) {
                             errorMessage = `Error ${response.status}: ${text}`;
                         } else {
@@ -431,11 +519,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(errorMessage);
             }
 
-            const data = await response.json();
-            
-            // Remove loading and add bot response
-            removeLoading(loadingId);
-            appendMessage('bot', data.response);
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('text/event-stream')) {
+                await processStream(response, loadingId);
+            } else {
+                const data = await response.json();
+                removeLoading(loadingId);
+                appendMessage('bot', data.response);
+            }
 
         } catch (error) {
             removeLoading(loadingId);
@@ -448,34 +539,135 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    function appendMessage(sender, text, attachmentInfo = null) {
+    async function processStream(response, loadingId) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let messageDiv = null;
+        
+        let fullText = "";
+        let toolLogs = [];
+        let buffer = "";
+        
+        const renderInterval = 100; // ms
+        let lastRenderTime = 0;
+
         try {
-            const messageDiv = document.createElement('div');
-            messageDiv.classList.add('message', sender);
-            
-            let contentHtml = '';
-            if (attachmentInfo) {
-                contentHtml += `<div class="text-muted small mb-1"><i class="bi bi-paperclip"></i> ${attachmentInfo}</div>`;
-            }
-            
-            // Use marked to parse markdown safely
-            let parsedText = text;
-            try {
-                if (typeof marked !== 'undefined') {
-                    // Check if it's the newer marked.parse or the older marked()
-                    if (typeof marked.parse === 'function') {
-                        parsedText = marked.parse(text);
-                    } else if (typeof marked === 'function') {
-                        parsedText = marked(text);
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const dataStr = line.substring(6).trim();
+                        if (dataStr === '[DONE]') continue;
+                        
+                        try {
+                            const data = JSON.parse(dataStr);
+                            if (data.type === 'message' && data.role === 'assistant') {
+                                fullText += data.content;
+                            } else if (data.type === 'tool_use') {
+                                toolLogs.push({ type: 'call', name: data.tool_name, input: data.parameters });
+                            } else if (data.type === 'tool_result') {
+                                // Only add tool results if they have output
+                                if (data.output && data.output.trim() !== "") {
+                                    toolLogs.push({ type: 'output', output: data.output });
+                                }
+                            } else if (data.type === 'error') {
+                                fullText += `\n\n[Error: ${data.content}]\n\n`;
+                            }
+                            
+                            // Lazily create the message div only when we have content or tools to show
+                            if (!messageDiv && (fullText.trim().length > 0 || toolLogs.length > 0)) {
+                                messageDiv = createStreamingMessage('bot');
+                                removeLoading(loadingId);
+                                if (chatWelcome) chatWelcome.classList.add('d-none');
+                            }
+
+                            if (messageDiv) {
+                                const now = Date.now();
+                                if (now - lastRenderTime > renderInterval) {
+                                    updateStreamingMessage(messageDiv, fullText, toolLogs);
+                                    lastRenderTime = now;
+                                }
+                            }
+                        } catch (e) {
+                            console.error('Error parsing stream chunk:', e, dataStr);
+                        }
                     }
                 }
-            } catch (e) {
-                console.error('Error parsing markdown:', e);
             }
-            
-            contentHtml += parsedText;
+            if (messageDiv) {
+                updateStreamingMessage(messageDiv, fullText, toolLogs, true);
+            } else {
+                removeLoading(loadingId);
+            }
+        } catch (error) {
+            console.error('Stream processing error:', error);
+            if (!messageDiv) {
+                messageDiv = createStreamingMessage('bot');
+                removeLoading(loadingId);
+            }
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'text-danger small mt-2';
+            errorDiv.textContent = 'Connection lost. Message may be incomplete.';
+            messageDiv.appendChild(errorDiv);
+        }
+    }
 
-            messageDiv.innerHTML = contentHtml;
+    function createStreamingMessage(sender) {
+        const messageDiv = document.createElement('div');
+        messageDiv.classList.add('message', sender);
+        
+        const contentArea = document.createElement('div');
+        contentArea.className = 'message-content';
+        messageDiv.appendChild(contentArea);
+        
+        const logsArea = document.createElement('div');
+        logsArea.className = 'tool-logs mt-2 d-none';
+        messageDiv.appendChild(logsArea);
+        
+        chatContainer.appendChild(messageDiv);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+        return messageDiv;
+    }
+
+    function updateStreamingMessage(messageDiv, text, toolLogs, isFinal = false) {
+        const contentArea = messageDiv.querySelector('.message-content');
+        const logsArea = messageDiv.querySelector('.tool-logs');
+        
+        // Render Text
+        if (text.trim().length > 0) {
+            if (typeof marked !== 'undefined') {
+                contentArea.innerHTML = marked.parse(text);
+            } else {
+                contentArea.textContent = text;
+            }
+        }
+        
+        // Render Logs
+        if (toolLogs.length > 0) {
+            logsArea.classList.remove('d-none');
+            logsArea.innerHTML = toolLogs.map(log => {
+                if (log.type === 'call') {
+                    return `<div class="small text-info border-start border-info ps-2 mb-1" style="font-family: monospace;">
+                        <strong>Tool Call:</strong> ${log.name}<br>
+                        <span class="text-muted" style="word-break: break-all; font-size: 0.7rem;">${JSON.stringify(log.input)}</span>
+                    </div>`;
+                } else {
+                    if (!log.output || log.output.trim() === "") return "";
+                    return `<div class="small text-success border-start border-success ps-2 mb-2" style="font-family: monospace;">
+                        <strong>Tool Output:</strong><br>
+                        <pre class="m-0" style="font-size: 0.7rem; max-height: 150px; overflow: auto; background: #1a1a1a; padding: 5px; border-radius: 4px;">${log.output}</pre>
+                    </div>`;
+                }
+            }).join('');
+        }
+        
+        if (isFinal) {
             // Add copy button
             const copyBtn = document.createElement('button');
             copyBtn.className = 'copy-btn';
@@ -489,20 +681,79 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             };
             messageDiv.appendChild(copyBtn);
-
-            chatContainer.appendChild(messageDiv);
             
-            // Highlight code blocks safely
-            try {
-                if (typeof hljs !== 'undefined') {
-                    messageDiv.querySelectorAll('pre code').forEach((block) => {
-                        hljs.highlightElement(block);
-                    });
-                }
-            } catch (e) {
-                console.error('Error highlighting code:', e);
+            // Highlight code
+            if (typeof hljs !== 'undefined') {
+                messageDiv.querySelectorAll('pre code').forEach((block) => {
+                    hljs.highlightElement(block);
+                });
             }
+        }
+        
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
 
+    function createMessageDiv(sender, text, attachmentInfo = null) {
+        if (!text && !attachmentInfo) return null;
+        if (text && text.trim() === "" && !attachmentInfo) return null;
+
+        const messageDiv = document.createElement('div');
+        messageDiv.classList.add('message', sender);
+        
+        let contentHtml = '';
+        if (attachmentInfo) {
+            contentHtml += `<div class="text-muted small mb-1"><i class="bi bi-paperclip"></i> ${attachmentInfo}</div>`;
+        }
+        
+        // Use marked to parse markdown safely
+        let parsedText = text;
+        try {
+            if (typeof marked !== 'undefined') {
+                if (typeof marked.parse === 'function') {
+                    parsedText = marked.parse(text);
+                } else if (typeof marked === 'function') {
+                    parsedText = marked(text);
+                }
+            }
+        } catch (e) {
+            console.error('Error parsing markdown:', e);
+        }
+        
+        contentHtml += parsedText;
+
+        messageDiv.innerHTML = contentHtml;
+        // Add copy button
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'copy-btn';
+        copyBtn.innerHTML = '<i class="bi bi-clipboard"></i>';
+        copyBtn.onclick = (e) => {
+            e.stopPropagation();
+            navigator.clipboard.writeText(text).then(() => {
+                const icon = copyBtn.querySelector('i');
+                icon.className = 'bi bi-check2';
+                setTimeout(() => { icon.className = 'bi bi-clipboard'; }, 2000);
+            });
+        };
+        messageDiv.appendChild(copyBtn);
+
+        // Highlight code blocks safely
+        try {
+            if (typeof hljs !== 'undefined') {
+                messageDiv.querySelectorAll('pre code').forEach((block) => {
+                    hljs.highlightElement(block);
+                });
+            }
+        } catch (e) {
+            console.error('Error highlighting code:', e);
+        }
+        
+        return messageDiv;
+    }
+
+    function appendMessage(sender, text, attachmentInfo = null) {
+        try {
+            const messageDiv = createMessageDiv(sender, text, attachmentInfo);
+            chatContainer.appendChild(messageDiv);
             chatContainer.scrollTop = chatContainer.scrollHeight;
         } catch (e) {
             console.error('Error in appendMessage:', e);
