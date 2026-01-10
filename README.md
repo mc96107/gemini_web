@@ -117,3 +117,7 @@ This project was born from a unique collaborative process using AI-driven develo
 ---
 
 Created with ❤ using **Gemini CLI** and **Conductor**.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
