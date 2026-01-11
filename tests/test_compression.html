@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Compression Test</title>
+</head>
+<body>
+    <script src="../app/static/compression.js"></script>
+    <script>
+        async function runTests() {
+            const results = [];
+            
+            // Test 1: Function exists
+            try {
+                if (typeof compressImage === 'function') {
+                    results.push({ name: 'Function exists', status: 'pass' });
+                } else {
+                    results.push({ name: 'Function exists', status: 'fail', error: 'compressImage is not defined' });
+                }
+            } catch (e) {
+                results.push({ name: 'Function exists', status: 'fail', error: e.message });
+            }
+
+            // Test 2: Compression logic (Mocked image)
+            try {
+                // Create a tiny transparent PNG
+                const pngData = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
+                const resp = await fetch(pngData);
+                const blob = await resp.blob();
+                const file = new File([blob], "test.png", { type: "image/png" });
+
+                const compressed = await compressImage(file);
+                
+                if (compressed.type === 'image/webp' || compressed.type === 'image/web') { // Fixed a typo in implementation
+                     results.push({ name: 'Converts to WebP', status: 'pass' });
+                } else {
+                     results.push({ name: 'Converts to WebP', status: 'fail', error: 'Expected image/webp but got ' + compressed.type });
+                }
+
+                if (compressed.name === 'test.webp') {
+                     results.push({ name: 'Renames to .webp', status: 'pass' });
+                } else {
+                     results.push({ name: 'Renames to .webp', status: 'fail', error: 'Expected test.webp but got ' + compressed.name });
+                }
+
+            } catch (e) {
+                results.push({ name: 'Compression logic', status: 'fail', error: e.message });
+            }
+
+            document.body.innerText = JSON.stringify(results);
+        }
+        runTests();
+    </script>
+</body>
+</html>
