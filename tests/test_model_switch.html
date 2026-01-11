@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Model Switch Test</title>
+</head>
+<body>
+    <div id="test-container" style="display:none">
+        <input type="file" id="file-upload">
+        <div id="file-preview-area" class="d-none"></div>
+        <div id="file-name"></div>
+        <input type="hidden" id="model-input" value="original-model">
+        <span id="model-label">Original Model</span>
+        
+        <!-- Mock Dropdown Links -->
+        <a href="#" data-model="gemini-3-pro-preview" class="active">Gemini 3 Pro</a>
+        <a href="#" data-model="gemini-3-flash-preview">Gemini 3 Flash Preview</a>
+    </div>
+
+    <script>
+        // Mock globals
+        window.bootstrap = {
+            Offcanvas: { getInstance: () => ({ hide: () => {} }) },
+            Modal: { getInstance: () => ({ hide: () => {} }) },
+            Toast: function() { return { show: () => {} }; }
+        };
+        window.marked = { parse: (t) => t };
+        window.hljs = { highlightElement: () => {} };
+        window.fetch = async () => ({ ok: true, json: async () => ([]) });
+    </script>
+    
+    <script src="../app/static/script.js"></script>
+
+    <script>
+        async function runTests() {
+            const results = [];
+            
+            try {
+                const fileUpload = document.getElementById('file-upload');
+                const modelInput = document.getElementById('model-input');
+                const modelLabel = document.getElementById('model-label');
+                
+                // Simulate file selection
+                const file = new File(["test"], "test.png", { type: "image/png" });
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+                fileUpload.files = dataTransfer.files;
+                fileUpload.dispatchEvent(new Event('change', { bubbles: true }));
+
+                // Allow event loop to process
+                await new Promise(r => setTimeout(r, 100));
+
+                // Check Model Input
+                if (modelInput.value === "gemini-3-flash-preview") {
+                    results.push({ name: 'Model input updated', status: 'pass' });
+                } else {
+                    results.push({ name: 'Model input updated', status: 'fail', error: `Expected gemini-3-flash-preview, got ${modelInput.value}` });
+                }
+
+                // Check Label (contains "Auto-switched")
+                if (modelLabel.textContent.includes("Auto-switched")) {
+                    results.push({ name: 'Label updated', status: 'pass' });
+                } else {
+                    results.push({ name: 'Label updated', status: 'fail', error: `Label text: ${modelLabel.textContent}` });
+                }
+
+            } catch (e) {
+                results.push({ name: 'Test execution', status: 'fail', error: e.message });
+            }
+
+            document.body.innerText = JSON.stringify(results);
+        }
+        
+        setTimeout(runTests, 500);
+    </script>
+</body>
+</html>

@@ -437,6 +437,22 @@ document.addEventListener('DOMContentLoaded', () => {
             currentFile = e.target.files[0];
             fileNameDisplay.textContent = currentFile.name;
             filePreviewArea.classList.remove('d-none');
+            
+            // Auto-switch to Gemini 3 Flash Preview for better vision support
+            const flashModel = "gemini-3-flash-preview";
+            modelInput.value = flashModel;
+            
+            // Update UI label and active state
+            modelLinks.forEach(link => {
+                if (link.dataset.model === flashModel) {
+                    link.classList.add('active');
+                    let modelName = link.innerText;
+                    modelName = modelName.replace('Fast', '').replace('Smart', '').replace('Preview', '').trim();
+                    modelLabel.textContent = modelName + " (Auto-switched)";
+                } else {
+                    link.classList.remove('active');
+                }
+            });
         }
     });
 
