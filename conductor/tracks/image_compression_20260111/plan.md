@@ -13,10 +13,10 @@
 - [x] Task: Conductor - User Manual Verification 'Client-Side Logic Implementation' (Protocol in workflow.md) 90dcc43
 
 ## Phase 2: Verification
-- [ ] Task: Verify Compression
-    - [ ] Upload a large image (>5MB) via the UI.
-    - [ ] Inspect the network request in browser dev tools to confirm the payload size is reduced (<1MB).
-    - [ ] Verify the content-type header is `image/webp`.
-- [ ] Task: Verify End-to-End Chat
-    - [ ] Confirm the model receives the image and can respond to it.
-- [ ] Task: Conductor - User Manual Verification 'Verification' (Protocol in workflow.md)
+- [x] Task: Verify Compression 4dd15dd
+    - [x] Upload a large image (>5MB) via the UI.
+    - [x] Inspect the network request in browser dev tools to confirm the payload size is reduced (<1MB).
+    - [x] Verify the content-type header is `image/webp`.
+- [x] Task: Verify End-to-End Chat 90dcc43
+    - [x] Confirm the model receives the image and can respond to it.
+- [x] Task: Conductor - User Manual Verification 'Verification' (Protocol in workflow.md) 4950d35

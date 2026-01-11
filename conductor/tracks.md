@@ -9,5 +9,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## [~] Track: when the user adds a photo to a chat from the web ui it usualy exceeds the model context window. add a way to compress the protos before passing them to gemini
+## [x] Track: when the user adds a photo to a chat from the web ui it usualy exceeds the model context window. add a way to compress the protos before passing them to gemini
 *Link: [./conductor/tracks/image_compression_20260111/](./conductor/tracks/image_compression_20260111/)*
