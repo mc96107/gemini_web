@@ -486,7 +486,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const formData = new FormData();
             formData.append('message', message);
             if (fileToSend) {
-                formData.append('file', fileToSend);
+                let finalFile = fileToSend;
+                // Compress if it's an image
+                if (fileToSend.type.startsWith('image/') && typeof compressImage === 'function') {
+                    try {
+                        finalFile = await compressImage(fileToSend);
+                    } catch (compressError) {
+                        console.error('Compression failed, sending original:', compressError);
+                    }
+                }
+                formData.append('file', finalFile);
             }
             formData.append('model', modelInput.value);
 
