@@ -3,10 +3,10 @@
 ## Phase 1: CSP and UI Fixes
 - [x] Task: Update CSP in `app/main.py` 8a05af8
     - [x] Update `SecurityHeadersMiddleware` to allow `connect-src` to `cdn.jsdelivr.net`.
-- [ ] Task: Fix UI Loading Hang in `app/static/script.js`
-    - [ ] Locate the session switching logic (where "Loading conversation..." is injected).
-    - [ ] Ensure `loadMessages` properly handles the `chatContainer` content clearing.
-    - [ ] Add a safety check in `loadMessages` to remove any existing "Loading conversation..." message if it's the first page (`offset === 0`).
+- [x] Task: Fix UI Loading Hang in `app/static/script.js` 30bcc7f
+    - [x] Locate the session switching logic (where "Loading conversation..." is injected).
+    - [x] Ensure `loadMessages` properly handles the `chatContainer` content clearing.
+    - [x] Add a safety check in `loadMessages` to remove any existing "Loading conversation..." message if it's the first page (`offset === 0`).
 - [ ] Task: Conductor - User Manual Verification 'CSP and UI Fixes' (Protocol in workflow.md)
 
 ## Phase 2: Verification
