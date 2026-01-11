@@ -82,7 +82,17 @@ static_dir = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 # Uploads
-app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+@app.get("/uploads/{filename}")
+async def serve_upload(filename: str):
+    fpath = os.path.join(UPLOAD_DIR, filename)
+    if not os.path.exists(fpath):
+        from fastapi import HTTPException
+        raise HTTPException(404)
+    # Force webp mime type for .webp files
+    media_type = None
+    if filename.lower().endswith(".webp"):
+        media_type = "image/webp"
+    return FileResponse(fpath, media_type=media_type)
 
 # Include Routers
 app.include_router(auth.router)
