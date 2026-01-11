@@ -10,5 +10,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## [x] Track: Loading conversation seems not working. it stays there saying this, without actually loading
-*Link: [./conductor/tracks/fix_loading_ui_csp_20260111/](./conductor/tracks/fix_loading_ui_csp_20260111/)*
+## [x] Track: Add an image preview on the user question bubble for uploaded images.
+*Link: [./conductor/tracks/user_image_preview_20260111/](./conductor/tracks/user_image_preview_20260111/)*
