@@ -1,0 +1,8 @@
+{
+  "track_id": "image_compression_20260111",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-11T12:00:00Z",
+  "updated_at": "2026-01-11T12:00:00Z",
+  "description": "when the user adds a photo to a chat from the web ui it usualy exceeds the model context window. add a way to compress the protos before passing them to gemini"
+}

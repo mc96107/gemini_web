@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Integration Test</title>
+</head>
+<body>
+    <!-- Minimal DOM for script.js -->
+    <div id="test-container" style="display:none">
+        <form id="chat-form">
+            <input type="file" id="file-upload">
+            <textarea id="message-input"></textarea>
+            <button type="submit"></button>
+            <div id="file-preview-area"></div>
+            <div id="file-name"></div>
+            <button id="clear-file-btn"></button>
+            <div id="model-input" value="test"></div>
+        </form>
+        <div id="chat-container"></div>
+        <div id="reset-btn"></div>
+        <div id="patterns-list"></div>
+        <input id="pattern-search">
+        <div id="patternsModal"></div>
+        <div id="sessions-list"></div>
+        <button id="new-chat-btn"></button>
+        <div id="historySidebar"></div>
+        <div id="toolsModal"></div>
+        <div id="tools-status"></div>
+        <button id="btn-apply-tools"></button>
+        <button id="btn-deselect-all-tools"></button>
+        <div id="liveToast"></div>
+        <div id="toast-body"></div>
+        <div id="load-more-container"></div>
+        <button id="load-more-btn"></button>
+        <div id="chat-welcome"></div>
+        <div id="model-label"></div>
+        <div id="model-input"></div> <!-- Duplicate ID issue in script.js? No, I'll use inputs -->
+        
+        <input type="hidden" id="model-input" value="pro">
+        
+        <!-- Tool toggles -->
+        <input type="checkbox" class="tool-toggle" value="test">
+    </div>
+
+    <script>
+        // Mock UI elements script.js might look for on load
+        window.bootstrap = {
+            Offcanvas: { getInstance: () => ({ hide: () => {} }) },
+            Modal: { getInstance: () => ({ hide: () => {} }) },
+            Toast: function() { return { show: () => {} }; }
+        };
+        
+        // Mock globals
+        window.marked = { parse: (t) => t };
+        window.hljs = { highlightElement: () => {} };
+
+        // Mock fetch
+        window.fetch = async (url) => {
+             return { 
+                ok: true, 
+                json: async () => ([]),
+                headers: { get: () => 'application/json' }
+             };
+        };
+
+        // Define compressImage BEFORE script.js
+        let compressImageCalled = false;
+        async function compressImage(file) {
+            compressImageCalled = true;
+            return file;
+        }
+    </script>
+    
+    <script src="../app/static/script.js"></script>
+
+    <script>
+        async function runTests() {
+            const results = [];
+            
+            try {
+                const chatForm = document.getElementById('chat-form');
+                const fileUpload = document.getElementById('file-upload');
+                const messageInput = document.getElementById('message-input');
+                
+                messageInput.value = "Hello";
+                
+                const file = new File(["test"], "test.png", { type: "image/png" });
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+                fileUpload.files = dataTransfer.files;
+                fileUpload.dispatchEvent(new Event('change', { bubbles: true }));
+
+                // Now submit
+                chatForm.dispatchEvent(new Event('submit', { cancelable: true }));
+
+                await new Promise(r => setTimeout(r, 200));
+
+                if (compressImageCalled) {
+                    results.push({ name: 'compressImage called on submit', status: 'pass' });
+                } else {
+                    results.push({ name: 'compressImage called on submit', status: 'fail', error: 'compressImage was not called' });
+                }
+
+            } catch (e) {
+                results.push({ name: 'Integration Test', status: 'fail', error: e.message });
+            }
+
+            document.body.innerText = JSON.stringify(results);
+        }
+        
+        setTimeout(runTests, 500);
+    </script>
+</body>
+</html>

@@ -6,3 +6,8 @@ This file tracks all major tracks for the project. Each track has its own detail
 - [x] [Admin Maintenance Features](tracks/admin_maintenance_20260108/plan.md)
 - [x] [Production Configuration](tracks/production_setup_20260108/plan.md)
 - [x] [Branding Update](tracks/branding_update_20260108/plan.md)
+
+---
+
+## [~] Track: when the user adds a photo to a chat from the web ui it usualy exceeds the model context window. add a way to compress the protos before passing them to gemini
+*Link: [./conductor/tracks/image_compression_20260111/](./conductor/tracks/image_compression_20260111/)*
