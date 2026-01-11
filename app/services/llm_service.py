@@ -212,9 +212,10 @@ class GeminiAgent:
         try:
             # Try to find the session file
             uuid_start = session_uuid.split('-')[0]
-            # We search in ~/.gemini/tmp/*/chats/
-            home = os.path.expanduser("~")
-            search_path = os.path.join(home, ".gemini", "tmp", "*", "chats", f"*{uuid_start}*.json")
+            # Use the correct temporary directory for this project
+            # Based on the system context provided earlier
+            project_tmp = r"C:\Users\dgar\.gemini\tmp\f535d4977bb3d317ff6e0465b07d4e4e0337013c6b6caacfef3e260f6e2d3b28"
+            search_path = os.path.join(project_tmp, "chats", f"*{uuid_start}*.json")
             import glob
             files = glob.glob(search_path)
             if not files: return []
