@@ -5,11 +5,11 @@
     - [x] Create `app/static/compression.js` (or add to `script.js` if small)
     - [x] Implement `compressImage(file)` function using Canvas API.
     - [x] Logic to handle resizing (max 1536px), format conversion (WebP), and quality (0.8).
-- [ ] Task: Integrate with Form Submission
-    - [ ] Modify `chatForm` submit handler in `app/static/script.js`.
-    - [ ] Intercept submission to check for `currentFile`.
-    - [ ] If `currentFile` is an image, await `compressImage(currentFile)`.
-    - [ ] Replace `fileToSend` with the compressed blob.
+- [x] Task: Integrate with Form Submission 4dd15dd
+    - [x] Modify `chatForm` submit handler in `app/static/script.js`.
+    - [x] Intercept submission to check for `currentFile`.
+    - [x] If `currentFile` is an image, await `compressImage(currentFile)`.
+    - [x] Replace `fileToSend` with the compressed blob.
 - [ ] Task: Conductor - User Manual Verification 'Client-Side Logic Implementation' (Protocol in workflow.md)
 
 ## Phase 2: Verification
