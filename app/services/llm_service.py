@@ -213,7 +213,6 @@ class GeminiAgent:
             # Try to find the session file
             uuid_start = session_uuid.split('-')[0]
             # Use the correct temporary directory for this project
-            # Based on the system context provided earlier
             project_tmp = r"C:\Users\dgar\.gemini\tmp\f535d4977bb3d317ff6e0465b07d4e4e0337013c6b6caacfef3e260f6e2d3b28"
             search_path = os.path.join(project_tmp, "chats", f"*{uuid_start}*.json")
             import glob
@@ -222,7 +221,7 @@ class GeminiAgent:
             
             # Use the most recently modified file if multiple match
             files.sort(key=os.path.getmtime, reverse=True)
-            with open(files[0], 'r') as f:
+            with open(files[0], 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 all_messages = data.get("messages", [])
                 
@@ -245,7 +244,9 @@ class GeminiAgent:
                         "content": content
                     })
                 return messages
-        except: return []
+        except Exception as e:
+            print(f"Error loading session messages for {session_uuid}: {str(e)}")
+            return []
 
     async def switch_session(self, user_id: str, uuid: str) -> bool:
         if user_id in self.user_data and uuid in self.user_data[user_id]["sessions"]:
