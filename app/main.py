@@ -41,7 +41,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "style-src 'self' 'unsafe-inline' cdn.jsdelivr.net cdnjs.cloudflare.com; "
             "font-src 'self' cdn.jsdelivr.net; "
             "img-src 'self' data:; "
-            "connect-src 'self';"
+            "connect-src 'self' cdn.jsdelivr.net;"
         )
         response.headers["Content-Security-Policy"] = csp
         return response
