@@ -212,12 +212,26 @@ class GeminiAgent:
         try:
             # Try to find the session file
             uuid_start = session_uuid.split('-')[0]
-            # Use the correct temporary directory for this project
-            project_tmp = r"C:\Users\dgar\.gemini\tmp\f535d4977bb3d317ff6e0465b07d4e4e0337013c6b6caacfef3e260f6e2d3b28"
-            search_path = os.path.join(project_tmp, "chats", f"*{uuid_start}*.json")
+            
+            # Find the .gemini/tmp directory
+            home = os.path.expanduser("~")
+            gemini_tmp_base = os.path.join(home, ".gemini", "tmp")
+            
+            if not os.path.exists(gemini_tmp_base):
+                return []
+
+            # We need to find which subfolder in .gemini/tmp belongs to this project.
+            # The gemini CLI uses a hash of the project path.
+            # We can look for the directory that contains sessions matching our UUID or just search all for now,
+            # but restricted to the .gemini/tmp structure.
+            
             import glob
+            # Search in all project hash folders under .gemini/tmp/
+            search_path = os.path.join(gemini_tmp_base, "*", "chats", f"*{uuid_start}*.json")
             files = glob.glob(search_path)
-            if not files: return []
+            
+            if not files:
+                return []
             
             # Use the most recently modified file if multiple match
             files.sort(key=os.path.getmtime, reverse=True)
