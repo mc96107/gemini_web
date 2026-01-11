@@ -76,7 +76,7 @@ def recombine():
     combined = []
     
     # Headers
-    combined.append("import json, os, hashlib, asyncio, re, secrets, shutil, uvicorn, bcrypt, subprocess, sys, base64, httpx")
+    combined.append("import json, os, mimetypes, hashlib, asyncio, re, secrets, shutil, uvicorn, bcrypt, subprocess, sys, base64, httpx")
     combined.append("from typing import Dict, Optional, List, Tuple, Any")
     combined.append("from fastapi import FastAPI, Request, Form, UploadFile, File, HTTPException, Depends, APIRouter")
     combined.append("from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response, FileResponse")

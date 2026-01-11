@@ -34,7 +34,25 @@ The application is optimized for Termux on Android.
     git clone https://github.com/your-username/gemini_web.git
     cd gemini_web
     ```
-3.  **Run the automated Termux setup**:
+3.  **Install and Patch Gemini CLI**:
+    The Gemini CLI needs a small patch to work correctly in the Termux environment:
+    ```bash
+    yarn global add @google/gemini-cli
+    mkdir -p ~/.config/yarn/global/node_modules/clipboardy
+    cat > ~/.config/yarn/global/node_modules/clipboardy/index.js << 'EOF'
+    export function write() { return Promise.resolve(); }
+    export function read() { return Promise.resolve(""); }
+    export default { write, read };
+    EOF
+    cat > ~/.config/yarn/global/node_modules/clipboardy/package.json << 'EOF'
+    {
+      "name": "clipboardy",
+      "version": "0.0.0",
+      "type": "module"
+    }
+    EOF
+    ```
+4.  **Run the automated Termux setup**:
     ```bash
     chmod +x setup_py.sh
     ./setup_py.sh

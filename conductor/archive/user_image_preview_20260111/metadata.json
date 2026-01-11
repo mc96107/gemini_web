@@ -1,0 +1,8 @@
+{
+  "track_id": "user_image_preview_20260111",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-11T13:31:00Z",
+  "updated_at": "2026-01-11T13:31:00Z",
+  "description": "Add an image preview on the user question bubble for uploaded images."
+}

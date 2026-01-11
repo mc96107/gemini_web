@@ -1,0 +1,8 @@
+{
+  "track_id": "fix_loading_ui_csp_20260111",
+  "type": "bug",
+  "status": "new",
+  "created_at": "2026-01-11T12:00:00Z",
+  "updated_at": "2026-01-11T12:00:00Z",
+  "description": "Loading conversation seems not working. it stays there saying this, without actually loading"
+}

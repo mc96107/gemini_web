@@ -192,3 +192,16 @@ footer {
 }
 .copy-btn:hover { color: rgba(255, 255, 255, 0.9); background: rgba(255, 255, 255, 0.1); }
 .message.user .copy-btn { color: rgba(255, 255, 255, 0.5); }
+
+/* Image Thumbnails */
+.message-thumbnail {
+    max-width: 150px;
+    max-height: 150px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: block;
+    transition: transform 0.2s;
+}
+.message-thumbnail:hover {
+    transform: scale(1.02);
+}

@@ -485,7 +485,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!message && !currentFile) return;
 
         // Add user message to chat
-        appendMessage('user', message, currentFile ? `[Attachment: ${currentFile.name}]` : null);
+        appendMessage('user', message, currentFile ? `[Attachment: ${currentFile.name}]` : null, currentFile);
         
         // Clear inputs immediately
         messageInput.value = '';
@@ -718,7 +718,7 @@ document.addEventListener('DOMContentLoaded', () => {
         chatContainer.scrollTop = chatContainer.scrollHeight;
     }
 
-    function createMessageDiv(sender, text, attachmentInfo = null) {
+    function createMessageDiv(sender, text, attachmentInfo = null, file = null) {
         if (!text && !attachmentInfo) return null;
         if (text && text.trim() === "" && !attachmentInfo) return null;
 
@@ -726,6 +726,24 @@ document.addEventListener('DOMContentLoaded', () => {
         messageDiv.classList.add('message', sender);
         
         let contentHtml = '';
+
+        // Image Preview Logic
+        let imageUrl = null;
+        if (file && file.type.startsWith('image/')) {
+            imageUrl = URL.createObjectURL(file);
+        } else if (text && sender === 'user') {
+            // Regex to find attachment path: matches both / and \ 
+            const match = text.match(/@tmp[\\\/]user_attachments[\\\/]([^\s]+)/);
+            if (match) {
+                const filename = match[1];
+                imageUrl = `/uploads/${filename}`;
+            }
+        }
+
+        if (imageUrl) {
+            contentHtml += `<img src="${imageUrl}" class="message-thumbnail mb-2" style="max-width: 150px; border-radius: 8px; cursor: pointer; display: block;" onclick="window.open('${imageUrl}', '_blank')">`;
+        }
+
         if (attachmentInfo) {
             contentHtml += `<div class="text-muted small mb-1"><i class="bi bi-paperclip"></i> ${attachmentInfo}</div>`;
         }
@@ -775,9 +793,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return messageDiv;
     }
 
-    function appendMessage(sender, text, attachmentInfo = null) {
+    function appendMessage(sender, text, attachmentInfo = null, file = null) {
         try {
-            const messageDiv = createMessageDiv(sender, text, attachmentInfo);
+            const messageDiv = createMessageDiv(sender, text, attachmentInfo, file);
             chatContainer.appendChild(messageDiv);
             chatContainer.scrollTop = chatContainer.scrollHeight;
         } catch (e) {
