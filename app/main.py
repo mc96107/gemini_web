@@ -1,5 +1,10 @@
 import os
+import mimetypes
 from fastapi import FastAPI, Request
+
+# Register WebP MIME type if not present
+mimetypes.add_type('image/webp', '.webp')
+
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
 from starlette.middleware.sessions import SessionMiddleware
