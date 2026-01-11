@@ -1,0 +1,3 @@
+# Allow Gemini to read the tmp folder even if ignored by git
+!tmp/
+!tmp/**
