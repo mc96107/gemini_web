@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>UI Loading Test</title>
+</head>
+<body>
+    <div id="test-container" style="display:none">
+        <div id="chat-container">
+            <div class="text-center text-muted mt-5"><p>Loading conversation...</p></div>
+        </div>
+        <div id="chat-welcome" class="d-none">Welcome</div>
+        <div id="load-more-container"></div>
+        <button id="load-more-btn"></button>
+        <div id="sessions-list"></div>
+        <button id="new-chat-btn"></button>
+        <div id="historySidebar"></div>
+    </div>
+
+    <script>
+        window.bootstrap = {
+            Offcanvas: { getInstance: () => ({ hide: () => {} }) },
+            Modal: { getInstance: () => ({ hide: () => {} }) },
+            Toast: function() { return { show: () => {} }; }
+        };
+        window.marked = { parse: (t) => t };
+        window.hljs = { highlightElement: () => {} };
+        
+        window.fetch = async (url) => {
+            if (url === '/sessions') {
+                return {
+                    ok: true,
+                    json: async () => ([{ uuid: '123', active: true }])
+                };
+            }
+            if (url.includes('/messages')) {
+                return {
+                    ok: true,
+                    json: async () => ([])
+                };
+            }
+            return { ok: true, json: async () => ({}) };
+        };
+    </script>
+    
+    <script src="../app/static/script.js"></script>
+
+    <script>
+        async function runTests() {
+            const results = [];
+            const chatContainer = document.getElementById('chat-container');
+            const chatWelcome = document.getElementById('chat-welcome');
+            
+            await new Promise(r => setTimeout(r, 1000));
+
+            try {
+                const text = chatContainer.innerText;
+                
+                if (text.includes("Loading conversation...")) {
+                    results.push({ name: 'Loading text cleared', status: 'fail', error: 'Loading text still visible' });
+                } else {
+                    results.push({ name: 'Loading text cleared', status: 'pass' });
+                }
+                
+                if (!chatWelcome.classList.contains('d-none')) {
+                     results.push({ name: 'Welcome shown', status: 'pass' });
+                } else {
+                     results.push({ name: 'Welcome shown', status: 'fail', error: 'Welcome hidden' });
+                }
+
+            } catch (e) {
+                results.push({ name: 'Test execution', status: 'fail', error: e.message });
+            }
+
+            document.body.innerText = JSON.stringify(results);
+        }
+        
+        setTimeout(runTests, 1000);
+    </script>
+</body>
+</html>

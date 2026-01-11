@@ -139,7 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (offset === 0) {
                 // Clear existing messages only if it's the first page
-                chatContainer.querySelectorAll('.message').forEach(m => m.remove());
+                chatContainer.innerHTML = '';
                 currentOffset = 0;
                 if (chatWelcome) chatWelcome.classList.add('d-none');
             }
