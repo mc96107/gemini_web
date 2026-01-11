@@ -447,7 +447,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (link.dataset.model === flashModel) {
                     link.classList.add('active');
                     let modelName = link.innerText;
-                    modelName = modelName.replace('Fast', '').replace('Smart', '').replace('Preview', '').trim();
+                    modelName = modelName.replace('Fast', '').replace('Smart', '').trim();
                     modelLabel.textContent = modelName + " (Auto-switched)";
                 } else {
                     link.classList.remove('active');
