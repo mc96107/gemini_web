@@ -120,7 +120,7 @@ class GeminiAgent:
         if session_uuid: args.extend(["--resume", session_uuid])
         if current_model: args.extend(["--model", current_model])
         args.extend(["--include-directories", self.working_dir])
-        if file_path: args.append(f"@{os.path.abspath(file_path)}")
+        if file_path: args.append(f"@{file_path}")
         if prompt: args.append(prompt)
 
         try:
