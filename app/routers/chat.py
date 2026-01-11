@@ -103,7 +103,15 @@ async def chat(request: Request, message: str = Form(...), file: Optional[Upload
         fpath = os.path.join(UPLOAD_DIR, os.path.basename(file.filename))
         with open(fpath, "wb") as f: shutil.copyfileobj(file.file, f)
         fpath = os.path.relpath(fpath)
-    m_override = "gemini-3-pro-preview" if model == "pro" else None
+    
+    # Handle model selection
+    m_override = None
+    if model:
+        if model == "pro":
+            m_override = "gemini-3-pro-preview"
+        else:
+            m_override = model
+
     msg = message.strip()
     if msg.startswith("/"):
         parts = msg.split(maxsplit=2)
