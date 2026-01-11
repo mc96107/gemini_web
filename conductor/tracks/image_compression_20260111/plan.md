@@ -1,6 +1,6 @@
 # Implementation Plan - Client-Side Image Compression
 
-## Phase 1: Client-Side Logic Implementation
+## Phase 1: Client-Side Logic Implementation [checkpoint: 4950d35]
 - [x] Task: Create Image Compression Utility 7d7cada
     - [x] Create `app/static/compression.js` (or add to `script.js` if small)
     - [x] Implement `compressImage(file)` function using Canvas API.
