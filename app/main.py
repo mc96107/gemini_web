@@ -76,6 +76,9 @@ app.state.UPLOAD_DIR = UPLOAD_DIR
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
+# Uploads
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+
 # Include Routers
 app.include_router(auth.router)
 app.include_router(chat.router)
