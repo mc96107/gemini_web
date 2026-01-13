@@ -121,10 +121,22 @@ class GeminiAgent:
         if current_model: args.extend(["--model", current_model])
         args.extend(["--include-directories", self.working_dir])
         if file_path: args.append(f"@{file_path}")
-        if prompt: args.append(prompt)
-
+        
+        # Pass prompt via stdin to avoid argument parsing issues (e.g. starting with -)
+        
         try:
-            proc = await asyncio.create_subprocess_exec(*args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=self.working_dir)
+            proc = await asyncio.create_subprocess_exec(
+                *args, 
+                stdin=asyncio.subprocess.PIPE, 
+                stdout=asyncio.subprocess.PIPE, 
+                stderr=asyncio.subprocess.PIPE, 
+                cwd=self.working_dir
+            )
+            
+            if prompt:
+                proc.stdin.write(prompt.encode('utf-8'))
+                await proc.stdin.drain()
+                proc.stdin.close()
             
             # Read stdout line by line
             while True:
