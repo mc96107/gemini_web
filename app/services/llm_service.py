@@ -84,11 +84,17 @@ class GeminiAgent:
             proc = await asyncio.create_subprocess_exec(self.gemini_cmd, "--list-sessions", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=self.working_dir)
             stdout, stderr = await proc.communicate()
             content = (stdout.decode() + stderr.decode())
-            matches = re.findall(r"\[([a-fA-F0-9-]{36})\]", content)
+            matches = re.findall(r"\\[([a-fA-F0-9-]{36})\\]", content)
             return matches[-1] if matches else None
         except: return None
 
     async def generate_response_stream(self, user_id: str, prompt: str, model: Optional[str] = None, file_path: Optional[str] = None) -> AsyncGenerator[Dict, None]:
+        def log_debug(msg):
+            try:
+                with open("agent_debug.log", "a", encoding="utf-8") as f:
+                    f.write(f"[{user_id}] {msg}\n")
+            except: pass
+
         if user_id not in self.user_data:
             self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": []}
         else:
@@ -119,7 +125,6 @@ class GeminiAgent:
             args = [self.gemini_cmd]
             args.extend(["--output-format", "stream-json"])
             
-            # Security: Apply tool restrictions
             if enabled_tools:
                 args.extend(["--allowed-tools", ",".join(enabled_tools)])
             else:
@@ -133,9 +138,10 @@ class GeminiAgent:
             args.extend(["--include-directories", self.working_dir])
             if file_path: args.append(f"@{file_path}")
             
-            # Pass prompt via stdin to avoid argument parsing issues (e.g. starting with -)
+            log_debug(f"Attempt {attempt}: Running command {" ".join(args)}")
             
             should_fallback = False
+            proc = None
             try:
                 proc = await asyncio.create_subprocess_exec(
                     *args, 
@@ -150,6 +156,17 @@ class GeminiAgent:
                     await proc.stdin.drain()
                     proc.stdin.close()
                 
+                # To prevent deadlock, read stderr concurrently
+                async def read_stderr(stderr_pipe):
+                    try:
+                        data = await stderr_pipe.read()
+                        return data.decode()
+                    except Exception as e: 
+                        log_debug(f"Error reading stderr: {str(e)}")
+                        return ""
+
+                stderr_task = asyncio.create_task(read_stderr(proc.stderr))
+
                 # Read stdout line by line
                 while True:
                     line = await proc.stdout.readline()
@@ -162,7 +179,7 @@ class GeminiAgent:
                     if ("429" in line_str or "No capacity available" in line_str) and attempt < max_attempts:
                         fallback = FALLBACK_MODELS.get(current_model)
                         if fallback:
-                            # Notify UI of the switch
+                            log_debug(f"Capacity error detected, falling back to {fallback}")
                             yield {"type": "model_switch", "old_model": current_model, "new_model": fallback}
                             yield {"type": "message", "role": "assistant", "content": f"\n\n[Model {current_model} is currently busy. Switching to {fallback} for a faster response...]\n\n"}
                             current_model = fallback
@@ -177,16 +194,19 @@ class GeminiAgent:
                 
                 if should_fallback:
                     try:
-                        proc.terminate()
-                        await proc.wait()
+                        if proc.returncode is None:
+                            proc.terminate()
+                            await proc.wait()
                     except: pass
                     continue # Retry while loop with fallback model
 
                 await proc.wait()
+                stderr_output = await stderr_task
+                log_debug(f"Process exited with code {proc.returncode}")
                 
                 if proc.returncode != 0:
-                    stderr_output = await proc.stderr.read()
-                    err = self._filter_errors(stderr_output.decode().strip())
+                    err = self._filter_errors(stderr_output.strip())
+                    log_debug(f"Error output: {err}")
                     
                     # Also check stderr for 429
                     if ("429" in err or "No capacity available" in err) and attempt < max_attempts:
@@ -202,10 +222,20 @@ class GeminiAgent:
                     else:
                         yield {"type": "error", "content": f"Error: {err}"}
                 
-                # Session Logic
+                break # Success, exit retry loop
+
+            except Exception as e:
+                log_debug(f"Exception in stream: {str(e)}")
+                yield {"type": "error", "content": f"Exception: {str(e)}"}
+                break
+            finally:
+                # Capture session ID if this was a new session
                 if not session_uuid:
+                    log_debug("New session detected, attempting to capture ID")
+                    await asyncio.sleep(0.5)
                     new_uuid = await self._get_latest_session_uuid()
                     if new_uuid:
+                        log_debug(f"Captured new session ID: {new_uuid}")
                         self.user_data[user_id]["active_session"] = new_uuid
                         if new_uuid not in self.user_data[user_id]["sessions"]:
                             self.user_data[user_id]["sessions"].append(new_uuid)
@@ -219,11 +249,11 @@ class GeminiAgent:
                             
                         self._save_user_data()
                 
-                break # Success, exit retry loop
-
-            except Exception as e:
-                yield {"type": "error", "content": f"Exception: {str(e)}"}
-                break
+                if proc and proc.returncode is None:
+                    try:
+                        proc.terminate()
+                        await proc.wait()
+                    except: pass
 
     async def generate_response(self, user_id: str, prompt: str, model: Optional[str] = None, file_path: Optional[str] = None) -> str:
         full_response = ""
@@ -275,11 +305,6 @@ class GeminiAgent:
             if not os.path.exists(gemini_tmp_base):
                 return []
 
-            # We need to find which subfolder in .gemini/tmp belongs to this project.
-            # The gemini CLI uses a hash of the project path.
-            # We can look for the directory that contains sessions matching our UUID or just search all for now,
-            # but restricted to the .gemini/tmp structure.
-            
             import glob
             # Search in all project hash folders under .gemini/tmp/
             search_path = os.path.join(gemini_tmp_base, "*", "chats", f"*{uuid_start}*.json")

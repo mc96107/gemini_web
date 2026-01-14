@@ -22,8 +22,12 @@ async def index(request: Request, user=Depends(get_user)):
     sessions = await agent.get_user_sessions(user)
     active_session = next((s for s in sessions if s.get('active')), None)
     initial_messages = []
+    has_more = False
     if active_session:
         initial_messages = await agent.get_session_messages(active_session['uuid'], limit=20)
+        # If we got exactly 20, there might be more
+        if len(initial_messages) == 20:
+            has_more = True
     
     return request.app.state.render(
         "index.html", 
@@ -31,7 +35,8 @@ async def index(request: Request, user=Depends(get_user)):
         user=user, 
         is_admin=(user_manager.get_role(user) == "admin"),
         initial_messages=initial_messages,
-        active_session=active_session
+        active_session=active_session,
+        has_more=has_more
     )
 
 @router.get("/sessions")
@@ -145,8 +150,24 @@ async def chat(request: Request, message: str = Form(...), file: Optional[Upload
         if cmd == "/help": return {"response": "Commands: /reset, /pro, /p [pattern], /yolo, /help"}
     
     async def event_generator():
-        async for chunk in agent.generate_response_stream(user, message, model=m_override, file_path=fpath):
-            yield f"data: {json.dumps(chunk)}\n\n"
+        try:
+            stream = agent.generate_response_stream(user, message, model=m_override, file_path=fpath)
+            it = stream.__aiter__()
+            while True:
+                try:
+                    # Wait for next chunk or timeout for heartbeat
+                    chunk = await asyncio.wait_for(it.__anext__(), timeout=15.0)
+                    yield f"data: {json.dumps(chunk)}\n\n"
+                except asyncio.TimeoutError:
+                    # Send SSE comment as heartbeat to keep connection alive
+                    yield ": heartbeat\n\n"
+                except StopAsyncIteration:
+                    break
+                except Exception as e:
+                    yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+                    break
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
