@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const fileNameDisplay = document.getElementById('file-name');
     const clearFileBtn = document.getElementById('clear-file-btn');
     const resetBtn = document.getElementById('reset-btn');
+    const exportBtn = document.getElementById('export-btn');
     const modelLinks = document.querySelectorAll('[data-model]');
     const modelInput = document.getElementById('model-input');
     const modelLabel = document.getElementById('model-label');
@@ -474,6 +475,49 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error('Error resetting chat:', error);
                     alert('Failed to reset chat.');
                 }
+            }
+        });
+    }
+
+    // Export Chat
+    if (exportBtn) {
+        exportBtn.addEventListener('click', async () => {
+            const activeSessionItem = document.querySelector('.session-item.active-session');
+            if (!activeSessionItem) {
+                alert('No active session to export.');
+                return;
+            }
+            const uuid = activeSessionItem.dataset.uuid;
+            // Get title, cleanup whitespace
+            let title = activeSessionItem.querySelector('.session-title').textContent.trim();
+            if (!title) title = "chat_export";
+
+            try {
+                // Fetch all messages (no limit)
+                const response = await fetch(`/sessions/${uuid}/messages`);
+                if (!response.ok) throw new Error('Network response was not ok');
+                const messages = await response.json();
+                
+                let markdown = `# Chat Export: ${title}\n\n`;
+                messages.forEach(msg => {
+                    const role = msg.role === 'user' ? 'User' : 'Gemini';
+                    markdown += `## ${role}\n\n${msg.content}\n\n---\n\n`;
+                });
+                
+                const blob = new Blob([markdown], { type: 'text/markdown' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                // Sanitize filename
+                const safeTitle = title.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
+                a.download = `${safeTitle}.md`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } catch (e) {
+                console.error('Export failed:', e);
+                alert('Failed to export chat.');
             }
         });
     }
