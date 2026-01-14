@@ -713,6 +713,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     hljs.highlightElement(block);
                 });
             }
+
+            // Render Math
+            try {
+                if (typeof renderMathInElement === 'function') {
+                    renderMathInElement(messageDiv, {
+                        delimiters: [
+                            {left: '$$', right: '$$', display: true},
+                            {left: '$', right: '$', display: false},
+                            {left: '\\(', right: '\\)', display: false},
+                            {left: '\\[', right: '\\]', display: true}
+                        ],
+                        throwOnError: false
+                    });
+                }
+            } catch (e) {
+                console.error('Error rendering math:', e);
+            }
         }
         
         chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -788,6 +805,23 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (e) {
             console.error('Error highlighting code:', e);
+        }
+
+        // Render Math
+        try {
+            if (typeof renderMathInElement === 'function') {
+                renderMathInElement(messageDiv, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false},
+                        {left: '\\(', right: '\\)', display: false},
+                        {left: '\\[', right: '\\]', display: true}
+                    ],
+                    throwOnError: false
+                });
+            }
+        } catch (e) {
+            console.error('Error rendering math:', e);
         }
         
         return messageDiv;
