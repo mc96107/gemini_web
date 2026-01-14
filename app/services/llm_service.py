@@ -162,6 +162,8 @@ class GeminiAgent:
                     if ("429" in line_str or "No capacity available" in line_str) and attempt < max_attempts:
                         fallback = FALLBACK_MODELS.get(current_model)
                         if fallback:
+                            # Notify UI of the switch
+                            yield {"type": "model_switch", "old_model": current_model, "new_model": fallback}
                             yield {"type": "message", "role": "assistant", "content": f"\n\n[Model {current_model} is currently busy. Switching to {fallback} for a faster response...]\n\n"}
                             current_model = fallback
                             should_fallback = True

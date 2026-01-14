@@ -656,6 +656,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let fullText = "";
         let toolLogs = [];
         let buffer = "";
+        let errorYielded = false;
         
         const renderInterval = 100; // ms
         let lastRenderTime = 0;
@@ -670,26 +671,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 buffer = lines.pop();
 
                 for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        const dataStr = line.substring(6).trim();
+                    const trimmedLine = line.trim();
+                    if (!trimmedLine || trimmedLine.startsWith(':')) continue; // Skip empty or heartbeats
+
+                    if (trimmedLine.startsWith('data: ')) {
+                        const dataStr = trimmedLine.substring(6).trim();
                         if (dataStr === '[DONE]') continue;
                         
                         try {
                             const data = JSON.parse(dataStr);
                             if (data.type === 'message' && data.role === 'assistant') {
                                 fullText += data.content;
+                            } else if (data.type === 'model_switch') {
+                                // Update footer label
+                                const label = document.getElementById('model-label');
+                                if (label) {
+                                    // Make it look nice, e.g. "Gemini 3 Flash (Auto-switched)"
+                                    let cleanName = data.new_model.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                                    // Remove 'Preview' etc if redundant, but keep it clear
+                                    label.textContent = cleanName + " (Auto-switched)";
+                                    label.classList.add('text-warning'); // Highlight the change
+                                }
                             } else if (data.type === 'tool_use') {
                                 toolLogs.push({ type: 'call', name: data.tool_name, input: data.parameters });
                             } else if (data.type === 'tool_result') {
-                                // Only add tool results if they have output
                                 if (data.output && data.output.trim() !== "") {
                                     toolLogs.push({ type: 'output', output: data.output });
                                 }
                             } else if (data.type === 'error') {
                                 fullText += `\n\n[Error: ${data.content}]\n\n`;
+                                errorYielded = true;
                             }
                             
-                            // Lazily create the message div only when we have content or tools to show
                             if (!messageDiv && (fullText.trim().length > 0 || toolLogs.length > 0)) {
                                 messageDiv = createStreamingMessage('bot');
                                 removeLoading(loadingId);
@@ -716,14 +729,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (error) {
             console.error('Stream processing error:', error);
-            if (!messageDiv) {
-                messageDiv = createStreamingMessage('bot');
-                removeLoading(loadingId);
+            if (!errorYielded) {
+                if (!messageDiv) {
+                    messageDiv = createStreamingMessage('bot');
+                    removeLoading(loadingId);
+                }
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'text-danger small mt-2';
+                errorDiv.textContent = 'Connection lost. Message may be incomplete.';
+                messageDiv.appendChild(errorDiv);
             }
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'text-danger small mt-2';
-            errorDiv.textContent = 'Connection lost. Message may be incomplete.';
-            messageDiv.appendChild(errorDiv);
         }
     }
 
