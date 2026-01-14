@@ -160,6 +160,9 @@ async def chat(request: Request, message: str = Form(...), file: Optional[Upload
                     yield f"data: {json.dumps(chunk)}\n\n"
                 except asyncio.TimeoutError:
                     # Send SSE comment as heartbeat to keep connection alive
+                    # log heartbeat to agent_debug.log if possible
+                    with open("agent_debug.log", "a", encoding="utf-8") as f:
+                        f.write(f"[{user}] Sending SSE heartbeat...\n")
                     yield ": heartbeat\n\n"
                 except StopAsyncIteration:
                     break

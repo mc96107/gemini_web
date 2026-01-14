@@ -184,7 +184,20 @@ class GeminiAgent:
                     if not line_str: continue
                     
                     log_debug(f"Received line: {line_str[:100]}...")
-                    if ("429" in line_str or "No capacity available" in line_str) and attempt < max_attempts:
+                    try:
+                        data = json.loads(line_str)
+                        # Capture session ID immediately if provided by CLI
+                        if data.get("type") == "init" and data.get("session_id"):
+                            new_id = data["session_id"]
+                            if not session_uuid:
+                                log_debug(f"Captured session ID from init chunk: {new_id}")
+                                self.user_data[user_id]["active_session"] = new_id
+                                if new_id not in self.user_data[user_id]["sessions"]:
+                                    self.user_data[user_id]["sessions"].append(new_id)
+                                self._save_user_data()
+                                session_uuid = new_id # Update local ref
+                        
+                        if ("429" in line_str or "No capacity available" in line_str) and attempt < max_attempts:
                         fallback = FALLBACK_MODELS.get(current_model)
                         if fallback:
                             log_debug(f"Capacity error detected, falling back to {fallback}")
