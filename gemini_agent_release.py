@@ -369,6 +369,7 @@ import os
 import re
 import asyncio
 import shutil
+from datetime import datetime
 from typing import Optional, List, Dict, AsyncGenerator
 
 FALLBACK_MODELS = {
@@ -379,8 +380,9 @@ FALLBACK_MODELS = {
 
 def global_log(msg):
     try:
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
         with open("agent_debug.log", "a", encoding="utf-8") as f:
-            f.write(f"{msg}\n")
+            f.write(f"[{ts}] {msg}\n")
     except: pass
 
 class GeminiAgent:
@@ -398,19 +400,13 @@ class GeminiAgent:
                 with open(self.session_file, "r") as f:
                     data = json.load(f)
                     if not data: return {}
-                    # Migration for old flat format
                     if isinstance(next(iter(data.values())), str):
                         return {uid: {"active_session": suid, "sessions": [suid], "session_tools": {}} for uid, suid in data.items()}
-                    # Ensure all entries have the expected keys
                     for uid in data:
-                        if "sessions" not in data[uid]:
-                            data[uid]["sessions"] = []
-                        if "active_session" not in data[uid]:
-                            data[uid]["active_session"] = None
-                        if "session_tools" not in data[uid]:
-                            data[uid]["session_tools"] = {}
-                        if "pending_tools" not in data[uid]:
-                            data[uid]["pending_tools"] = []
+                        if "sessions" not in data[uid]: data[uid]["sessions"] = []
+                        if "active_session" not in data[uid]: data[uid]["active_session"] = None
+                        if "session_tools" not in data[uid]: data[uid]["session_tools"] = {}
+                        if "pending_tools" not in data[uid]: data[uid]["pending_tools"] = []
                     return data
             except: return {}
         return {}
@@ -421,19 +417,16 @@ class GeminiAgent:
     def get_session_tools(self, user_id: str, session_uuid: str) -> List[str]:
         user_info = self.user_data.get(user_id)
         if not user_info: return []
-        if session_uuid == "pending":
-            return user_info.get("pending_tools", [])
+        if session_uuid == "pending": return user_info.get("pending_tools", [])
         return user_info.get("session_tools", {}).get(session_uuid, [])
 
     def set_session_tools(self, user_id: str, session_uuid: str, tools: List[str]):
         if user_id not in self.user_data:
             self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": []}
-        
         if session_uuid == "pending":
             self.user_data[user_id]["pending_tools"] = tools
         else:
-            if "session_tools" not in self.user_data[user_id]:
-                self.user_data[user_id]["session_tools"] = {}
+            if "session_tools" not in self.user_data[user_id]: self.user_data[user_id]["session_tools"] = {}
             self.user_data[user_id]["session_tools"][session_uuid] = tools
         self._save_user_data()
 
@@ -456,7 +449,7 @@ class GeminiAgent:
             proc = await asyncio.create_subprocess_exec(self.gemini_cmd, "--list-sessions", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=self.working_dir)
             stdout, stderr = await proc.communicate()
             content = (stdout.decode() + stderr.decode())
-            matches = re.findall(r"\<([a-fA-F0-9-]{36})\>", content)
+            matches = re.findall(r" \[([a-fA-F0-9-]{36})\]", content)
             res = matches[-1] if matches else None
             global_log(f"Latest session ID found: {res}")
             return res
@@ -465,20 +458,15 @@ class GeminiAgent:
             return None
 
     async def generate_response_stream(self, user_id: str, prompt: str, model: Optional[str] = None, file_path: Optional[str] = None) -> AsyncGenerator[Dict, None]:
-        def log_debug(msg):
-            global_log(f"[{user_id}] {msg}")
+        def log_debug(msg): global_log(f"[{user_id}] {msg}")
 
         if user_id not in self.user_data:
             self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": []}
         else:
-            if "sessions" not in self.user_data[user_id]:
-                self.user_data[user_id]["sessions"] = []
-            if "active_session" not in self.user_data[user_id]:
-                self.user_data[user_id]["active_session"] = None
-            if "session_tools" not in self.user_data[user_id]:
-                self.user_data[user_id]["session_tools"] = {}
-            if "pending_tools" not in self.user_data[user_id]:
-                self.user_data[user_id]["pending_tools"] = []
+            self.user_data[user_id].setdefault("sessions", [])
+            self.user_data[user_id].setdefault("active_session", None)
+            self.user_data[user_id].setdefault("session_tools", {})
+            self.user_data[user_id].setdefault("pending_tools", [])
 
         session_uuid = self.user_data[user_id].get("active_session")
         current_model = model or self.model_name
@@ -488,29 +476,18 @@ class GeminiAgent:
         
         while attempt < max_attempts:
             attempt += 1
-            enabled_tools = []
-            if session_uuid:
-                enabled_tools = self.get_session_tools(user_id, session_uuid)
-            else:
-                enabled_tools = self.get_session_tools(user_id, "pending")
+            enabled_tools = self.get_session_tools(user_id, session_uuid or "pending")
             
-            args = [self.gemini_cmd]
-            args.extend(["--output-format", "stream-json"])
-            
-            if enabled_tools:
-                args.extend(["--allowed-tools", ",".join(enabled_tools)])
-            else:
-                args.extend(["--allowed-tools", "none"])
-            
+            args = [self.gemini_cmd, "--output-format", "stream-json"]
+            args.extend(["--allowed-tools", ",".join(enabled_tools) if enabled_tools else "none"])
             args.extend(["--approval-mode", "default"])
-
             if self.yolo_mode: args.append("--yolo")
             if session_uuid: args.extend(["--resume", session_uuid])
             if current_model: args.extend(["--model", current_model])
             args.extend(["--include-directories", self.working_dir])
             if file_path: args.append(f"@{file_path}")
             
-            log_debug(f"Attempt {attempt}: Running command {" ".join(args)}")
+            log_debug(f"Attempt {attempt}: Running command {' '.join(args)}")
             
             should_fallback = False
             proc = None
@@ -529,15 +506,13 @@ class GeminiAgent:
                     await proc.stdin.drain()
                     proc.stdin.close()
                 
-                async def read_stderr(stderr_pipe):
-                    try:
-                        data = await stderr_pipe.read()
-                        return data.decode()
-                    except Exception as e: 
-                        log_debug(f"Error reading stderr: {str(e)}")
-                        return ""
-
-                stderr_task = asyncio.create_task(read_stderr(proc.stderr))
+                async def log_stderr(pipe):
+                    while True:
+                        line = await pipe.readline()
+                        if not line: break
+                        log_debug(f"STDERR: {line.decode().strip()}")
+                
+                stderr_task = asyncio.create_task(log_stderr(proc.stderr))
 
                 log_debug("Starting to read stdout")
                 while True:
@@ -548,26 +523,25 @@ class GeminiAgent:
                     line_str = line.decode().strip()
                     if not line_str: continue
                     
-                    log_debug(f"Received line: {line_str[:100]}...")
+                    log_debug(f"Received line ({len(line_str)} chars)")
                     try:
                         data = json.loads(line_str)
-                        # Capture session ID immediately if provided by CLI
                         if data.get("type") == "init" and data.get("session_id"):
                             new_id = data["session_id"]
                             if not session_uuid:
-                                log_debug(f"Captured session ID from init chunk: {new_id}")
+                                log_debug(f"Captured session ID: {new_id}")
                                 self.user_data[user_id]["active_session"] = new_id
                                 if new_id not in self.user_data[user_id]["sessions"]:
                                     self.user_data[user_id]["sessions"].append(new_id)
                                 self._save_user_data()
-                                session_uuid = new_id # Update local ref
+                                session_uuid = new_id
                         
-                        if ("429" in line_str or "No capacity available" in line_str) and attempt < max_attempts:
+                        if data.get("type") == "error" and ("429" in line_str or "No capacity available" in line_str) and attempt < max_attempts:
                             fallback = FALLBACK_MODELS.get(current_model)
                             if fallback:
-                                log_debug(f"Capacity error detected, falling back to {fallback}")
+                                log_debug(f"Capacity error, falling back to {fallback}")
                                 yield {"type": "model_switch", "old_model": current_model, "new_model": fallback}
-                                yield {"type": "message", "role": "assistant", "content": f"\n\n[Model {current_model} is currently busy. Switching to {fallback} for a faster response...]\n\n"}
+                                yield {"type": "message", "role": "assistant", "content": f"\n\n[Model {current_model} is currently busy. Switching to {fallback}...]\n\n"}
                                 current_model = fallback
                                 should_fallback = True
                                 break
@@ -585,24 +559,11 @@ class GeminiAgent:
                     continue 
 
                 await proc.wait()
-                stderr_output = await stderr_task
+                await stderr_task
                 log_debug(f"Process exited with code {proc.returncode}")
                 
-                if proc.returncode != 0:
-                    err = self._filter_errors(stderr_output.strip())
-                    log_debug(f"Error output: {err}")
-                    if ("429" in err or "No capacity available" in err) and attempt < max_attempts:
-                        fallback = FALLBACK_MODELS.get(current_model)
-                        if fallback:
-                            yield {"type": "message", "role": "assistant", "content": f"\n\n[Model {current_model} is currently busy. Switching to {fallback}...]\n\n"}
-                            current_model = fallback
-                            continue
-
-                    if session_uuid and any(x in err.lower() for x in ["no session", "not found", "invalid session"]):
-                        self.user_data[user_id]["active_session"] = None
-                        yield {"type": "error", "content": f"Session error: {err}"}
-                    else:
-                        yield {"type": "error", "content": f"Error: {err}"}
+                if proc.returncode != 0 and not should_fallback:
+                    yield {"type": "error", "content": f"Exit code {proc.returncode}"}
                 
                 break 
 
@@ -611,25 +572,6 @@ class GeminiAgent:
                 yield {"type": "error", "content": f"Exception: {str(e)}"}
                 break
             finally:
-                if not session_uuid:
-                    log_debug("New session detected, attempting to capture ID")
-                    await asyncio.sleep(0.5)
-                    new_uuid = await self._get_latest_session_uuid()
-                    if new_uuid:
-                        log_debug(f"Captured new session ID: {new_uuid}")
-                        self.user_data[user_id]["active_session"] = new_uuid
-                        if new_uuid not in self.user_data[user_id]["sessions"]:
-                            self.user_data[user_id]["sessions"].append(new_uuid)
-                        
-                        pending = self.user_data[user_id].get("pending_tools", [])
-                        if pending:
-                            if "session_tools" not in self.user_data[user_id]:
-                                self.user_data[user_id]["session_tools"] = {}
-                            self.user_data[user_id]["session_tools"][new_uuid] = pending
-                            self.user_data[user_id]["pending_tools"] = []
-                            
-                        self._save_user_data()
-                
                 if proc and proc.returncode is None:
                     try:
                         proc.terminate()
@@ -651,11 +593,9 @@ class GeminiAgent:
         if user_id not in self.user_data:
             self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": []}
             self._save_user_data()
-            
         user_info = self.user_data[user_id]
         uuids = user_info.get("sessions", [])
         if not uuids: return []
-        
         try:
             proc = await asyncio.create_subprocess_exec(self.gemini_cmd, "--list-sessions", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=self.working_dir)
             stdout, stderr = await proc.communicate()
@@ -668,10 +608,8 @@ class GeminiAgent:
                 if info["uuid"] in uuids:
                     info["active"] = (info["uuid"] == user_info.get("active_session"))
                     sessions.append(info)
-            
             return sessions[::-1]
-        except: 
-            return [{"uuid": u, "title": "Unknown", "time": "Unknown", "active": (u == user_info.get("active_session"))} for u in uuids]
+        except: return [{"uuid": u, "title": "Unknown", "time": "Unknown", "active": (u == user_info.get("active_session"))} for u in uuids]
 
     async def get_session_messages(self, session_uuid: str, limit: Optional[int] = None, offset: int = 0) -> List[Dict]:
         try:
@@ -689,23 +627,17 @@ class GeminiAgent:
                 all_messages = data.get("messages", [])
                 total = len(all_messages)
                 if limit is not None:
-                    start = max(0, total - offset - limit)
-                    end = max(0, total - offset)
+                    start = max(0, total - offset - limit); end = max(0, total - offset)
                     messages_to_process = all_messages[start:end]
-                else:
-                    messages_to_process = all_messages
-                
+                else: messages_to_process = all_messages
                 messages = []
                 for msg in messages_to_process:
                     content = msg.get("content", "")
                     if not content or content.strip() == "": continue
-                    messages.append({
-                        "role": "user" if msg.get("type") == "user" else "bot",
-                        "content": content
-                    })
+                    messages.append({"role": "user" if msg.get("type") == "user" else "bot", "content": content})
                 return messages
         except Exception as e:
-            print(f"Error loading session messages for {session_uuid}: {str(e)}")
+            print(f"Error loading session messages: {str(e)}")
             return []
 
     async def switch_session(self, user_id: str, uuid: str) -> bool:
@@ -1138,31 +1070,43 @@ async def chat(request: Request, message: str = Form(...), file: Optional[Upload
     async def event_generator():
         def log_sse(msg):
             try:
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
                 with open("agent_debug.log", "a", encoding="utf-8") as f:
-                    f.write(f"[SSE][{user}] {msg}\n")
+                    f.write(f"[{ts}] [SSE][{user}] {msg}\n")
             except: pass
 
         log_sse("Starting event_generator")
         try:
             stream = agent.generate_response_stream(user, message, model=m_override, file_path=fpath)
             it = stream.__aiter__()
+            
             while True:
-                try:
-                    # Wait for next chunk or timeout for heartbeat
-                    log_sse("Waiting for chunk...")
-                    chunk = await asyncio.wait_for(it.__anext__(), timeout=15.0)
-                    log_sse(f"Yielding chunk: {json.dumps(chunk)[:50]}...")
-                    yield f"data: {json.dumps(chunk)}\n\n"
-                except asyncio.TimeoutError:
-                    log_sse("Sending SSE heartbeat...")
-                    yield ": heartbeat\n\n"
-                except StopAsyncIteration:
-                    log_sse("Stream finished (StopAsyncIteration)")
-                    break
-                except Exception as e:
-                    log_sse(f"Error in stream iteration: {str(e)}")
-                    yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
-                    break
+                # Create a task for the next chunk
+                log_sse("Waiting for chunk (next_task)...")
+                next_task = asyncio.create_task(it.__anext__())
+                
+                while True:
+                    # Wait for next chunk or timeout
+                    done, pending = await asyncio.wait([next_task], timeout=15.0)
+                    
+                    if next_task in done:
+                        try:
+                            chunk = next_task.result()
+                            log_sse(f"Yielding chunk: {json.dumps(chunk)[:50]}...")
+                            yield f"data: {json.dumps(chunk)}\n\n"
+                            break # Go to next task
+                        except StopAsyncIteration:
+                            log_sse("Stream finished (StopAsyncIteration)")
+                            return # Exit event_generator
+                        except Exception as e:
+                            log_sse(f"Error in stream result: {str(e)}")
+                            yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+                            return
+                    else:
+                        # Timeout happened, send heartbeat and keep waiting for the SAME task
+                        log_sse("Sending SSE heartbeat...")
+                        yield ": heartbeat\n\n"
+                        # Continue inner while loop to keep waiting for next_task
         except Exception as e:
             log_sse(f"Fatal error in event_generator: {str(e)}")
             yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"

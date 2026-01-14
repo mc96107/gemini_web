@@ -152,31 +152,43 @@ async def chat(request: Request, message: str = Form(...), file: Optional[Upload
     async def event_generator():
         def log_sse(msg):
             try:
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
                 with open("agent_debug.log", "a", encoding="utf-8") as f:
-                    f.write(f"[SSE][{user}] {msg}\n")
+                    f.write(f"[{ts}] [SSE][{user}] {msg}\n")
             except: pass
 
         log_sse("Starting event_generator")
         try:
             stream = agent.generate_response_stream(user, message, model=m_override, file_path=fpath)
             it = stream.__aiter__()
+            
             while True:
-                try:
-                    # Wait for next chunk or timeout for heartbeat
-                    log_sse("Waiting for chunk...")
-                    chunk = await asyncio.wait_for(it.__anext__(), timeout=15.0)
-                    log_sse(f"Yielding chunk: {json.dumps(chunk)[:50]}...")
-                    yield f"data: {json.dumps(chunk)}\n\n"
-                except asyncio.TimeoutError:
-                    log_sse("Sending SSE heartbeat...")
-                    yield ": heartbeat\n\n"
-                except StopAsyncIteration:
-                    log_sse("Stream finished (StopAsyncIteration)")
-                    break
-                except Exception as e:
-                    log_sse(f"Error in stream iteration: {str(e)}")
-                    yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
-                    break
+                # Create a task for the next chunk
+                log_sse("Waiting for chunk (next_task)...")
+                next_task = asyncio.create_task(it.__anext__())
+                
+                while True:
+                    # Wait for next chunk or timeout
+                    done, pending = await asyncio.wait([next_task], timeout=15.0)
+                    
+                    if next_task in done:
+                        try:
+                            chunk = next_task.result()
+                            log_sse(f"Yielding chunk: {json.dumps(chunk)[:50]}...")
+                            yield f"data: {json.dumps(chunk)}\n\n"
+                            break # Go to next task
+                        except StopAsyncIteration:
+                            log_sse("Stream finished (StopAsyncIteration)")
+                            return # Exit event_generator
+                        except Exception as e:
+                            log_sse(f"Error in stream result: {str(e)}")
+                            yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+                            return
+                    else:
+                        # Timeout happened, send heartbeat and keep waiting for the SAME task
+                        log_sse("Sending SSE heartbeat...")
+                        yield ": heartbeat\n\n"
+                        # Continue inner while loop to keep waiting for next_task
         except Exception as e:
             log_sse(f"Fatal error in event_generator: {str(e)}")
             yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
