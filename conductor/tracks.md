@@ -13,17 +13,6 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 
 
----
 
-## [x] Track: Render MathJax/KaTeX in chat messages.
-*Link: [./conductor/tracks/math_rendering_20260114/](./conductor/tracks/math_rendering_20260114/)*
 
----
 
-## [ ] Track: Add functionality to export chat history.
-*Link: [./conductor/tracks/chat_export_20260114/](./conductor/tracks/chat_export_20260114/)*
-
----
-
-## [ ] Track: Implement infinite scroll and UI improvements.
-*Link: [./conductor/tracks/infinite_scroll_20260114/](./conductor/tracks/infinite_scroll_20260114/)*
