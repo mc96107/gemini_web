@@ -17,6 +17,10 @@ The Gemini Termux Agent is designed for:
 
 ## Key Features
 * **Interactive Web Chat:** A responsive chat interface featuring conversation history and dynamic UI updates.
+* **Math Rendering:** Built-in support for LaTeX mathematical expressions via KaTeX, enabling high-quality rendering of formulas.
+* **Chat Export:** Export full conversation history as Markdown files for offline storage or sharing.
+* **Infinite Scroll History:** Seamlessly load and browse previous messages by scrolling to the top of the chat window.
+* **Fast Initial Load:** Implements Initial State Inlining to pre-render the active session on the server, ensuring conversations appear instantly upon startup.
 * **User Message Image Preview:** Inline thumbnails for uploaded images in the chat history and immediate previews for new uploads.
 * **Client-Side Image Compression:** Automatically compresses and resizes uploaded photos in the browser to ensure they fit within the model's context window while saving bandwidth.
 * **Session Auto-Restoration:** Automatically reloads the last active chat session upon login, providing a seamless continuation of previous conversations.

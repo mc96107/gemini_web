@@ -13,10 +13,26 @@ async def get_user(request: Request):
 @router.get("/", response_class=HTMLResponse)
 async def index(request: Request, user=Depends(get_user)):
     user_manager = request.app.state.user_manager
+    agent = request.app.state.agent
     if not user_manager.has_users():
         return RedirectResponse(str(request.url_for("setup_pg")), status_code=303)
     if not user: return RedirectResponse(str(request.url_for("login_pg")), status_code=303)
-    return request.app.state.render("index.html", request=request, user=user, is_admin=(user_manager.get_role(user) == "admin"))
+    
+    # Pre-load active session and initial messages for faster start
+    sessions = await agent.get_user_sessions(user)
+    active_session = next((s for s in sessions if s.get('active')), None)
+    initial_messages = []
+    if active_session:
+        initial_messages = await agent.get_session_messages(active_session['uuid'], limit=20)
+    
+    return request.app.state.render(
+        "index.html", 
+        request=request, 
+        user=user, 
+        is_admin=(user_manager.get_role(user) == "admin"),
+        initial_messages=initial_messages,
+        active_session=active_session
+    )
 
 @router.get("/sessions")
 async def get_sess(request: Request, user=Depends(get_user)):

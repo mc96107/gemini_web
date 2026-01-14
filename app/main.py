@@ -113,4 +113,11 @@ async def manifest():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Run the Gemini Agent")
+    parser.add_argument("--port", type=int, default=8000, help="Port to run the service on")
+    parser.add_argument("--host", type=str, default="0.0.0.0", help="Host to bind to")
+    args = parser.parse_args()
+    
+    uvicorn.run(app, host=args.host, port=args.port)

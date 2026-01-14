@@ -132,6 +132,40 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load sessions on page load
     loadSessions();
 
+    // Initial Math/Style for server-rendered messages
+    if (window.HAS_INITIAL_MESSAGES) {
+        document.querySelectorAll('.message').forEach(m => {
+            // Apply Math rendering to initial messages
+            if (typeof renderMathInElement === 'function') {
+                renderMathInElement(m, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false},
+                        {left: '\\(', right: '\\)', display: false},
+                        {left: '\\[', right: '\\]', display: true}
+                    ],
+                    throwOnError: false
+                });
+            }
+            // Setup copy buttons for initial messages
+            const btn = m.querySelector('.copy-btn');
+            if (btn) {
+                const text = m.querySelector('.message-content').textContent;
+                btn.onclick = (e) => {
+                    e.stopPropagation();
+                    navigator.clipboard.writeText(text).then(() => {
+                        const icon = btn.querySelector('i');
+                        icon.className = 'bi bi-check2';
+                        setTimeout(() => { icon.className = 'bi bi-clipboard'; }, 2000);
+                    });
+                };
+            }
+        });
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+        // Update currentOffset to match initial load
+        currentOffset = document.querySelectorAll('.message').length;
+    }
+
     
     async function loadMessages(uuid, limit = PAGE_LIMIT, offset = 0, isAutoRestore = false) {
         if (isLoadingHistory) return;
@@ -223,7 +257,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Check if we need to auto-load
             const hasMessages = chatContainer.querySelectorAll('.message').length > 0;
-            if (activeSession && !hasMessages) {
+            if (activeSession && !hasMessages && !window.HAS_INITIAL_MESSAGES) {
                  loadMessages(activeSession.uuid, PAGE_LIMIT, 0, true);
             }
         } catch (error) {
@@ -829,7 +863,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Error parsing markdown:', e);
         }
         
-        contentHtml += parsedText;
+        contentHtml += `<div class="message-content">${parsedText}</div>`;
 
         messageDiv.innerHTML = contentHtml;
         // Add copy button
