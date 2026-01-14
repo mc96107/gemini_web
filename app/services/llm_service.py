@@ -12,6 +12,12 @@ FALLBACK_MODELS = {
     "gemini-1.5-pro": "gemini-1.5-flash"
 }
 
+def global_log(msg):
+    try:
+        with open("agent_debug.log", "a", encoding="utf-8") as f:
+            f.write(f"{msg}\n")
+    except: pass
+
 class GeminiAgent:
     def __init__(self, model: str = "gemini-2.5-flash", working_dir: Optional[str] = None):
         self.model_name = model
@@ -81,19 +87,21 @@ class GeminiAgent:
 
     async def _get_latest_session_uuid(self) -> Optional[str]:
         try:
+            global_log("Executing --list-sessions...")
             proc = await asyncio.create_subprocess_exec(self.gemini_cmd, "--list-sessions", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=self.working_dir)
             stdout, stderr = await proc.communicate()
             content = (stdout.decode() + stderr.decode())
-            matches = re.findall(r"\\[([a-fA-F0-9-]{36})\\]", content)
-            return matches[-1] if matches else None
-        except: return None
+            matches = re.findall(r"\<([a-fA-F0-9-]{36})\>", content)
+            res = matches[-1] if matches else None
+            global_log(f"Latest session ID found: {res}")
+            return res
+        except Exception as e:
+            global_log(f"Error in _get_latest_session_uuid: {str(e)}")
+            return None
 
     async def generate_response_stream(self, user_id: str, prompt: str, model: Optional[str] = None, file_path: Optional[str] = None) -> AsyncGenerator[Dict, None]:
         def log_debug(msg):
-            try:
-                with open("agent_debug.log", "a", encoding="utf-8") as f:
-                    f.write(f"[{user_id}] {msg}\n")
-            except: pass
+            global_log(f"[{user_id}] {msg}")
 
         if user_id not in self.user_data:
             self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": []}
@@ -115,7 +123,6 @@ class GeminiAgent:
         
         while attempt < max_attempts:
             attempt += 1
-            # Get enabled tools for this session
             enabled_tools = []
             if session_uuid:
                 enabled_tools = self.get_session_tools(user_id, session_uuid)
@@ -152,11 +159,11 @@ class GeminiAgent:
                 )
                 
                 if prompt:
+                    log_debug("Writing prompt to stdin...")
                     proc.stdin.write(prompt.encode('utf-8'))
                     await proc.stdin.drain()
                     proc.stdin.close()
                 
-                # To prevent deadlock, read stderr concurrently
                 async def read_stderr(stderr_pipe):
                     try:
                         data = await stderr_pipe.read()
@@ -167,15 +174,16 @@ class GeminiAgent:
 
                 stderr_task = asyncio.create_task(read_stderr(proc.stderr))
 
-                # Read stdout line by line
+                log_debug("Starting to read stdout")
                 while True:
                     line = await proc.stdout.readline()
                     if not line:
+                        log_debug("Stdout closed (EOF)")
                         break
                     line_str = line.decode().strip()
                     if not line_str: continue
                     
-                    # Detect 429 Capacity Error
+                    log_debug(f"Received line: {line_str[:100]}...")
                     if ("429" in line_str or "No capacity available" in line_str) and attempt < max_attempts:
                         fallback = FALLBACK_MODELS.get(current_model)
                         if fallback:
@@ -184,7 +192,7 @@ class GeminiAgent:
                             yield {"type": "message", "role": "assistant", "content": f"\n\n[Model {current_model} is currently busy. Switching to {fallback} for a faster response...]\n\n"}
                             current_model = fallback
                             should_fallback = True
-                            break # Break stdout loop to retry
+                            break
                     
                     try:
                         data = json.loads(line_str)
@@ -198,7 +206,7 @@ class GeminiAgent:
                             proc.terminate()
                             await proc.wait()
                     except: pass
-                    continue # Retry while loop with fallback model
+                    continue 
 
                 await proc.wait()
                 stderr_output = await stderr_task
@@ -207,14 +215,12 @@ class GeminiAgent:
                 if proc.returncode != 0:
                     err = self._filter_errors(stderr_output.strip())
                     log_debug(f"Error output: {err}")
-                    
-                    # Also check stderr for 429
                     if ("429" in err or "No capacity available" in err) and attempt < max_attempts:
                         fallback = FALLBACK_MODELS.get(current_model)
                         if fallback:
                             yield {"type": "message", "role": "assistant", "content": f"\n\n[Model {current_model} is currently busy. Switching to {fallback}...]\n\n"}
                             current_model = fallback
-                            continue # Retry while loop
+                            continue
 
                     if session_uuid and any(x in err.lower() for x in ["no session", "not found", "invalid session"]):
                         self.user_data[user_id]["active_session"] = None
@@ -222,14 +228,13 @@ class GeminiAgent:
                     else:
                         yield {"type": "error", "content": f"Error: {err}"}
                 
-                break # Success, exit retry loop
+                break 
 
             except Exception as e:
                 log_debug(f"Exception in stream: {str(e)}")
                 yield {"type": "error", "content": f"Exception: {str(e)}"}
                 break
             finally:
-                # Capture session ID if this was a new session
                 if not session_uuid:
                     log_debug("New session detected, attempting to capture ID")
                     await asyncio.sleep(0.5)
@@ -284,7 +289,6 @@ class GeminiAgent:
             sessions = []
             for m in matches:
                 info = m.groupdict()
-                # Only show sessions that are explicitly in this user's list
                 if info["uuid"] in uuids:
                     info["active"] = (info["uuid"] == user_info.get("active_session"))
                     sessions.append(info)
@@ -295,31 +299,18 @@ class GeminiAgent:
 
     async def get_session_messages(self, session_uuid: str, limit: Optional[int] = None, offset: int = 0) -> List[Dict]:
         try:
-            # Try to find the session file
             uuid_start = session_uuid.split('-')[0]
-            
-            # Find the .gemini/tmp directory
             home = os.path.expanduser("~")
             gemini_tmp_base = os.path.join(home, ".gemini", "tmp")
-            
-            if not os.path.exists(gemini_tmp_base):
-                return []
-
+            if not os.path.exists(gemini_tmp_base): return []
             import glob
-            # Search in all project hash folders under .gemini/tmp/
             search_path = os.path.join(gemini_tmp_base, "*", "chats", f"*{uuid_start}*.json")
             files = glob.glob(search_path)
-            
-            if not files:
-                return []
-            
-            # Use the most recently modified file if multiple match
+            if not files: return []
             files.sort(key=os.path.getmtime, reverse=True)
             with open(files[0], 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 all_messages = data.get("messages", [])
-                
-                # Apply pagination: get latest messages first
                 total = len(all_messages)
                 if limit is not None:
                     start = max(0, total - offset - limit)
@@ -331,8 +322,7 @@ class GeminiAgent:
                 messages = []
                 for msg in messages_to_process:
                     content = msg.get("content", "")
-                    if not content or content.strip() == "":
-                        continue
+                    if not content or content.strip() == "": continue
                     messages.append({
                         "role": "user" if msg.get("type") == "user" else "bot",
                         "content": content
