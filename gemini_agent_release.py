@@ -563,17 +563,15 @@ class GeminiAgent:
                                 session_uuid = new_id # Update local ref
                         
                         if ("429" in line_str or "No capacity available" in line_str) and attempt < max_attempts:
-                        fallback = FALLBACK_MODELS.get(current_model)
-                        if fallback:
-                            log_debug(f"Capacity error detected, falling back to {fallback}")
-                            yield {"type": "model_switch", "old_model": current_model, "new_model": fallback}
-                            yield {"type": "message", "role": "assistant", "content": f"\n\n[Model {current_model} is currently busy. Switching to {fallback} for a faster response...]\n\n"}
-                            current_model = fallback
-                            should_fallback = True
-                            break
-                    
-                    try:
-                        data = json.loads(line_str)
+                            fallback = FALLBACK_MODELS.get(current_model)
+                            if fallback:
+                                log_debug(f"Capacity error detected, falling back to {fallback}")
+                                yield {"type": "model_switch", "old_model": current_model, "new_model": fallback}
+                                yield {"type": "message", "role": "assistant", "content": f"\n\n[Model {current_model} is currently busy. Switching to {fallback} for a faster response...]\n\n"}
+                                current_model = fallback
+                                should_fallback = True
+                                break
+                        
                         yield data
                     except json.JSONDecodeError:
                         yield {"type": "raw", "content": line_str}
