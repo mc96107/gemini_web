@@ -150,27 +150,38 @@ async def chat(request: Request, message: str = Form(...), file: Optional[Upload
         if cmd == "/help": return {"response": "Commands: /reset, /pro, /p [pattern], /yolo, /help"}
     
     async def event_generator():
+        def log_sse(msg):
+            try:
+                with open("agent_debug.log", "a", encoding="utf-8") as f:
+                    f.write(f"[SSE][{user}] {msg}\n")
+            except: pass
+
+        log_sse("Starting event_generator")
         try:
             stream = agent.generate_response_stream(user, message, model=m_override, file_path=fpath)
             it = stream.__aiter__()
             while True:
                 try:
                     # Wait for next chunk or timeout for heartbeat
+                    log_sse("Waiting for chunk...")
                     chunk = await asyncio.wait_for(it.__anext__(), timeout=15.0)
+                    log_sse(f"Yielding chunk: {json.dumps(chunk)[:50]}...")
                     yield f"data: {json.dumps(chunk)}\n\n"
                 except asyncio.TimeoutError:
-                    # Send SSE comment as heartbeat to keep connection alive
-                    # log heartbeat to agent_debug.log if possible
-                    with open("agent_debug.log", "a", encoding="utf-8") as f:
-                        f.write(f"[{user}] Sending SSE heartbeat...\n")
+                    log_sse("Sending SSE heartbeat...")
                     yield ": heartbeat\n\n"
                 except StopAsyncIteration:
+                    log_sse("Stream finished (StopAsyncIteration)")
                     break
                 except Exception as e:
+                    log_sse(f"Error in stream iteration: {str(e)}")
                     yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
                     break
         except Exception as e:
+            log_sse(f"Fatal error in event_generator: {str(e)}")
             yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+        
+        log_sse("Yielding [DONE]")
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
