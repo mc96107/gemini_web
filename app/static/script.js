@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let allPatterns = [];
     let currentOffset = 0;
     const PAGE_LIMIT = 20;
+    let isLoadingHistory = false;
 
     function showToast(message) {
         if (!liveToast) return;
@@ -133,6 +134,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     
     async function loadMessages(uuid, limit = PAGE_LIMIT, offset = 0, isAutoRestore = false) {
+        if (isLoadingHistory) return;
+        if (offset > 0) isLoadingHistory = true;
+
         try {
             const response = await fetch(`/sessions/${uuid}/messages?limit=${limit}&offset=${offset}`);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -140,7 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (offset === 0) {
                 // Clear existing messages only if it's the first page
-                chatContainer.innerHTML = '';
+                chatContainer.innerHTML = '<div id="scroll-sentinel" style="height: 10px; width: 100%;"></div>';
                 currentOffset = 0;
                 if (chatWelcome) chatWelcome.classList.add('d-none');
             }
@@ -176,7 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 currentOffset += messages.length;
                 
-                // Show/Hide Load More
+                // Show/Hide Load More (Still useful for fallback/logic)
                 if (messages.length === limit) {
                     if (loadMoreContainer) loadMoreContainer.classList.remove('d-none');
                 } else {
@@ -194,6 +198,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (error) {
             console.error('Error loading messages:', error);
+        } finally {
+            isLoadingHistory = false;
         }
     }
 
@@ -749,7 +755,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     setTimeout(() => { icon.className = 'bi bi-clipboard'; }, 2000);
                 });
             };
-            messageDiv.appendChild(copyBtn);
+            messageDiv.prepend(copyBtn);
             
             // Highlight code
             if (typeof hljs !== 'undefined') {
@@ -838,7 +844,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 setTimeout(() => { icon.className = 'bi bi-clipboard'; }, 2000);
             });
         };
-        messageDiv.appendChild(copyBtn);
+        messageDiv.prepend(copyBtn);
 
         // Highlight code blocks safely
         try {
@@ -897,5 +903,24 @@ document.addEventListener('DOMContentLoaded', () => {
         if (element) {
             element.remove();
         }
+    }
+
+    // Infinite Scroll Observer
+    const scrollSentinel = document.getElementById('scroll-sentinel');
+    if (scrollSentinel) {
+        const observer = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting && !isLoadingHistory) {
+                const activeSessionItem = document.querySelector('.session-item.active-session');
+                const hasMore = !loadMoreContainer.classList.contains('d-none');
+                
+                if (activeSessionItem && hasMore && currentOffset > 0) {
+                    loadMessages(activeSessionItem.dataset.uuid, PAGE_LIMIT, currentOffset);
+                }
+            }
+        }, {
+            root: chatContainer,
+            threshold: 0.1
+        });
+        observer.observe(scrollSentinel);
     }
 });
