@@ -6,6 +6,12 @@ import shutil
 from typing import Optional, List, Dict, AsyncGenerator
 from app.core.patterns import PATTERNS
 
+FALLBACK_MODELS = {
+    "gemini-3-pro-preview": "gemini-3-flash-preview",
+    "gemini-2.5-pro": "gemini-2.5-flash",
+    "gemini-1.5-pro": "gemini-1.5-flash"
+}
+
 class GeminiAgent:
     def __init__(self, model: str = "gemini-2.5-flash", working_dir: Optional[str] = None):
         self.model_name = model
@@ -98,89 +104,124 @@ class GeminiAgent:
         session_uuid = self.user_data[user_id].get("active_session")
         current_model = model or self.model_name
         
-        # Get enabled tools for this session
-        enabled_tools = []
-        if session_uuid:
-            enabled_tools = self.get_session_tools(user_id, session_uuid)
-        else:
-            enabled_tools = self.get_session_tools(user_id, "pending")
+        attempt = 0
+        max_attempts = 2
         
-        args = [self.gemini_cmd]
-        args.extend(["--output-format", "stream-json"])
-        
-        # Security: Apply tool restrictions
-        if enabled_tools:
-            args.extend(["--allowed-tools", ",".join(enabled_tools)])
-        else:
-            args.extend(["--allowed-tools", "none"])
-        
-        args.extend(["--approval-mode", "default"])
+        while attempt < max_attempts:
+            attempt += 1
+            # Get enabled tools for this session
+            enabled_tools = []
+            if session_uuid:
+                enabled_tools = self.get_session_tools(user_id, session_uuid)
+            else:
+                enabled_tools = self.get_session_tools(user_id, "pending")
+            
+            args = [self.gemini_cmd]
+            args.extend(["--output-format", "stream-json"])
+            
+            # Security: Apply tool restrictions
+            if enabled_tools:
+                args.extend(["--allowed-tools", ",".join(enabled_tools)])
+            else:
+                args.extend(["--allowed-tools", "none"])
+            
+            args.extend(["--approval-mode", "default"])
 
-        if self.yolo_mode: args.append("--yolo")
-        if session_uuid: args.extend(["--resume", session_uuid])
-        if current_model: args.extend(["--model", current_model])
-        args.extend(["--include-directories", self.working_dir])
-        if file_path: args.append(f"@{file_path}")
-        
-        # Pass prompt via stdin to avoid argument parsing issues (e.g. starting with -)
-        
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                *args, 
-                stdin=asyncio.subprocess.PIPE, 
-                stdout=asyncio.subprocess.PIPE, 
-                stderr=asyncio.subprocess.PIPE, 
-                cwd=self.working_dir
-            )
+            if self.yolo_mode: args.append("--yolo")
+            if session_uuid: args.extend(["--resume", session_uuid])
+            if current_model: args.extend(["--model", current_model])
+            args.extend(["--include-directories", self.working_dir])
+            if file_path: args.append(f"@{file_path}")
             
-            if prompt:
-                proc.stdin.write(prompt.encode('utf-8'))
-                await proc.stdin.drain()
-                proc.stdin.close()
+            # Pass prompt via stdin to avoid argument parsing issues (e.g. starting with -)
             
-            # Read stdout line by line
-            while True:
-                line = await proc.stdout.readline()
-                if not line:
-                    break
-                line_str = line.decode().strip()
-                if not line_str: continue
-                try:
-                    data = json.loads(line_str)
-                    yield data
-                except json.JSONDecodeError:
-                    yield {"type": "raw", "content": line_str}
-            
-            await proc.wait()
-            
-            if proc.returncode != 0:
-                stderr_output = await proc.stderr.read()
-                err = self._filter_errors(stderr_output.decode().strip())
-                if session_uuid and any(x in err.lower() for x in ["no session", "not found", "invalid session"]):
-                    self.user_data[user_id]["active_session"] = None
-                    yield {"type": "error", "content": f"Session error: {err}"}
-                else:
-                    yield {"type": "error", "content": f"Error: {err}"}
-            
-            # Session Logic
-            if not session_uuid:
-                new_uuid = await self._get_latest_session_uuid()
-                if new_uuid:
-                    self.user_data[user_id]["active_session"] = new_uuid
-                    if new_uuid not in self.user_data[user_id]["sessions"]:
-                        self.user_data[user_id]["sessions"].append(new_uuid)
+            should_fallback = False
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    *args, 
+                    stdin=asyncio.subprocess.PIPE, 
+                    stdout=asyncio.subprocess.PIPE, 
+                    stderr=asyncio.subprocess.PIPE, 
+                    cwd=self.working_dir
+                )
+                
+                if prompt:
+                    proc.stdin.write(prompt.encode('utf-8'))
+                    await proc.stdin.drain()
+                    proc.stdin.close()
+                
+                # Read stdout line by line
+                while True:
+                    line = await proc.stdout.readline()
+                    if not line:
+                        break
+                    line_str = line.decode().strip()
+                    if not line_str: continue
                     
-                    pending = self.user_data[user_id].get("pending_tools", [])
-                    if pending:
-                        if "session_tools" not in self.user_data[user_id]:
-                            self.user_data[user_id]["session_tools"] = {}
-                        self.user_data[user_id]["session_tools"][new_uuid] = pending
-                        self.user_data[user_id]["pending_tools"] = []
-                        
-                    self._save_user_data()
+                    # Detect 429 Capacity Error
+                    if ("429" in line_str or "No capacity available" in line_str) and attempt < max_attempts:
+                        fallback = FALLBACK_MODELS.get(current_model)
+                        if fallback:
+                            yield {"type": "message", "role": "assistant", "content": f"\n\n[Model {current_model} is currently busy. Switching to {fallback} for a faster response...]\n\n"}
+                            current_model = fallback
+                            should_fallback = True
+                            break # Break stdout loop to retry
+                    
+                    try:
+                        data = json.loads(line_str)
+                        yield data
+                    except json.JSONDecodeError:
+                        yield {"type": "raw", "content": line_str}
+                
+                if should_fallback:
+                    try:
+                        proc.terminate()
+                        await proc.wait()
+                    except: pass
+                    continue # Retry while loop with fallback model
 
-        except Exception as e:
-            yield {"type": "error", "content": f"Exception: {str(e)}"}
+                await proc.wait()
+                
+                if proc.returncode != 0:
+                    stderr_output = await proc.stderr.read()
+                    err = self._filter_errors(stderr_output.decode().strip())
+                    
+                    # Also check stderr for 429
+                    if ("429" in err or "No capacity available" in err) and attempt < max_attempts:
+                        fallback = FALLBACK_MODELS.get(current_model)
+                        if fallback:
+                            yield {"type": "message", "role": "assistant", "content": f"\n\n[Model {current_model} is currently busy. Switching to {fallback}...]\n\n"}
+                            current_model = fallback
+                            continue # Retry while loop
+
+                    if session_uuid and any(x in err.lower() for x in ["no session", "not found", "invalid session"]):
+                        self.user_data[user_id]["active_session"] = None
+                        yield {"type": "error", "content": f"Session error: {err}"}
+                    else:
+                        yield {"type": "error", "content": f"Error: {err}"}
+                
+                # Session Logic
+                if not session_uuid:
+                    new_uuid = await self._get_latest_session_uuid()
+                    if new_uuid:
+                        self.user_data[user_id]["active_session"] = new_uuid
+                        if new_uuid not in self.user_data[user_id]["sessions"]:
+                            self.user_data[user_id]["sessions"].append(new_uuid)
+                        
+                        pending = self.user_data[user_id].get("pending_tools", [])
+                        if pending:
+                            if "session_tools" not in self.user_data[user_id]:
+                                self.user_data[user_id]["session_tools"] = {}
+                            self.user_data[user_id]["session_tools"][new_uuid] = pending
+                            self.user_data[user_id]["pending_tools"] = []
+                            
+                        self._save_user_data()
+                
+                break # Success, exit retry loop
+
+            except Exception as e:
+                yield {"type": "error", "content": f"Exception: {str(e)}"}
+                break
 
     async def generate_response(self, user_id: str, prompt: str, model: Optional[str] = None, file_path: Optional[str] = None) -> str:
         full_response = ""
