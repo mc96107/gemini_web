@@ -378,6 +378,8 @@ FALLBACK_MODELS = {
     "gemini-1.5-pro": "gemini-1.5-flash"
 }
 
+CAPACITY_KEYWORDS = ["429", "capacity", "quota", "exhausted", "rate limit"]
+
 def global_log(msg):
     try:
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
@@ -449,7 +451,7 @@ class GeminiAgent:
             proc = await asyncio.create_subprocess_exec(self.gemini_cmd, "--list-sessions", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=self.working_dir)
             stdout, stderr = await proc.communicate()
             content = (stdout.decode() + stderr.decode())
-            matches = re.findall(r" \[([a-fA-F0-9-]{36})\]", content)
+            matches = re.findall(r"\x20\[([a-fA-F0-9-]{36})\]", content)
             res = matches[-1] if matches else None
             global_log(f"Latest session ID found: {res}")
             return res
@@ -487,10 +489,11 @@ class GeminiAgent:
             args.extend(["--include-directories", self.working_dir])
             if file_path: args.append(f"@{file_path}")
             
-            log_debug(f"Attempt {attempt}: Running command {' '.join(args)}")
+            log_debug(f"Attempt {attempt}: Running command {" ".join(args)}")
             
             should_fallback = False
             proc = None
+            stderr_buffer = []
             try:
                 proc = await asyncio.create_subprocess_exec(
                     *args, 
@@ -506,13 +509,15 @@ class GeminiAgent:
                     await proc.stdin.drain()
                     proc.stdin.close()
                 
-                async def log_stderr(pipe):
+                async def capture_stderr(pipe):
                     while True:
                         line = await pipe.readline()
                         if not line: break
-                        log_debug(f"STDERR: {line.decode().strip()}")
+                        line_str = line.decode().strip()
+                        log_debug(f"STDERR: {line_str}")
+                        stderr_buffer.append(line_str)
                 
-                stderr_task = asyncio.create_task(log_stderr(proc.stderr))
+                stderr_task = asyncio.create_task(capture_stderr(proc.stderr))
 
                 log_debug("Starting to read stdout")
                 while True:
@@ -526,6 +531,7 @@ class GeminiAgent:
                     log_debug(f"Received line ({len(line_str)} chars)")
                     try:
                         data = json.loads(line_str)
+                        # Capture session ID
                         if data.get("type") == "init" and data.get("session_id"):
                             new_id = data["session_id"]
                             if not session_uuid:
@@ -536,12 +542,14 @@ class GeminiAgent:
                                 self._save_user_data()
                                 session_uuid = new_id
                         
-                        if data.get("type") == "error" and ("429" in line_str or "No capacity available" in line_str) and attempt < max_attempts:
+                        # Check for capacity error in JSON chunks
+                        content_to_check = str(data).lower()
+                        if any(k in content_to_check for k in CAPACITY_KEYWORDS) and attempt < max_attempts:
                             fallback = FALLBACK_MODELS.get(current_model)
                             if fallback:
-                                log_debug(f"Capacity error, falling back to {fallback}")
+                                log_debug(f"Capacity error detected in stdout, falling back to {fallback}")
                                 yield {"type": "model_switch", "old_model": current_model, "new_model": fallback}
-                                yield {"type": "message", "role": "assistant", "content": f"\n\n[Model {current_model} is currently busy. Switching to {fallback}...]\n\n"}
+                                yield {"type": "message", "role": "assistant", "content": f"\n\n[Model {current_model} is currently busy or quota exhausted. Switching to {fallback} for a faster response...]\n\n"}
                                 current_model = fallback
                                 should_fallback = True
                                 break
@@ -562,7 +570,19 @@ class GeminiAgent:
                 await stderr_task
                 log_debug(f"Process exited with code {proc.returncode}")
                 
+                # Check for capacity error in stderr if process failed
                 if proc.returncode != 0 and not should_fallback:
+                    err_text = "\n".join(stderr_buffer).lower()
+                    if any(k in err_text for k in CAPACITY_KEYWORDS) and attempt < max_attempts:
+                        fallback = FALLBACK_MODELS.get(current_model)
+                        if fallback:
+                            log_debug(f"Capacity error detected in stderr, falling back to {fallback}")
+                            yield {"type": "model_switch", "old_model": current_model, "new_model": fallback}
+                            yield {"type": "message", "role": "assistant", "content": f"\n\n[Model {current_model} is currently busy or quota exhausted. Switching to {fallback}...]\n\n"}
+                            current_model = fallback
+                            continue 
+
+                    # If not a capacity error, yield generic exit code error
                     yield {"type": "error", "content": f"Exit code {proc.returncode}"}
                 
                 break 
