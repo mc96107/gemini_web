@@ -157,7 +157,6 @@ document.addEventListener('DOMContentLoaded', () => {
     historySidebar.addEventListener('show.bs.offcanvas', () => loadSessions());
 
     // Load sessions on page load
-    console.log("Initial loadSessions call...");
     loadSessions();
 
     // Initial load from server-side messages
@@ -244,7 +243,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadSessions(append = false) {
-        console.log("loadSessions called. append:", append, "isLoadingSidebar:", isLoadingSidebar);
         if (isLoadingSidebar) return;
         if (!append) sidebarOffset = 0;
         
@@ -258,19 +256,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (query) {
             url = `/sessions/search?q=${encodeURIComponent(query)}`;
         }
-        console.log("Fetching sessions from:", url);
 
         try {
             isLoadingSidebar = true;
             const response = await fetch(url);
-            console.log("Response status:", response.status);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const sessions = await response.json();
-            console.log("Sessions loaded:", sessions.length);
             
             // Auto-create if none and not searching
             if (!query && !append && sessions.length === 0) {
-                console.log("No sessions found, creating new...");
                 const newRes = await fetch('/sessions/new', { method: 'POST' });
                 if (newRes.ok) {
                     loadSessions();
