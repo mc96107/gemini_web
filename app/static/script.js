@@ -157,6 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
     historySidebar.addEventListener('show.bs.offcanvas', () => loadSessions());
 
     // Load sessions on page load
+    console.log("Initial loadSessions call...");
     loadSessions();
 
     // Initial load from server-side messages
@@ -243,24 +244,33 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadSessions(append = false) {
+        console.log("loadSessions called. append:", append, "isLoadingSidebar:", isLoadingSidebar);
         if (isLoadingSidebar) return;
         if (!append) sidebarOffset = 0;
         
-        const query = sessionSearch.value.trim();
+        let query = "";
+        if (sessionSearch) {
+            query = sessionSearch.value.trim();
+        }
+        
         let url = `/sessions?limit=${SIDEBAR_PAGE_LIMIT}&offset=${sidebarOffset}`;
         
         if (query) {
             url = `/sessions/search?q=${encodeURIComponent(query)}`;
         }
+        console.log("Fetching sessions from:", url);
 
         try {
             isLoadingSidebar = true;
             const response = await fetch(url);
+            console.log("Response status:", response.status);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const sessions = await response.json();
+            console.log("Sessions loaded:", sessions.length);
             
             // Auto-create if none and not searching
             if (!query && !append && sessions.length === 0) {
+                console.log("No sessions found, creating new...");
                 const newRes = await fetch('/sessions/new', { method: 'POST' });
                 if (newRes.ok) {
                     loadSessions();
@@ -272,13 +282,13 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Handle Load More visibility
             if (query) {
-                sidebarLoadMoreContainer.classList.add('d-none');
+                if (sidebarLoadMoreContainer) sidebarLoadMoreContainer.classList.add('d-none');
             } else {
                 const unpinnedCount = sessions.filter(s => !s.pinned).length;
                 if (unpinnedCount === SIDEBAR_PAGE_LIMIT) {
-                    sidebarLoadMoreContainer.classList.remove('d-none');
+                    if (sidebarLoadMoreContainer) sidebarLoadMoreContainer.classList.remove('d-none');
                 } else {
-                    sidebarLoadMoreContainer.classList.add('d-none');
+                    if (sidebarLoadMoreContainer) sidebarLoadMoreContainer.classList.add('d-none');
                 }
             }
 
@@ -371,7 +381,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.stopPropagation();
                 const uuid = btn.dataset.uuid;
                 try {
-                    const response = await fetch(\`/sessions/${uuid}/pin\`, { method: 'POST' });
+                    const response = await fetch(`/sessions/${uuid}/pin`, { method: 'POST' });
                     const data = await response.json();
                     loadSessions();
                 } catch (error) {
