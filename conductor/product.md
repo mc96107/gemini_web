@@ -20,6 +20,9 @@ The Gemini Termux Agent is designed for:
 * **Math Rendering:** Built-in support for LaTeX mathematical expressions via KaTeX, enabling high-quality rendering of formulas.
 * **Chat Export:** Export full conversation history as Markdown files for offline storage or sharing.
 * **Infinite Scroll History:** Seamlessly load and browse previous messages by scrolling to the top of the chat window.
+* **Sidebar Search and Pagination:** Efficiently browse long chat histories with paginated session titles (10 per page) and a "Load More" button.
+* **Global Live Search:** Instantly find conversations using a dedicated search bar that queries titles, message content, and attachment filenames across all history.
+* **Pinned Chats:** Keep important conversations at the very top of the sidebar for quick access, regardless of how many new chats are created.
 * **Fast Initial Load:** Implements Initial State Inlining to pre-render the active session on the server, ensuring conversations appear instantly upon startup.
 * **Automatic Model Fallback:** Intelligent error detection that automatically switches to a secondary model (e.g., from Pro to Flash) if the primary model is over-capacity (429 error), ensuring uninterrupted service.
 * **User Message Image Preview:** Inline thumbnails for uploaded images in the chat history and immediate previews for new uploads.
