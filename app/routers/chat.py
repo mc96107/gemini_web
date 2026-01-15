@@ -40,10 +40,16 @@ async def index(request: Request, user=Depends(get_user)):
     )
 
 @router.get("/sessions")
-async def get_sess(request: Request, user=Depends(get_user)):
+async def get_sess(request: Request, limit: Optional[int] = None, offset: int = 0, user=Depends(get_user)):
     agent = request.app.state.agent
     if not user: raise HTTPException(401)
-    return await agent.get_user_sessions(user)
+    return await agent.get_user_sessions(user, limit=limit, offset=offset)
+
+@router.get("/sessions/search")
+async def search_sess(request: Request, q: str = "", user=Depends(get_user)):
+    agent = request.app.state.agent
+    if not user: raise HTTPException(401)
+    return await agent.search_sessions(user, q)
 
 @router.get("/sessions/{session_uuid}/messages")
 async def get_sess_messages(session_uuid: str, request: Request, limit: Optional[int] = None, offset: int = 0, user=Depends(get_user)):
@@ -73,6 +79,16 @@ async def dl_sess(request: Request, session_uuid: str = Form(...), user=Depends(
     agent = request.app.state.agent
     if not user: raise HTTPException(401)
     return {"success": await agent.delete_specific_session(user, session_uuid)}
+
+@router.post("/sessions/{session_uuid}/pin")
+async def pin_sess(session_uuid: str, request: Request, user=Depends(get_user)):
+    agent = request.app.state.agent
+    if not user: raise HTTPException(401)
+    # Security: check if this session belongs to the user
+    user_sessions = await agent.get_user_sessions(user)
+    if not any(s['uuid'] == session_uuid for s in user_sessions):
+        raise HTTPException(403, "Access denied")
+    return {"pinned": agent.toggle_pin(user, session_uuid)}
 
 @router.get("/sessions/{session_uuid}/tools")
 async def get_sess_tools(session_uuid: str, request: Request, user=Depends(get_user)):

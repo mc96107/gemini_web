@@ -44,12 +44,30 @@ class GeminiAgent:
                         if "active_session" not in data[uid]: data[uid]["active_session"] = None
                         if "session_tools" not in data[uid]: data[uid]["session_tools"] = {}
                         if "pending_tools" not in data[uid]: data[uid]["pending_tools"] = []
+                        if "pinned_sessions" not in data[uid]: data[uid]["pinned_sessions"] = []
                     return data
             except: return {}
         return {}
 
     def _save_user_data(self):
         with open(self.session_file, "w") as f: json.dump(self.user_data, f, indent=2)
+
+    def toggle_pin(self, user_id: str, session_uuid: str) -> bool:
+        if user_id not in self.user_data:
+            self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": [], "pinned_sessions": []}
+        
+        user_info = self.user_data[user_id]
+        if "pinned_sessions" not in user_info: user_info["pinned_sessions"] = []
+        
+        if session_uuid in user_info["pinned_sessions"]:
+            user_info["pinned_sessions"].remove(session_uuid)
+            res = False
+        else:
+            user_info["pinned_sessions"].append(session_uuid)
+            res = True
+        
+        self._save_user_data()
+        return res
 
     def get_session_tools(self, user_id: str, session_uuid: str) -> List[str]:
         user_info = self.user_data.get(user_id)
@@ -255,9 +273,9 @@ class GeminiAgent:
                  full_response += chunk.get("content", "") + "\n"
         return full_response.strip()
 
-    async def get_user_sessions(self, user_id: str) -> List[Dict]:
+    async def get_user_sessions(self, user_id: str, limit: Optional[int] = None, offset: int = 0) -> List[Dict]:
         if user_id not in self.user_data:
-            self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": []}
+            self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": [], "pinned_sessions": []}
             self._save_user_data()
         user_info = self.user_data[user_id]
         uuids = user_info.get("sessions", [])
@@ -266,16 +284,82 @@ class GeminiAgent:
             proc = await asyncio.create_subprocess_exec(self.gemini_cmd, "--list-sessions", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=self.working_dir)
             stdout, stderr = await proc.communicate()
             content = self._filter_errors(stdout.decode() + stderr.decode())
-            pattern = r"^\s+\d+\.\s+(?P<title>.*?)\s+\((?P<time>.*?)\)\s+\[(?P<uuid>[a-fA-F0-9-]{36})\]"
+            pattern = r"^\s*\d+\.\s+(?P<title>.*?)\s+\((?P<time>.*?)\)\s+\[(?P<uuid>[a-fA-F0-9-]{36})\]"
             matches = re.finditer(pattern, content, re.MULTILINE)
-            sessions = []
+            
+            all_sessions = []
+            pinned_uuids = user_info.get("pinned_sessions", [])
+            
             for m in matches:
                 info = m.groupdict()
                 if info["uuid"] in uuids:
                     info["active"] = (info["uuid"] == user_info.get("active_session"))
-                    sessions.append(info)
-            return sessions[::-1]
-        except: return [{"uuid": u, "title": "Unknown", "time": "Unknown", "active": (u == user_info.get("active_session"))} for u in uuids]
+                    info["pinned"] = (info["uuid"] in pinned_uuids)
+                    all_sessions.append(info)
+            
+            # Sort by recency (assuming list-sessions is chronological, we want reverse chronological)
+            all_sessions = all_sessions[::-1]
+            
+            pinned = [s for s in all_sessions if s["pinned"]]
+            unpinned = [s for s in all_sessions if not s["pinned"]]
+            
+            if limit is not None:
+                paged_unpinned = unpinned[offset : offset + limit]
+            else:
+                paged_unpinned = unpinned[offset:]
+                
+            return pinned + paged_unpinned
+            
+        except: 
+            pinned_uuids = user_info.get("pinned_sessions", [])
+            # Fallback logic also needs to handle pagination
+            all_fallback = [{"uuid": u, "title": "Unknown", "time": "Unknown", "active": (u == user_info.get("active_session")), "pinned": (u in pinned_uuids)} for u in uuids]
+            all_fallback = all_fallback[::-1]
+            pinned = [s for s in all_fallback if s["pinned"]]
+            unpinned = [s for s in all_fallback if not s["pinned"]]
+            if limit is not None:
+                paged_unpinned = unpinned[offset : offset + limit]
+            else:
+                paged_unpinned = unpinned[offset:]
+            return pinned + paged_unpinned
+
+    async def search_sessions(self, user_id: str, query: str) -> List[Dict]:
+        if not query: return await self.get_user_sessions(user_id)
+        
+        user_sessions = await self.get_user_sessions(user_id) # Get basic info for all user sessions
+        if not user_sessions: return []
+        
+        query = query.lower()
+        results = []
+        
+        home = os.path.expanduser("~")
+        gemini_tmp_base = os.path.join(home, ".gemini", "tmp")
+        
+        for sess in user_sessions:
+            match = False
+            # Check title
+            if query in sess.get("title", "").lower():
+                match = True
+            
+            if not match:
+                # Check messages and attachments in the JSON file
+                uuid_start = sess["uuid"].split('-')[0]
+                import glob
+                search_path = os.path.join(gemini_tmp_base, "*", "chats", f"*{uuid_start}*.json")
+                files = glob.glob(search_path)
+                if files:
+                    try:
+                        with open(files[0], 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+                            for msg in data.get("messages", []):
+                                if query in msg.get("content", "").lower():
+                                    match = True; break
+                    except: pass
+            
+            if match:
+                results.append(sess)
+        
+        return results
 
     async def get_session_messages(self, session_uuid: str, limit: Optional[int] = None, offset: int = 0) -> List[Dict]:
         try:
