@@ -16,3 +16,13 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 
 
+
+---
+
+- [x] **Track: Sidebar Search, Pagination, and Pinned Chats**
+*Link: [./tracks/sidebar_search_20260115/](./tracks/sidebar_search_20260115/)*
+
+---
+
+- [ ] **Track: Chunked Tool Output Protocol**
+*Link: [./tracks/chunked_tool_protocol_20260115/](./tracks/chunked_tool_protocol_20260115/)*
