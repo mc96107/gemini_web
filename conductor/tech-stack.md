@@ -10,6 +10,7 @@
 * **Templating:** Jinja2 - A modern and designer-friendly templating language for Python.
 * **Styling:** Bootstrap 5 - A powerful, extensible, and feature-packed frontend toolkit.
 * **Image Processing:** Browser Canvas API - For high-performance, client-side image compression and resizing.
+* **Math Rendering:** KaTeX - Fast, lightweight LaTeX math rendering library.
 * **Icons:** Bootstrap Icons - A free, high-quality, open-source icon library.
 
 ## Security & Authentication

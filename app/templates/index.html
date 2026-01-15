@@ -65,7 +65,7 @@
     <!-- Chat Area -->
     <div id="chat-container" class="flex-grow-1 overflow-auto p-3">
         <div id="scroll-sentinel" style="height: 10px; width: 100%;"></div>
-        <div id="load-more-container" class="text-center d-none mb-3">
+        <div id="load-more-container" class="text-center {{ 'd-none' if not has_more else '' }} mb-3">
             <button id="load-more-btn" class="btn btn-outline-secondary btn-sm">Load Older Messages</button>
         </div>
         <div id="chat-welcome" class="text-center text-muted mt-5">
@@ -545,6 +545,9 @@
     });
 </script>
 <script src="/static/compression.js?v={{ range(1, 999999) | random }}"></script>
+<script>
+    window.INITIAL_MESSAGES = {{ initial_messages | tojson }};
+</script>
 <script src="/static/script.js?v={{ range(1, 999999) | random }}"></script>
 <script>
     /*

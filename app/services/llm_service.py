@@ -114,6 +114,7 @@ class GeminiAgent:
         while attempt < max_attempts:
             attempt += 1
             enabled_tools = self.get_session_tools(user_id, session_uuid or "pending")
+            log_debug(f"Enabled tools for this run: {enabled_tools}")
             
             args = [self.gemini_cmd, "--output-format", "stream-json"]
             args.extend(["--allowed-tools", ",".join(enabled_tools) if enabled_tools else "none"])
@@ -124,7 +125,7 @@ class GeminiAgent:
             args.extend(["--include-directories", self.working_dir])
             if file_path: args.append(f"@{file_path}")
             
-            log_debug(f"Attempt {attempt}: Running command {" ".join(args)}")
+            log_debug(f"Attempt {attempt}: Running command {' '.join(args)}")
             
             should_fallback = False
             proc = None
@@ -174,6 +175,16 @@ class GeminiAgent:
                                 self.user_data[user_id]["active_session"] = new_id
                                 if new_id not in self.user_data[user_id]["sessions"]:
                                     self.user_data[user_id]["sessions"].append(new_id)
+                                
+                                # Promote pending tools to this new session
+                                pending = self.user_data[user_id].get("pending_tools", [])
+                                if pending:
+                                    if "session_tools" not in self.user_data[user_id]:
+                                        self.user_data[user_id]["session_tools"] = {}
+                                    self.user_data[user_id]["session_tools"][new_id] = pending
+                                    self.user_data[user_id]["pending_tools"] = []
+                                    log_debug(f"Promoted pending tools to session {new_id}")
+
                                 self._save_user_data()
                                 session_uuid = new_id
                         

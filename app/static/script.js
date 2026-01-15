@@ -132,38 +132,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load sessions on page load
     loadSessions();
 
-    // Initial Math/Style for server-rendered messages
-    if (window.HAS_INITIAL_MESSAGES) {
-        document.querySelectorAll('.message').forEach(m => {
-            // Apply Math rendering to initial messages
-            if (typeof renderMathInElement === 'function') {
-                renderMathInElement(m, {
-                    delimiters: [
-                        {left: '$$', right: '$$', display: true},
-                        {left: '$', right: '$', display: false},
-                        {left: '\\(', right: '\\)', display: false},
-                        {left: '\\[', right: '\\]', display: true}
-                    ],
-                    throwOnError: false
-                });
-            }
-            // Setup copy buttons for initial messages
-            const btn = m.querySelector('.copy-btn');
-            if (btn) {
-                const text = m.querySelector('.message-content').textContent;
-                btn.onclick = (e) => {
-                    e.stopPropagation();
-                    navigator.clipboard.writeText(text).then(() => {
-                        const icon = btn.querySelector('i');
-                        icon.className = 'bi bi-check2';
-                        setTimeout(() => { icon.className = 'bi bi-clipboard'; }, 2000);
-                    });
-                };
-            }
+    // Initial load from server-side messages
+    if (window.INITIAL_MESSAGES && window.INITIAL_MESSAGES.length > 0) {
+        if (chatWelcome) chatWelcome.classList.add('d-none');
+        window.INITIAL_MESSAGES.forEach(msg => {
+            const msgDiv = createMessageDiv(msg.role, msg.content);
+            if (msgDiv) chatContainer.appendChild(msgDiv);
         });
         chatContainer.scrollTop = chatContainer.scrollHeight;
-        // Update currentOffset to match initial load
-        currentOffset = document.querySelectorAll('.message').length;
+        currentOffset = window.INITIAL_MESSAGES.length;
+        window.HAS_INITIAL_MESSAGES = true;
     }
 
     
@@ -194,18 +172,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Prepend for "Load More"
                     // We need to maintain scroll position
                     const scrollHeightBefore = chatContainer.scrollHeight;
-                    const firstMessage = chatContainer.querySelector('.message');
                     
                     // Messages are in chronological order for the range.
-                    // To prepend correctly, we reverse and prepend.
-                    [...messages].reverse().forEach(msg => {
+                    // To maintain chronological order when prepending, we insert each message 
+                    // before the original first message of the container.
+                    const sentinel = document.getElementById('scroll-sentinel');
+                    const loadMore = document.getElementById('load-more-container');
+                    const originalFirstMessage = loadMore ? loadMore.nextSibling : (sentinel ? sentinel.nextSibling : chatContainer.firstChild);
+
+                    messages.forEach(msg => {
                         const msgDiv = createMessageDiv(msg.role, msg.content);
                         if (msgDiv) {
-                            if (firstMessage) {
-                                chatContainer.insertBefore(msgDiv, firstMessage);
-                            } else {
-                                chatContainer.appendChild(msgDiv);
-                            }
+                            chatContainer.insertBefore(msgDiv, originalFirstMessage);
                         }
                     });
                     
