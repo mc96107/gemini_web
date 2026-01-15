@@ -34,7 +34,7 @@
     - [x] Ensure the UI re-renders correctly to move pinned items to the top.
 - [x] Task: Conductor - User Manual Verification 'Interaction Logic' (Protocol in workflow.md)
 
-## Phase 4: Verification & Cleanup
+## Phase 4: Verification & Cleanup [checkpoint: ac08f2f]
 - [x] Task: Performance Check
     - [x] Verify search remains responsive with a large number of sessions.
 - [x] Task: Final Quality Gate
