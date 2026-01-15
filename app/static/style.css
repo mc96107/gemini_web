@@ -223,3 +223,31 @@ footer {
 .message-thumbnail:hover {
     transform: scale(1.02);
 }
+
+/* Pinning UI */
+.pin-btn {
+    color: rgba(255, 255, 255, 0.3);
+    transition: all 0.2s;
+    padding: 0.25rem 0.5rem !important;
+}
+.pin-btn:hover {
+    color: rgba(255, 255, 255, 0.7);
+}
+.pin-btn.pinned {
+    color: #ffc107 !important; /* Gold */
+}
+.delete-session-btn {
+    color: rgba(220, 53, 69, 0.5);
+    transition: all 0.2s;
+    padding: 0.25rem 0.5rem !important;
+}
+.delete-session-btn:hover {
+    color: rgba(220, 53, 69, 1);
+}
+#session-search:focus {
+    border-color: #3c6e71;
+    background-color: #252525 !important;
+}
+.input-group-text {
+    background-color: #1e1e1e !important;
+}

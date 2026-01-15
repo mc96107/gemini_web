@@ -49,14 +49,25 @@
         <h5 class="offcanvas-title" id="historySidebarLabel"><i class="bi bi-clock-history"></i> Chat History</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
       </div>
-      <div class="offcanvas-body p-0">
+      <div class="offcanvas-body p-0 d-flex flex-column">
         <div class="p-3 border-bottom border-secondary">
             <button id="new-chat-btn" class="btn btn-primary w-100 mb-2"><i class="bi bi-plus-lg"></i> New Chat</button>
+            <div class="mt-2">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-dark border-secondary text-secondary"><i class="bi bi-search"></i></span>
+                    <input type="text" id="session-search" class="form-control bg-dark text-light border-secondary shadow-none" placeholder="Search history...">
+                </div>
+            </div>
         </div>
-        <div id="sessions-list" class="list-group list-group-flush">
-            <!-- Sessions will be loaded here -->
-            <div class="text-center p-3">
-                <div class="spinner-border text-info spinner-border-sm" role="status"></div>
+        <div class="flex-grow-1 overflow-auto">
+            <div id="sessions-list" class="list-group list-group-flush">
+                <!-- Sessions will be loaded here -->
+                <div class="text-center p-3">
+                    <div class="spinner-border text-info spinner-border-sm" role="status"></div>
+                </div>
+            </div>
+            <div id="sidebar-load-more-container" class="p-3 text-center d-none">
+                <button id="sidebar-load-more-btn" class="btn btn-outline-secondary btn-sm w-100">Load More</button>
             </div>
         </div>
       </div>

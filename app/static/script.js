@@ -28,18 +28,32 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadMoreContainer = document.getElementById('load-more-container');
     const loadMoreBtn = document.getElementById('load-more-btn');
     const chatWelcome = document.getElementById('chat-welcome');
+    const sessionSearch = document.getElementById('session-search');
+    const sidebarLoadMoreContainer = document.getElementById('sidebar-load-more-container');
+    const sidebarLoadMoreBtn = document.getElementById('sidebar-load-more-btn');
 
     let currentFile = null;
     let allPatterns = [];
     let currentOffset = 0;
+    let sidebarOffset = 0;
     const PAGE_LIMIT = 20;
+    const SIDEBAR_PAGE_LIMIT = 10;
     let isLoadingHistory = false;
+    let isLoadingSidebar = false;
 
     function showToast(message) {
         if (!liveToast) return;
         toastBody.textContent = message;
         const toast = new bootstrap.Toast(liveToast);
         toast.show();
+    }
+
+    function debounce(func, timeout = 300) {
+        let timer;
+        return (...args) => {
+            clearTimeout(timer);
+            timer = setTimeout(() => { func.apply(this, args); }, timeout);
+        };
     }
 
     // Handle Tools Modal show
@@ -126,8 +140,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    if (sessionSearch) {
+        sessionSearch.addEventListener('input', debounce(() => {
+            loadSessions();
+        }, 300));
+    }
+
+    if (sidebarLoadMoreBtn) {
+        sidebarLoadMoreBtn.addEventListener('click', () => {
+            sidebarOffset += SIDEBAR_PAGE_LIMIT;
+            loadSessions(true);
+        });
+    }
+
     // Load sessions when sidebar is shown
-    historySidebar.addEventListener('show.bs.offcanvas', loadSessions);
+    historySidebar.addEventListener('show.bs.offcanvas', () => loadSessions());
 
     // Load sessions on page load
     loadSessions();
@@ -215,14 +242,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function loadSessions() {
+    async function loadSessions(append = false) {
+        if (isLoadingSidebar) return;
+        if (!append) sidebarOffset = 0;
+        
+        const query = sessionSearch.value.trim();
+        let url = `/sessions?limit=${SIDEBAR_PAGE_LIMIT}&offset=${sidebarOffset}`;
+        
+        if (query) {
+            url = `/sessions/search?q=${encodeURIComponent(query)}`;
+        }
+
         try {
-            const response = await fetch('/sessions');
+            isLoadingSidebar = true;
+            const response = await fetch(url);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const sessions = await response.json();
             
-            // Auto-create if none
-            if (sessions.length === 0) {
+            // Auto-create if none and not searching
+            if (!query && !append && sessions.length === 0) {
                 const newRes = await fetch('/sessions/new', { method: 'POST' });
                 if (newRes.ok) {
                     loadSessions();
@@ -230,50 +268,55 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            renderSessions(sessions);
+            renderSessions(sessions, append);
+            
+            // Handle Load More visibility
+            if (query) {
+                sidebarLoadMoreContainer.classList.add('d-none');
+            } else {
+                const unpinnedCount = sessions.filter(s => !s.pinned).length;
+                if (unpinnedCount === SIDEBAR_PAGE_LIMIT) {
+                    sidebarLoadMoreContainer.classList.remove('d-none');
+                } else {
+                    sidebarLoadMoreContainer.classList.add('d-none');
+                }
+            }
+
             const activeSession = sessions.find(s => s.active);
             
-            // Check if we need to auto-load
-            const hasMessages = chatContainer.querySelectorAll('.message').length > 0;
-            if (activeSession && !hasMessages && !window.HAS_INITIAL_MESSAGES) {
-                 loadMessages(activeSession.uuid, PAGE_LIMIT, 0, true);
+            // Check if we need to auto-load (only on initial load)
+            if (!append && !query) {
+                const hasMessages = chatContainer.querySelectorAll('.message').length > 0;
+                if (activeSession && !hasMessages && !window.HAS_INITIAL_MESSAGES) {
+                     loadMessages(activeSession.uuid, PAGE_LIMIT, 0, true);
+                }
             }
         } catch (error) {
             console.error('Error loading sessions:', error);
-            if (sessionsList) sessionsList.innerHTML = `<div class="alert alert-danger mx-3 mt-3">Failed to load history: ${error.message}</div>`;
+            if (sessionsList && !append) sessionsList.innerHTML = `<div class="alert alert-danger mx-3 mt-3">Failed to load history: ${error.message}</div>`;
+        } finally {
+            isLoadingSidebar = false;
         }
     }
 
-    // Load patterns when modal is shown
-    patternsModal.addEventListener('show.bs.modal', async () => {
-        if (allPatterns.length === 0) {
-            try {
-                const response = await fetch('/patterns');
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                const data = await response.json();
-                allPatterns = data; // data is already the list
-                renderPatterns(allPatterns);
-            } catch (error) {
-                console.error('Error loading patterns:', error);
-                patternsList.innerHTML = `<div class="alert alert-danger">Failed to load patterns: ${error.message}</div>`;
-            }
-        }
-    });
-
-    function renderSessions(sessions) {
-        if (sessions.length === 0) {
+    function renderSessions(sessions, append = false) {
+        if (!append && sessions.length === 0) {
             sessionsList.innerHTML = '<div class="text-center p-3 text-muted">No history found.</div>';
             return;
         }
-        sessionsList.innerHTML = sessions.map(s => `
+
+        const html = sessions.map(s => `
             <div class="list-group-item list-group-item-action bg-dark text-light session-item ${s.active ? 'active-session' : ''}" data-uuid="${s.uuid}">
                 <div class="d-flex justify-content-between align-items-start">
                     <div class="flex-grow-1 overflow-hidden">
                         <span class="session-title text-truncate">${s.title || 'Untitled Chat'}</span>
                         <span class="session-time">${s.time || ''}</span>
                     </div>
-                    <div class="d-flex align-items-center gap-2">
-                        ${s.active ? '<span class="badge bg-primary rounded-pill small">Active</span>' : ''}
+                    <div class="d-flex align-items-center gap-1">
+                        ${s.active ? '<span class="badge bg-primary rounded-pill small me-1">Active</span>' : ''}
+                        <button class="btn btn-sm pin-btn border-0 ${s.pinned ? 'pinned' : ''}" data-uuid="${s.uuid}" title="${s.pinned ? 'Unpin Chat' : 'Pin Chat'}">
+                            <i class="bi ${s.pinned ? 'bi-pin-fill' : 'bi-pin'}"></i>
+                        </button>
                         <button class="btn btn-sm btn-outline-danger border-0 delete-session-btn" data-uuid="${s.uuid}" title="Delete Chat">
                             <i class="bi bi-trash"></i>
                         </button>
@@ -282,11 +325,19 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `).join('');
 
-        // Add click listeners to items
+        if (append) {
+            sessionsList.insertAdjacentHTML('beforeend', html);
+        } else {
+            sessionsList.innerHTML = html;
+        }
+
+        attachSessionListeners();
+    }
+
+    function attachSessionListeners() {
         document.querySelectorAll('.session-item').forEach(item => {
-            item.addEventListener('click', async (e) => {
-                // If clicked on delete button, don't switch session
-                if (e.target.closest('.delete-session-btn')) return;
+            item.onclick = async (e) => {
+                if (e.target.closest('button')) return;
 
                 const uuid = item.dataset.uuid;
                 if (item.classList.contains('active-session')) {
@@ -312,12 +363,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error('Error switching session:', error);
                     alert('Failed to switch session.');
                 }
-            });
+            };
         });
 
-        // Delete buttons
+        document.querySelectorAll('.pin-btn').forEach(btn => {
+            btn.onclick = async (e) => {
+                e.stopPropagation();
+                const uuid = btn.dataset.uuid;
+                try {
+                    const response = await fetch(\`/sessions/${uuid}/pin\`, { method: 'POST' });
+                    const data = await response.json();
+                    loadSessions();
+                } catch (error) {
+                    console.error('Error pinning session:', error);
+                }
+            };
+        });
+
         document.querySelectorAll('.delete-session-btn').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
+            btn.onclick = async (e) => {
                 e.stopPropagation();
                 const uuid = btn.dataset.uuid;
                 if (confirm('Are you sure you want to delete this conversation?')) {
@@ -331,7 +395,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         const data = await response.json();
                         if (data.success) {
                             loadSessions();
-                            // If deleted the active one, clear the chat
                             const item = btn.closest('.session-item');
                             if (item.classList.contains('active-session')) {
                                 chatContainer.innerHTML = '<div class="text-center text-muted mt-5"><p>Conversation deleted. Start a new one!</p></div>';
@@ -342,7 +405,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         alert('Failed to delete session.');
                     }
                 }
-            });
+            };
         });
     }
 
