@@ -211,11 +211,13 @@ async def chat(request: Request, message: str = Form(...), file: Optional[Upload
                             return # Exit event_generator
                         except asyncio.CancelledError:
                             log_sse("Stream cancelled (CancelledError)")
-                            yield f"data: {json.dumps({'type': 'message', 'role': 'assistant', 'content': '\n\n[Response stopped by user.]'})}\n\n"
+                            stop_msg = json.dumps({'type': 'message', 'role': 'assistant', 'content': '\n\n[Response stopped by user.]'})
+                            yield f"data: {stop_msg}\n\n"
                             return
                         except Exception as e:
                             log_sse(f"Error in stream result: {str(e)}")
-                            yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+                            err_msg = json.dumps({'type': 'error', 'content': str(e)})
+                            yield f"data: {err_msg}\n\n"
                             return
                     else:
                         # Timeout happened, send heartbeat and keep waiting for the SAME task
@@ -224,10 +226,12 @@ async def chat(request: Request, message: str = Form(...), file: Optional[Upload
                         # Continue inner while loop to keep waiting for next_task
         except asyncio.CancelledError:
             log_sse("event_generator task cancelled")
-            yield f"data: {json.dumps({'type': 'message', 'role': 'assistant', 'content': '\n\n[Response stopped by user.]'})}\n\n"
+            stop_msg = json.dumps({'type': 'message', 'role': 'assistant', 'content': '\n\n[Response stopped by user.]'})
+            yield f"data: {stop_msg}\n\n"
         except Exception as e:
             log_sse(f"Fatal error in event_generator: {str(e)}")
-            yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+            err_msg = json.dumps({'type': 'error', 'content': str(e)})
+            yield f"data: {err_msg}\n\n"
         finally:
             if user in agent.active_tasks:
                 del agent.active_tasks[user]
