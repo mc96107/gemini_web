@@ -756,6 +756,18 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (data.type === 'message' && data.role === 'assistant') {
                                 fullText += data.content;
                             } else if (data.type === 'model_switch') {
+                                // Update hidden input for subsequent requests
+                                if (modelInput) modelInput.value = data.new_model;
+                                
+                                // Update active state in the dropdown menu
+                                modelLinks.forEach(link => {
+                                    if (link.dataset.model === data.new_model) {
+                                        link.classList.add('active');
+                                    } else {
+                                        link.classList.remove('active');
+                                    }
+                                });
+
                                 // Update footer label
                                 const label = document.getElementById('model-label');
                                 if (label) {
