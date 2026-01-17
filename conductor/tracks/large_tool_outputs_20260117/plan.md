@@ -8,9 +8,9 @@
 ## Proposed Changes
 
 ### Backend
-- [ ] In `app/services/llm_service.py` (or where tool results are processed), add a size check.
-- [ ] Implement a `truncate_tool_output` utility function.
-- [ ] Update the tool execution loop to use this utility.
+- [x] In `app/services/llm_service.py` (or where tool results are processed), add a size check. 0c81b5d
+- [x] Implement a `truncate_tool_output` utility function. 0c81b5d
+- [x] Update the tool execution loop to use this utility. 0c81b5d
 
 ### Frontend
 - [ ] Handle the display of truncated messages in `app/static/script.js`.
