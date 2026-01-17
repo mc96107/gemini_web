@@ -346,6 +346,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         <button class="btn btn-sm pin-btn border-0 ${s.pinned ? 'pinned' : ''}" data-uuid="${s.uuid}" title="${s.pinned ? 'Unpin Chat' : 'Pin Chat'}">
                             <i class="bi ${s.pinned ? 'bi-pin-fill' : 'bi-pin'}"></i>
                         </button>
+                        <button class="btn btn-sm rename-session-btn border-0" data-uuid="${s.uuid}" title="Rename Chat">
+                            <i class="bi bi-pencil"></i>
+                        </button>
                         <button class="btn btn-sm btn-outline-danger border-0 delete-session-btn" data-uuid="${s.uuid}" title="Delete Chat">
                             <i class="bi bi-trash"></i>
                         </button>
@@ -361,6 +364,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         attachSessionListeners();
+    }
+
+    async function renameSession(uuid, newTitle, titleSpan) {
+        try {
+            const response = await fetch(`/sessions/${uuid}/title`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: newTitle })
+            });
+            const data = await response.json();
+            if (data.success) {
+                titleSpan.textContent = newTitle;
+                showToast('Chat renamed');
+            } else {
+                alert('Failed to rename chat: ' + (data.error || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Error renaming session:', error);
+            alert('Failed to rename chat.');
+        }
     }
 
     function attachSessionListeners() {
@@ -405,6 +428,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     loadSessions();
                 } catch (error) {
                     console.error('Error pinning session:', error);
+                }
+            };
+        });
+
+        document.querySelectorAll('.rename-session-btn').forEach(btn => {
+            btn.onclick = (e) => {
+                e.stopPropagation();
+                const uuid = btn.dataset.uuid;
+                const item = btn.closest('.session-item');
+                const titleSpan = item.querySelector('.session-title');
+                const oldTitle = titleSpan.textContent.trim();
+                
+                const newTitle = prompt('Enter new chat title:', oldTitle);
+                if (newTitle && newTitle !== oldTitle) {
+                    renameSession(uuid, newTitle, titleSpan);
                 }
             };
         });

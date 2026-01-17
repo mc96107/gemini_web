@@ -3,9 +3,11 @@ import os
 import re
 import asyncio
 import shutil
+import uuid
 from datetime import datetime
 from typing import Optional, List, Dict, AsyncGenerator
 from app.core.patterns import PATTERNS
+from app.core import config
 
 FALLBACK_MODELS = {
     "gemini-3-pro-preview": "gemini-3-flash-preview",
@@ -206,7 +208,19 @@ class GeminiAgent:
                             threshold = 20 * 1024 # 20KB
                             if len(output) > threshold:
                                 truncated = output[:threshold]
-                                data["output"] = f"{truncated}\n\n[Output truncated. Full output available in logs/storage.]"
+                                # Save full output to a file
+                                try:
+                                    fname = f"output_{uuid.uuid4().hex}.txt"
+                                    fpath = os.path.join(config.UPLOAD_DIR, fname)
+                                    with open(fpath, "w", encoding="utf-8") as f:
+                                        f.write(output)
+                                    data["full_output_path"] = f"/uploads/{fname}"
+                                    data["output"] = f"{truncated}\n\n[Output truncated. Full output available below.]"
+                                    log_debug(f"Truncated tool output and saved to {fpath}")
+                                except Exception as e:
+                                    log_debug(f"Error saving full output: {str(e)}")
+                                    data["output"] = f"{truncated}\n\n[Output truncated. Error saving full version.]"
+                                
                                 log_debug(f"Truncated tool output from {len(output)} to {len(data['output'])} bytes")
 
                         # Capture session ID
@@ -297,12 +311,22 @@ class GeminiAgent:
                  full_response += chunk.get("content", "") + "\n"
         return full_response.strip()
 
+    async def update_session_title(self, user_id: str, uuid: str, new_title: str) -> bool:
+        if user_id in self.user_data and uuid in self.user_data[user_id]["sessions"]:
+            if "custom_titles" not in self.user_data[user_id]:
+                self.user_data[user_id]["custom_titles"] = {}
+            self.user_data[user_id]["custom_titles"][uuid] = new_title
+            self._save_user_data()
+            return True
+        return False
+
     async def get_user_sessions(self, user_id: str, limit: Optional[int] = None, offset: int = 0) -> List[Dict]:
         if user_id not in self.user_data:
             self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": [], "pinned_sessions": []}
             self._save_user_data()
         user_info = self.user_data[user_id]
         uuids = user_info.get("sessions", [])
+        custom_titles = user_info.get("custom_titles", {})
         if not uuids: return []
         try:
             proc = await asyncio.create_subprocess_exec(self.gemini_cmd, "--list-sessions", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=self.working_dir)
@@ -319,6 +343,8 @@ class GeminiAgent:
                 if info["uuid"] in uuids:
                     info["active"] = (info["uuid"] == user_info.get("active_session"))
                     info["pinned"] = (info["uuid"] in pinned_uuids)
+                    if info["uuid"] in custom_titles:
+                        info["title"] = custom_titles[info["uuid"]]
                     all_sessions.append(info)
             
             # Sort by recency (assuming list-sessions is chronological, we want reverse chronological)
@@ -337,7 +363,17 @@ class GeminiAgent:
         except: 
             pinned_uuids = user_info.get("pinned_sessions", [])
             # Fallback logic also needs to handle pagination
-            all_fallback = [{"uuid": u, "title": "Unknown", "time": "Unknown", "active": (u == user_info.get("active_session")), "pinned": (u in pinned_uuids)} for u in uuids]
+            all_fallback = []
+            for u in uuids:
+                title = custom_titles.get(u, "Unknown")
+                all_fallback.append({
+                    "uuid": u, 
+                    "title": title, 
+                    "time": "Unknown", 
+                    "active": (u == user_info.get("active_session")), 
+                    "pinned": (u in pinned_uuids)
+                })
+            
             all_fallback = all_fallback[::-1]
             pinned = [s for s in all_fallback if s["pinned"]]
             unpinned = [s for s in all_fallback if not s["pinned"]]

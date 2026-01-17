@@ -90,6 +90,19 @@ async def pin_sess(session_uuid: str, request: Request, user=Depends(get_user)):
         raise HTTPException(403, "Access denied")
     return {"pinned": agent.toggle_pin(user, session_uuid)}
 
+@router.post("/sessions/{session_uuid}/title")
+async def rename_sess(session_uuid: str, request: Request, user=Depends(get_user)):
+    agent = request.app.state.agent
+    if not user: raise HTTPException(401)
+    data = await request.json()
+    new_title = data.get("title")
+    if not new_title:
+        raise HTTPException(400, "Title is required")
+    success = await agent.update_session_title(user, session_uuid, new_title)
+    if not success:
+        raise HTTPException(404, "Session not found")
+    return {"success": True}
+
 @router.get("/sessions/{session_uuid}/tools")
 async def get_sess_tools(session_uuid: str, request: Request, user=Depends(get_user)):
     agent = request.app.state.agent
