@@ -199,6 +199,16 @@ class GeminiAgent:
                     log_debug(f"Received line ({len(line_str)} chars)")
                     try:
                         data = json.loads(line_str)
+                        
+                        # Truncate large tool outputs
+                        if data.get("type") == "tool_result" and "output" in data:
+                            output = data["output"]
+                            threshold = 20 * 1024 # 20KB
+                            if len(output) > threshold:
+                                truncated = output[:threshold]
+                                data["output"] = f"{truncated}\n\n[Output truncated. Full output available in logs/storage.]"
+                                log_debug(f"Truncated tool output from {len(output)} to {len(data['output'])} bytes")
+
                         # Capture session ID
                         if data.get("type") == "init" and data.get("session_id"):
                             new_id = data["session_id"]
