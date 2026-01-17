@@ -30,6 +30,7 @@ class GeminiAgent:
         self.gemini_cmd = shutil.which("gemini") or "gemini"
         self.user_data = self._load_user_data()
         self.yolo_mode = False
+        self.active_tasks: Dict[str, asyncio.Task] = {}
 
     def _load_user_data(self) -> Dict:
         if os.path.exists(self.session_file):
@@ -97,6 +98,19 @@ class GeminiAgent:
         err = re.sub(r".*?\[DEP0151\] DeprecationWarning:.*?(\n|$)", "", err)
         err = re.sub(r".*?Default \"index\" lookups for the main are deprecated for ES modules..*?(\n|$)", "", err)
         return "\n".join([s for s in err.splitlines() if s.strip()]).strip()
+
+    async def stop_chat(self, user_id: str):
+        if user_id in self.active_tasks:
+            task = self.active_tasks[user_id]
+            if not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+            del self.active_tasks[user_id]
+            return True
+        return False
 
     async def _get_latest_session_uuid(self) -> Optional[str]:
         try:

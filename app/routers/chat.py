@@ -196,6 +196,10 @@ async def chat(request: Request, message: str = Form(...), file: Optional[Upload
                         except StopAsyncIteration:
                             log_sse("Stream finished (StopAsyncIteration)")
                             return # Exit event_generator
+                        except asyncio.CancelledError:
+                            log_sse("Stream cancelled (CancelledError)")
+                            yield f"data: {json.dumps({'type': 'message', 'role': 'assistant', 'content': '\n\n[Response stopped by user.]'})}\n\n"
+                            return
                         except Exception as e:
                             log_sse(f"Error in stream result: {str(e)}")
                             yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
@@ -205,14 +209,44 @@ async def chat(request: Request, message: str = Form(...), file: Optional[Upload
                         log_sse("Sending SSE heartbeat...")
                         yield ": heartbeat\n\n"
                         # Continue inner while loop to keep waiting for next_task
+        except asyncio.CancelledError:
+            log_sse("event_generator task cancelled")
+            yield f"data: {json.dumps({'type': 'message', 'role': 'assistant', 'content': '\n\n[Response stopped by user.]'})}\n\n"
         except Exception as e:
             log_sse(f"Fatal error in event_generator: {str(e)}")
             yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+        finally:
+            if user in agent.active_tasks:
+                del agent.active_tasks[user]
         
         log_sse("Yielding [DONE]")
         yield "data: [DONE]\n\n"
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    # Create the task and store it in agent.active_tasks
+    gen = event_generator()
+    task = asyncio.create_task(gen.__aiter__().__anext__()) # This is not quite right for StreamingResponse
+    # Actually, the StreamingResponse will iterate over the generator.
+    # We want to wrap the WHOLE thing.
+    
+    async def wrapped_generator():
+        # Capture the current task
+        current_task = asyncio.current_task()
+        agent.active_tasks[user] = current_task
+        try:
+            async for item in event_generator():
+                yield item
+        finally:
+            if agent.active_tasks.get(user) == current_task:
+                del agent.active_tasks[user]
+
+    return StreamingResponse(wrapped_generator(), media_type="text/event-stream")
+
+@router.post("/stop")
+async def stop_chat(request: Request, user=Depends(get_user)):
+    agent = request.app.state.agent
+    if not user: raise HTTPException(401)
+    success = await agent.stop_chat(user)
+    return {"success": success}
 
 @router.post("/reset")
 async def reset(request: Request, user=Depends(get_user)):

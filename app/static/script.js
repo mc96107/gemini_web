@@ -30,16 +30,31 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatWelcome = document.getElementById('chat-welcome');
     const sessionSearch = document.getElementById('session-search');
     const sidebarLoadMoreContainer = document.getElementById('sidebar-load-more-container');
-    const sidebarLoadMoreBtn = document.getElementById('sidebar-load-more-btn');
+    const sendBtn = document.getElementById('send-btn');
+    const stopBtn = document.getElementById('stop-btn');
 
-    let currentFile = null;
-    let allPatterns = [];
-    let currentOffset = 0;
-    let sidebarOffset = 0;
-    const PAGE_LIMIT = 20;
-    const SIDEBAR_PAGE_LIMIT = 10;
-    let isLoadingHistory = false;
-    let isLoadingSidebar = false;
+    function toggleStopButton(show) {
+        if (show) {
+            sendBtn.classList.add('d-none');
+            stopBtn.classList.remove('d-none');
+        } else {
+            sendBtn.classList.remove('d-none');
+            stopBtn.classList.add('d-none');
+        }
+    }
+
+    if (stopBtn) {
+        stopBtn.addEventListener('click', async () => {
+            try {
+                const response = await fetch('/stop', { method: 'POST' });
+                if (response.ok) {
+                    toggleStopButton(false);
+                }
+            } catch (error) {
+                console.error('Error stopping chat:', error);
+            }
+        });
+    }
 
     function showToast(message) {
         if (!liveToast) return;
@@ -626,6 +641,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Show loading state
         const loadingId = appendLoading();
+        toggleStopButton(true);
 
         try {
             const formData = new FormData();
@@ -690,6 +706,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 displayError = 'Network Error: Could not connect to the server. Check if the service is running and accessible.';
             }
             appendMessage('bot', `Error: ${displayError}`);
+        } finally {
+            toggleStopButton(false);
         }
     });
 
@@ -772,6 +790,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 removeLoading(loadingId);
             }
+            toggleStopButton(false);
         } catch (error) {
             console.error('Stream processing error:', error);
             if (!errorYielded) {
