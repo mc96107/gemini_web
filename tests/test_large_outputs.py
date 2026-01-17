@@ -1,6 +1,7 @@
 import pytest
 import json
 import asyncio
+import os
 from unittest.mock import MagicMock, AsyncMock, patch
 from app.services.llm_service import GeminiAgent
 
@@ -49,7 +50,21 @@ async def test_truncate_large_tool_output():
     output = tool_result.get("output", "")
     assert len(output) < 30000
     assert "[Output truncated" in output
-    assert "Full output available" in output
+    assert "full_output_path" in tool_result
+    
+    full_path = tool_result["full_output_path"]
+    assert full_path.startswith("/uploads/output_")
+    
+    # Verify file was actually created
+    filename = full_path.split("/")[-1]
+    from app.core import config
+    disk_path = os.path.join(config.UPLOAD_DIR, filename)
+    assert os.path.exists(disk_path)
+    with open(disk_path, "r", encoding="utf-8") as f:
+        assert f.read() == large_output
+    
+    # Cleanup
+    os.remove(disk_path)
 
 # To run this only with asyncio:
 # pytest --anyio-backends=asyncio tests/test_large_outputs.py

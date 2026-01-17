@@ -384,8 +384,7 @@ CAPACITY_KEYWORDS = ["429", "capacity", "quota", "exhausted", "rate limit"]
 def global_log(msg):
     try:
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-        with open("agent_debug.log", "a", encoding="utf-8") as f:
-            f.write(f"[{ts}] {msg}\n")
+        print(f"[{ts}] {msg}")
     except: pass
 
 class GeminiAgent:
@@ -466,15 +465,14 @@ class GeminiAgent:
         return "\n".join([s for s in err.splitlines() if s.strip()]).strip()
 
     async def stop_chat(self, user_id: str):
-        if user_id in self.active_tasks:
-            task = self.active_tasks[user_id]
+        task = self.active_tasks.pop(user_id, None)
+        if task:
             if not task.done():
                 task.cancel()
                 try:
                     await task
                 except asyncio.CancelledError:
                     pass
-            del self.active_tasks[user_id]
             return True
         return False
 
@@ -1254,6 +1252,9 @@ async def chat(request: Request, message: str = Form(...), file: Optional[Upload
         else:
             m_override = model
 
+    # Stop any existing task for this user
+    await agent.stop_chat(user)
+
     msg = message.strip()
     if msg.startswith("/"):
         parts = msg.split(maxsplit=2)
@@ -1274,8 +1275,7 @@ async def chat(request: Request, message: str = Form(...), file: Optional[Upload
         def log_sse(msg):
             try:
                 ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-                with open("agent_debug.log", "a", encoding="utf-8") as f:
-                    f.write(f"[{ts}] [SSE][{user}] {msg}\n")
+                print(f"[{ts}] [SSE][{user}] {msg}")
             except: pass
 
         log_sse("Starting event_generator")
@@ -1324,18 +1324,9 @@ async def chat(request: Request, message: str = Form(...), file: Optional[Upload
             log_sse(f"Fatal error in event_generator: {str(e)}")
             err_msg = json.dumps({'type': 'error', 'content': str(e)})
             yield f"data: {err_msg}\n\n"
-        finally:
-            if user in agent.active_tasks:
-                del agent.active_tasks[user]
         
         log_sse("Yielding [DONE]")
         yield "data: [DONE]\n\n"
-
-    # Create the task and store it in agent.active_tasks
-    gen = event_generator()
-    task = asyncio.create_task(gen.__aiter__().__anext__()) # This is not quite right for StreamingResponse
-    # Actually, the StreamingResponse will iterate over the generator.
-    # We want to wrap the WHOLE thing.
     
     async def wrapped_generator():
         # Capture the current task

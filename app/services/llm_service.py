@@ -20,8 +20,7 @@ CAPACITY_KEYWORDS = ["429", "capacity", "quota", "exhausted", "rate limit"]
 def global_log(msg):
     try:
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-        with open("agent_debug.log", "a", encoding="utf-8") as f:
-            f.write(f"[{ts}] {msg}\n")
+        print(f"[{ts}] {msg}")
     except: pass
 
 class GeminiAgent:
@@ -102,15 +101,14 @@ class GeminiAgent:
         return "\n".join([s for s in err.splitlines() if s.strip()]).strip()
 
     async def stop_chat(self, user_id: str):
-        if user_id in self.active_tasks:
-            task = self.active_tasks[user_id]
+        task = self.active_tasks.pop(user_id, None)
+        if task:
             if not task.done():
                 task.cancel()
                 try:
                     await task
                 except asyncio.CancelledError:
                     pass
-            del self.active_tasks[user_id]
             return True
         return False
 
