@@ -19,9 +19,9 @@
 ## Verification Plan
 
 ### Automated Tests
-- [ ] Create a mock tool that returns a 1MB string.
-- [ ] Verify that the backend truncates it before sending it to the LLM.
-- [ ] Verify that the truncated output contains the "truncated" warning.
+- [x] Create a mock tool that returns a 1MB string. 0c81b5d
+- [x] Verify that the backend truncates it before sending it to the LLM. 0c81b5d
+- [x] Verify that the truncated output contains the "truncated" warning. 0c81b5d
 
 ### Manual Verification
 - [ ] Trigger a tool that produces large output (e.g., read a large file if such a tool exists).
