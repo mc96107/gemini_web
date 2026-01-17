@@ -30,8 +30,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatWelcome = document.getElementById('chat-welcome');
     const sessionSearch = document.getElementById('session-search');
     const sidebarLoadMoreContainer = document.getElementById('sidebar-load-more-container');
+    const sidebarLoadMoreBtn = document.getElementById('sidebar-load-more-btn');
     const sendBtn = document.getElementById('send-btn');
     const stopBtn = document.getElementById('stop-btn');
+
+    let currentFile = null;
+    let allPatterns = [];
+    let currentOffset = 0;
+    let sidebarOffset = 0;
+    const PAGE_LIMIT = 20;
+    const SIDEBAR_PAGE_LIMIT = 10;
+    let isLoadingHistory = false;
+    let isLoadingSidebar = false;
 
     function toggleStopButton(show) {
         if (show) {
