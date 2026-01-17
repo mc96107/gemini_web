@@ -769,7 +769,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 toolLogs.push({ type: 'call', name: data.tool_name, input: data.parameters });
                             } else if (data.type === 'tool_result') {
                                 if (data.output && data.output.trim() !== "") {
-                                    toolLogs.push({ type: 'output', output: data.output });
+                                    toolLogs.push({ type: 'output', output: data.output, full_path: data.full_output_path });
                                 }
                             } else if (data.type === 'error') {
                                 fullText += `\n\n[Error: ${data.content}]\n\n`;
@@ -857,10 +857,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>`;
                 } else {
                     if (!log.output || log.output.trim() === "") return "";
-                    return `<div class="small text-success border-start border-success ps-2 mb-2" style="font-family: monospace;">
+                    let outputHtml = `<div class="small text-success border-start border-success ps-2 mb-2" style="font-family: monospace;">
                         <strong>Tool Output:</strong><br>
-                        <pre class="m-0" style="font-size: 0.7rem; max-height: 150px; overflow: auto; background: #1a1a1a; padding: 5px; border-radius: 4px;">${log.output}</pre>
-                    </div>`;
+                        <pre class="m-0" style="font-size: 0.7rem; max-height: 150px; overflow: auto; background: #1a1a1a; padding: 5px; border-radius: 4px;">${log.output}</pre>`;
+                    
+                    if (log.full_path) {
+                        outputHtml += `<div class="mt-1"><a href="${log.full_path}" target="_blank" class="btn btn-sm btn-outline-success py-0" style="font-size: 0.6rem;"><i class="bi bi-download"></i> Download Full Output</a></div>`;
+                    }
+                    
+                    outputHtml += `</div>`;
+                    return outputHtml;
                 }
             }).join('');
         }
