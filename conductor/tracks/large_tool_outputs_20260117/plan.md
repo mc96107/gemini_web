@@ -13,8 +13,8 @@
 - [x] Update the tool execution loop to use this utility. 0c81b5d
 
 ### Frontend
-- [ ] Handle the display of truncated messages in `app/static/script.js`.
-- [ ] (Optional) Add a "Show more" or "Download full output" link for truncated content.
+- [x] Handle the display of truncated messages in `app/static/script.js`. c88197d
+- [x] (Optional) Add a "Show more" or "Download full output" link for truncated content. c88197d
 
 ## Verification Plan
 
