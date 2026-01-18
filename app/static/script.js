@@ -6,8 +6,65 @@ document.addEventListener('DOMContentLoaded', () => {
     const filePreviewArea = document.getElementById('file-preview-area');
     const fileNameDisplay = document.getElementById('file-name');
     const clearFileBtn = document.getElementById('clear-file-btn');
-    const resetBtn = document.getElementById('reset-btn');
     const exportBtn = document.getElementById('export-btn');
+    const exportBtnMobile = document.getElementById('export-btn-mobile');
+    const resetBtn = document.getElementById('reset-btn');
+    const resetBtnMobile = document.getElementById('reset-btn-mobile');
+
+    async function handleReset() {
+        if (confirm('Are you sure you want to clear the conversation history?')) {
+            try {
+                const response = await fetch('/reset', { method: 'POST' });
+                const data = await response.json();
+                chatContainer.innerHTML = `<div class="text-center text-muted mt-5"><p>${data.response}</p></div>`;
+            } catch (error) {
+                console.error('Error resetting chat:', error);
+                alert('Failed to reset chat.');
+            }
+        }
+    }
+
+    async function handleExport() {
+        const activeSessionItem = document.querySelector('.session-item.active-session');
+        if (!activeSessionItem) {
+            alert('No active session to export.');
+            return;
+        }
+        const uuid = activeSessionItem.dataset.uuid;
+        let title = activeSessionItem.querySelector('.session-title').textContent.trim();
+        if (!title) title = "chat_export";
+
+        try {
+            const response = await fetch(`/sessions/${uuid}/messages`);
+            if (!response.ok) throw new Error('Network response was not ok');
+            const messages = await response.json();
+
+            let markdown = `# Chat Export: ${title}\n\n`;
+            messages.forEach(msg => {
+                const role = msg.role === 'user' ? 'User' : 'Gemini';
+                markdown += `## ${role}\n\n${msg.content}\n\n---\n\n`;
+            });
+
+            const blob = new Blob([markdown], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const safeTitle = title.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
+            a.download = `${safeTitle}.md`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            console.error('Export failed:', e);
+            alert('Failed to export chat.');
+        }
+    }
+
+    if (exportBtn) exportBtn.onclick = handleExport;
+    if (exportBtnMobile) exportBtnMobile.onclick = handleExport;
+    if (resetBtn) resetBtn.onclick = handleReset;
+    if (resetBtnMobile) resetBtnMobile.onclick = handleReset;
     const modelLinks = document.querySelectorAll('[data-model]');
     const modelInput = document.getElementById('model-input');
     const modelLabel = document.getElementById('model-label');
@@ -150,26 +207,39 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const tags = session.tags || [];
-        let html = tags.map(tag => `<span class="tag-badge selected">${tag}</span>`).join('');
+        const isMobile = window.innerWidth < 768;
+        let visibleTags = tags;
+        let hiddenCount = 0;
+
+        if (isMobile && tags.length > 2) {
+            visibleTags = tags.slice(0, 2);
+            hiddenCount = tags.length - 2;
+        }
+
+        let html = visibleTags.map(tag => `<span class="tag-badge selected">${tag}</span>`).join('');
+        if (hiddenCount > 0) {
+            html += `<span class="tag-badge selected">+${hiddenCount} more</span>`;
+        }
         html += `<span class="tag-badge add-tag-btn" title="Edit Tags"><i class="bi bi-plus"></i> Tags</span>`;
-        
+
         chatTagsHeader.innerHTML = html;
 
-        const addBtn = chatTagsHeader.querySelector('.add-tag-btn');
-        if (addBtn) {
-            addBtn.onclick = () => {
+        // Grouping logic: clicking on "+N more" or individual tags on mobile can open the modal
+        const allBadges = chatTagsHeader.querySelectorAll('.tag-badge');
+        allBadges.forEach(badge => {
+            badge.onclick = () => {
                 let modalInstance = bootstrap.Modal.getInstance(taggingModal);
                 if (!modalInstance) {
                     modalInstance = new bootstrap.Modal(taggingModal);
                 }
-                
+
                 let workingTags = [...tags];
-                
+
                 function renderModalTags() {
                     modalCurrentTags.innerHTML = workingTags.map(t => `
                         <span class="tag-badge selected" data-tag="${t}">${t} <i class="bi bi-x ms-1 remove-tag"></i></span>
                     `).join('');
-                    
+
                     modalCurrentTags.querySelectorAll('.remove-tag').forEach(btn => {
                         btn.onclick = (e) => {
                             e.stopPropagation();
@@ -184,7 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         .filter(t => !workingTags.includes(t))
                         .map(t => `<span class="tag-badge" data-tag="${t}">${t}</span>`)
                         .join('');
-                    
+
                     modalExistingTags.querySelectorAll('.tag-badge').forEach(badge => {
                         badge.onclick = () => {
                             workingTags.push(badge.dataset.tag);
@@ -195,22 +265,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 renderModalTags();
                 tagInput.value = '';
-                
+
                 function addTagFromInput() {
                     const rawVal = tagInput.value.trim();
                     if (!rawVal) return;
-                    
+
                     // Support comma-separated tags
                     const newTags = rawVal.split(',').map(t => t.trim()).filter(t => t !== '');
                     let added = false;
-                    
+
                     newTags.forEach(val => {
                         if (!workingTags.includes(val)) {
                             workingTags.push(val);
                             added = true;
                         }
                     });
-                    
+
                     if (added) {
                         tagInput.value = '';
                         renderModalTags();
@@ -241,7 +311,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 modalInstance.show();
             };
-        }
+        });
     }
 
     function debounce(func, timeout = 300) {
@@ -805,67 +875,11 @@ document.addEventListener('DOMContentLoaded', () => {
         filePreviewArea.classList.add('d-none');
     });
 
-    // Reset Chat
-    if (resetBtn) {
-        resetBtn.addEventListener('click', async () => {
-            if (confirm('Are you sure you want to clear the conversation history?')) {
-                try {
-                    const response = await fetch('/reset', { method: 'POST' });
-                    const data = await response.json();
-                    chatContainer.innerHTML = `<div class="text-center text-muted mt-5"><p>${data.response}</p></div>`;
-                } catch (error) {
-                    console.error('Error resetting chat:', error);
-                    alert('Failed to reset chat.');
-                }
-            }
-        });
-    }
+        // Send Message
 
-    // Export Chat
-    if (exportBtn) {
-        exportBtn.addEventListener('click', async () => {
-            const activeSessionItem = document.querySelector('.session-item.active-session');
-            if (!activeSessionItem) {
-                alert('No active session to export.');
-                return;
-            }
-            const uuid = activeSessionItem.dataset.uuid;
-            // Get title, cleanup whitespace
-            let title = activeSessionItem.querySelector('.session-title').textContent.trim();
-            if (!title) title = "chat_export";
+        chatForm.addEventListener('submit', async (e) => {
 
-            try {
-                // Fetch all messages (no limit)
-                const response = await fetch(`/sessions/${uuid}/messages`);
-                if (!response.ok) throw new Error('Network response was not ok');
-                const messages = await response.json();
-                
-                let markdown = `# Chat Export: ${title}\n\n`;
-                messages.forEach(msg => {
-                    const role = msg.role === 'user' ? 'User' : 'Gemini';
-                    markdown += `## ${role}\n\n${msg.content}\n\n---\n\n`;
-                });
-                
-                const blob = new Blob([markdown], { type: 'text/markdown' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                // Sanitize filename
-                const safeTitle = title.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
-                a.download = `${safeTitle}.md`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            } catch (e) {
-                console.error('Export failed:', e);
-                alert('Failed to export chat.');
-            }
-        });
-    }
-
-    // Send Message
-    chatForm.addEventListener('submit', async (e) => {
+    
         e.preventDefault();
         const message = messageInput.value.trim();
         if (!message && !currentFile) return;
@@ -1294,6 +1308,34 @@ document.addEventListener('DOMContentLoaded', () => {
             root: chatContainer,
             threshold: 0.1
         });
-        observer.observe(scrollSentinel);
-    }
+    // Swipe Gestures for Mobile
+    let touchStartX = 0;
+    let touchStartY = 0;
+    const swipeThreshold = 50;
+    const edgeThreshold = 30;
+
+    document.addEventListener('touchstart', (e) => {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+    }, { passive: true });
+
+    document.addEventListener('touchend', (e) => {
+        const touchEndX = e.changedTouches[0].clientX;
+        const touchEndY = e.changedTouches[0].clientY;
+        const diffX = touchEndX - touchStartX;
+        const diffY = touchEndY - touchStartY;
+
+        // Ensure horizontal swipe
+        if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > swipeThreshold) {
+            if (diffX > 0 && touchStartX < edgeThreshold) {
+                // Swipe Left-to-Right from left edge: Open History
+                const historyOffcanvas = bootstrap.Offcanvas.getInstance(document.getElementById('historySidebar')) || new bootstrap.Offcanvas(document.getElementById('historySidebar'));
+                historyOffcanvas.show();
+            } else if (diffX < 0 && touchStartX > window.innerWidth - edgeThreshold) {
+                // Swipe Right-to-Left from right edge: Open Actions
+                const actionsOffcanvas = bootstrap.Offcanvas.getInstance(document.getElementById('actionsSidebar')) || new bootstrap.Offcanvas(document.getElementById('actionsSidebar'));
+                actionsOffcanvas.show();
+            }
+        }
+    }, { passive: true });
 });

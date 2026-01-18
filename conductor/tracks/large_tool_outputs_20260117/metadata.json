@@ -1,9 +1,0 @@
-{
-  "id": "large_tool_outputs_20260117",
-  "title": "Safely Handle Extremely Large Tool Outputs",
-  "description": "Prevent system crashes and performance issues by truncating or managing large tool results.",
-  "status": "todo",
-  "created_at": "2026-01-17T15:48:00Z",
-  "updated_at": "2026-01-17T15:48:00Z",
-  "issue_id": 3
-}
