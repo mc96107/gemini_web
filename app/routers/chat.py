@@ -202,10 +202,15 @@ async def chat(request: Request, message: str = Form(...), file: Optional[Upload
         if cmd == "/help": return {"response": "Commands: /reset, /pro, /p [pattern], /yolo, /help"}
     
     async def event_generator():
-        def log_sse(msg):
+        from app.core import config
+        def log_sse(msg, level="DEBUG"):
+            if config.LOG_LEVEL == "NONE":
+                return
+            if config.LOG_LEVEL == "INFO" and level == "DEBUG":
+                return
             try:
                 ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-                print(f"[{ts}] [SSE][{user}] {msg}")
+                print(f"[{ts}] [{level}][SSE][{user}] {msg}")
             except: pass
 
         log_sse("Starting event_generator")

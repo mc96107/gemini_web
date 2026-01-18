@@ -91,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderTagFilters() {
         if (!tagFilterContainer) return;
-        if (allUniqueTags.length === 0) {
+        if (!allUniqueTags || allUniqueTags.length === 0) {
             tagFilterContainer.innerHTML = '';
             return;
         }
@@ -137,7 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderChatTags(session) {
         if (!chatTagsHeader) return;
-        if (!session) {
+        if (!session || !session.uuid) {
             chatTagsHeader.innerHTML = '';
             return;
         }
@@ -399,7 +399,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            renderSessions(sessions, append);
+            try {
+                renderSessions(sessions, append);
+            } catch (renderError) {
+                console.error('Error rendering sessions:', renderError);
+            }
             
             // Handle Load More visibility
             if (query) {
@@ -414,7 +418,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const activeSession = sessions.find(s => s.active);
-            renderChatTags(activeSession);
+            try {
+                renderChatTags(activeSession);
+            } catch (tagError) {
+                console.error('Error rendering chat tags:', tagError);
+            }
             
             // Check if we need to auto-load (only on initial load)
             if (!append && !query) {

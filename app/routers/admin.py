@@ -34,11 +34,55 @@ async def restart_setup(request: Request, user=Depends(get_user)):
     request.session.clear()
     return {"success": True}
 
+@router.post("/admin/system/log-level")
+async def set_log_level(request: Request, user=Depends(get_user)):
+    user_manager = request.app.state.user_manager
+    if user_manager.get_role(user) != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
+    data = await request.json()
+    level = data.get("level", "NONE").upper()
+    if level not in ["NONE", "INFO", "DEBUG"]:
+        raise HTTPException(status_code=400, detail="Invalid log level")
+    
+    from app.core import config
+    config.update_env("LOG_LEVEL", level)
+    config.LOG_LEVEL = level
+    return {"success": True}
+
+@router.post("/admin/sessions/autotag")
+async def autotag_sessions(request: Request, user=Depends(get_user)):
+    user_manager = request.app.state.user_manager
+    agent = request.app.state.agent
+    if user_manager.get_role(user) != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
+    try:
+        stats = await agent.autogenerate_all_missing_tags()
+        return {"success": True, "stats": stats}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@router.post("/admin/cleartags")
+async def clear_and_retag_sessions(request: Request, user=Depends(get_user)):
+    user_manager = request.app.state.user_manager
+    agent = request.app.state.agent
+    if user_manager.get_role(user) != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
+    try:
+        cleared_count = await agent.clear_all_session_tags()
+        stats = await agent.autogenerate_all_missing_tags()
+        return {"success": True, "cleared_count": cleared_count, "stats": stats}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
 @router.get("/admin", response_class=HTMLResponse)
 async def admin_db(request: Request, user=Depends(get_user)):
     user_manager = request.app.state.user_manager
     if user_manager.get_role(user) != "admin": return RedirectResponse("/")
-    return request.app.state.render("admin.html", request=request, users=user_manager.get_all_users())
+    from app.core import config
+    return request.app.state.render("admin.html", request=request, users=user_manager.get_all_users(), log_level=config.LOG_LEVEL)
 
 @router.post("/admin/user/add")
 async def adm_add(request: Request, username: str = Form(...), password: str = Form(...), role: str = Form(...), user=Depends(get_user)):

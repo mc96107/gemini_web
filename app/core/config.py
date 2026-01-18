@@ -16,6 +16,7 @@ SESSION_SECRET = os.getenv("SESSION_SECRET", secrets.token_hex(32))
 # Application Configuration
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", os.path.join(os.getcwd(), "tmp", "user_attachments"))
 MODEL_NAME = os.getenv("MODEL_NAME", "gemini-3-pro-preview")
+LOG_LEVEL = os.getenv("LOG_LEVEL", "NONE").upper()
 
 def update_env(key: str, value: str):
     env_path = os.path.join(os.getcwd(), ".env")

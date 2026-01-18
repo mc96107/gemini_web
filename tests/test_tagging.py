@@ -110,9 +110,12 @@ async def test_suggest_tags(agent):
         "session_tags": {}
     }
     
-    with patch.object(GeminiAgent, "generate_response", new_callable=AsyncMock) as mock_gen:
-        mock_gen.return_value = "ai, coding, pytest"
-        
+    # Mock generate_response_stream
+    async def mock_stream(*args, **kwargs):
+        yield {"type": "message", "content": "ai, coding, pytest"}
+        yield {"type": "done"}
+
+    with patch.object(GeminiAgent, "generate_response_stream", side_effect=mock_stream):
         tags = await agent.suggest_tags(user_id, session_uuid, "How do I write a pytest?")
         
         assert "ai" in tags

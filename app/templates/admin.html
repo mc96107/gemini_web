@@ -81,9 +81,23 @@
                         <button class="btn btn-info w-100 mb-2" onclick="syncPatterns()">
                             <i class="bi bi-arrow-repeat me-1"></i> Sync Fabric Patterns
                         </button>
+                        <button class="btn btn-outline-primary w-100 mb-2" onclick="autotagSessions()">
+                            <i class="bi bi-tags me-1"></i> Auto-Tag Missing Sessions
+                        </button>
+                        <button class="btn btn-outline-danger w-100 mb-2" onclick="clearAndRetag()">
+                            <i class="bi bi-arrow-counterclockwise me-1"></i> Clear & Re-Tag All
+                        </button>
                         <button class="btn btn-warning w-100 mb-2" onclick="restartSetup()">
                             <i class="bi bi-exclamation-triangle me-1"></i> Restart Setup
                         </button>
+                        <div class="mt-3">
+                            <label class="form-label small text-muted">Logging Level</label>
+                            <select id="log-level-select" class="form-select form-select-sm bg-dark text-light border-secondary" onchange="updateLogLevel(this.value)">
+                                <option value="NONE">NONE (Silent)</option>
+                                <option value="INFO">INFO (Normal)</option>
+                                <option value="DEBUG">DEBUG (Verbose)</option>
+                            </select>
+                        </div>
                         <div id="sync-status" class="small mt-2"></div>
                     </div>
                 </div>
@@ -144,6 +158,12 @@
     <script>
         const passwordModal = new bootstrap.Modal(document.getElementById('passwordModal'));
 
+        document.addEventListener('DOMContentLoaded', () => {
+            const logLevel = "{{ log_level }}";
+            const select = document.getElementById('log-level-select');
+            if (select) select.value = logLevel;
+        });
+
         function showChangePassword(username) {
             document.getElementById('targetUsername').innerText = username;
             document.getElementById('modalUsername').value = username;
@@ -203,6 +223,76 @@
                 status.textContent = 'Error: ' + e.message;
                 status.className = 'small mt-2 text-danger';
             }
+        }
+
+        async function autotagSessions() {
+            const status = document.getElementById('sync-status');
+            status.textContent = 'Tagging sessions... This might take a while.';
+            status.className = 'small mt-2 text-info';
+            
+            try {
+                const res = await fetch('/admin/autotag', { method: 'POST' });
+                if (!res.ok) {
+                    const text = await res.text();
+                    console.error('Server responded with error:', res.status, text);
+                    throw new Error(`Server error ${res.status}: ${res.statusText}`);
+                }
+                const data = await res.json();
+                if (data.success) {
+                    status.textContent = `Successfully tagged ${data.stats.sessions_tagged} sessions across ${data.stats.users_processed} users!`;
+                    status.className = 'small mt-2 text-success';
+                } else {
+                    status.textContent = 'Error: ' + (data.error || 'Unknown error');
+                    status.className = 'small mt-2 text-danger';
+                }
+            } catch (e) {
+                status.textContent = 'Error: ' + e.message;
+                status.className = 'small mt-2 text-danger';
+            }
+        }
+
+        async function clearAndRetag() {
+            if (!confirm('Are you sure you want to CLEAR ALL existing tags and re-generate them? This cannot be undone.')) return;
+
+            const status = document.getElementById('sync-status');
+            status.textContent = 'Clearing and re-tagging... This might take a while.';
+            status.className = 'small mt-2 text-info';
+            
+            try {
+                const res = await fetch('/admin/cleartags', { method: 'POST' });
+                if (!res.ok) {
+                    const text = await res.text();
+                    console.error('Server responded with error:', res.status, text);
+                    throw new Error(`Server error ${res.status}: ${res.statusText}`);
+                }
+                const data = await res.json();
+                if (data.success) {
+                    status.textContent = `Successfully cleared ${data.cleared_count} sessions and re-tagged ${data.stats.sessions_tagged} sessions!`;
+                    status.className = 'small mt-2 text-success';
+                } else {
+                    status.textContent = 'Error: ' + (data.error || 'Unknown error');
+                    status.className = 'small mt-2 text-danger';
+                }
+            } catch (e) {
+                status.textContent = 'Error: ' + e.message;
+                status.className = 'small mt-2 text-danger';
+            }
+        }
+
+        async function updateLogLevel(level) {
+            const status = document.getElementById('sync-status');
+            try {
+                const res = await fetch('/admin/system/log-level', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ level })
+                });
+                if (res.ok) {
+                    status.textContent = `Logging level updated to ${level}`;
+                    status.className = 'small mt-2 text-success';
+                    setTimeout(() => { status.textContent = ''; }, 3000);
+                }
+            } catch (e) { console.error(e); }
         }
 
         async function restartSetup() {
