@@ -18,6 +18,7 @@ The Gemini Termux Agent is designed for:
 ## Key Features
 * **Interactive Web Chat:** A responsive chat interface featuring conversation history and dynamic UI updates.
 * **Chat Renaming:** Manually rename chat sessions to easily identify and organize different conversations.
+* **Chat Tagging & Auto-Categorization:** Organize conversations with multiple tags. Gemini automatically suggests descriptive tags for new chats, and users can manually add or filter by tags in the sidebar.
 * **Math Rendering:** Built-in support for LaTeX mathematical expressions via KaTeX, enabling high-quality rendering of formulas.
 * **Chat Export:** Export full conversation history as Markdown files for offline storage or sharing.
 * **Infinite Scroll History:** Seamlessly load and browse previous messages by scrolling to the top of the chat window.
