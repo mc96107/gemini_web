@@ -20,7 +20,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 
 
-- [~] [Tagging System](tracks/tagging_system_20260118/plan.md)
+- [x] [Tagging System](tracks/tagging_system_20260118/plan.md)
 - [ ] [Edit Chat Title Icon Color](tracks/edit_chat_title_icon_20260118/plan.md)
 
 ---
