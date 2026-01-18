@@ -17,6 +17,7 @@ The Gemini Termux Agent is designed for:
 
 ## Key Features
 * **Interactive Web Chat:** A responsive chat interface featuring conversation history and dynamic UI updates.
+* **Mobile Swipe Gestures:** Intuitive swipe-to-open gestures for accessing chat history and session actions on mobile devices.
 * **Chat Renaming:** Manually rename chat sessions to easily identify and organize different conversations.
 * **Chat Tagging & Auto-Categorization:** Organize conversations with multiple tags. Gemini automatically suggests descriptive tags for new chats, and users can manually add or filter by tags in the sidebar.
 * **Math Rendering:** Built-in support for LaTeX mathematical expressions via KaTeX, enabling high-quality rendering of formulas.
@@ -41,5 +42,5 @@ The Gemini Termux Agent is designed for:
 
 ## User Experience & Visual Aesthetic
 * **Terminal-Inspired Dark Mode:** A sleek, high-contrast dark theme that pays homage to the terminal environments preferred by its core audience.
-* **Mobile-First Design:** A minimalist and functional layout optimized for mobile browsers, ensuring ease of use on the go.
+* **Mobile-First Design & Gestures:** A minimalist layout optimized for mobile, featuring intuitive swipe gestures for sidebar navigation and a consolidated actions menu for smaller screens.
 * **Clarity and Accessibility:** Focused on high readability for both chat text and code snippets, utilizing clear typography and distinct visual separation for messages.
