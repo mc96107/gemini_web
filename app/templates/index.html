@@ -164,7 +164,7 @@
 </div>
 
 <!-- Patterns Modal -->
-<div class="modal fade" id="patternsModal" tabindex="-1" aria-labelledby="patternsModalLabel" aria-hidden="true">
+<div class="modal fade" id="patternsModal" tabindex="-1" aria-labelledby="patternsModalLabel">
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content bg-dark text-light border-secondary">
       <div class="modal-header border-secondary">
@@ -187,7 +187,7 @@
 </div>
 
 <!-- Security Modal -->
-<div class="modal fade" id="securityModal" tabindex="-1" aria-labelledby="securityModalLabel" aria-hidden="true">
+<div class="modal fade" id="securityModal" tabindex="-1" aria-labelledby="securityModalLabel">
   <div class="modal-dialog">
     <div class="modal-content bg-dark text-light border-secondary">
       <div class="modal-header border-secondary">
@@ -230,7 +230,7 @@
 </div>
 
 <!-- Tools Modal -->
-<div class="modal fade" id="toolsModal" tabindex="-1" aria-labelledby="toolsModalLabel" aria-hidden="true">
+<div class="modal fade" id="toolsModal" tabindex="-1" aria-labelledby="toolsModalLabel">
   <div class="modal-dialog">
     <div class="modal-content bg-dark text-light border-secondary">
       <div class="modal-header border-secondary">
@@ -301,6 +301,39 @@
             <button type="button" class="btn btn-primary btn-sm" id="btn-apply-tools">Apply Settings</button>
         </div>
         <div id="tools-status" class="mt-2 small text-center"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tagging Modal -->
+<div class="modal fade" id="taggingModal" tabindex="-1" aria-labelledby="taggingModalLabel">
+  <div class="modal-dialog">
+    <div class="modal-content bg-dark text-light border-secondary">
+      <div class="modal-header border-secondary">
+        <h5 class="modal-title" id="taggingModalLabel"><i class="bi bi-tags"></i> Edit Chat Tags</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+            <label class="form-label small text-muted">Current Tags</label>
+            <div id="modal-current-tags" class="d-flex flex-wrap gap-1 mb-2"></div>
+            <div class="input-group input-group-sm">
+                <input type="text" id="tag-input" class="form-control bg-dark text-light border-secondary" placeholder="New tag...">
+                <button class="btn btn-outline-secondary" type="button" id="btn-add-tag">Add</button>
+            </div>
+            <small class="text-muted" style="font-size: 0.6rem;">Press Enter or use comma to add multiple tags.</small>
+        </div>
+        <div class="mb-3">
+            <label class="form-label small text-muted">Pick from existing tags</label>
+            <div id="modal-existing-tags" class="d-flex flex-wrap gap-1">
+                <!-- Existing tags will be loaded here -->
+            </div>
+        </div>
+      </div>
+      <div class="modal-footer border-secondary">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" id="btn-save-tags" class="btn btn-primary btn-sm">Save Changes</button>
       </div>
     </div>
   </div>

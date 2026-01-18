@@ -12,6 +12,9 @@
         .card { background-color: #1e1e1e; border: 1px solid #333; }
         .table { color: #e0e0e0; }
         .table-hover tbody tr:hover { background-color: #2c2c2c; }
+        h2, h5, .card-title { color: #fff !important; }
+        .text-muted { color: #aaa !important; }
+        .form-label { color: #ccc !important; }
     </style>
 </head>
 <body>
@@ -81,11 +84,8 @@
                         <button class="btn btn-info w-100 mb-2" onclick="syncPatterns()">
                             <i class="bi bi-arrow-repeat me-1"></i> Sync Fabric Patterns
                         </button>
-                        <button class="btn btn-outline-primary w-100 mb-2" onclick="autotagSessions()">
-                            <i class="bi bi-tags me-1"></i> Auto-Tag Missing Sessions
-                        </button>
-                        <button class="btn btn-outline-danger w-100 mb-2" onclick="clearAndRetag()">
-                            <i class="bi bi-arrow-counterclockwise me-1"></i> Clear & Re-Tag All
+                        <button class="btn btn-outline-danger w-100 mb-2" onclick="clearAllTags()">
+                            <i class="bi bi-trash me-1"></i> Clear All Chat Tags
                         </button>
                         <button class="btn btn-warning w-100 mb-2" onclick="restartSetup()">
                             <i class="bi bi-exclamation-triangle me-1"></i> Restart Setup
@@ -225,49 +225,19 @@
             }
         }
 
-        async function autotagSessions() {
+        async function clearAllTags() {
+            if (!confirm('Are you sure you want to CLEAR ALL chat tags? This cannot be undone.')) return;
+
             const status = document.getElementById('sync-status');
-            status.textContent = 'Tagging sessions... This might take a while.';
+            status.textContent = 'Clearing tags...';
             status.className = 'small mt-2 text-info';
             
             try {
-                const res = await fetch('/admin/autotag', { method: 'POST' });
-                if (!res.ok) {
-                    const text = await res.text();
-                    console.error('Server responded with error:', res.status, text);
-                    throw new Error(`Server error ${res.status}: ${res.statusText}`);
-                }
+                const res = await fetch('/admin/sessions/cleartags', { method: 'POST' });
+                if (!res.ok) throw new Error(`Server error ${res.status}`);
                 const data = await res.json();
                 if (data.success) {
-                    status.textContent = `Successfully tagged ${data.stats.sessions_tagged} sessions across ${data.stats.users_processed} users!`;
-                    status.className = 'small mt-2 text-success';
-                } else {
-                    status.textContent = 'Error: ' + (data.error || 'Unknown error');
-                    status.className = 'small mt-2 text-danger';
-                }
-            } catch (e) {
-                status.textContent = 'Error: ' + e.message;
-                status.className = 'small mt-2 text-danger';
-            }
-        }
-
-        async function clearAndRetag() {
-            if (!confirm('Are you sure you want to CLEAR ALL existing tags and re-generate them? This cannot be undone.')) return;
-
-            const status = document.getElementById('sync-status');
-            status.textContent = 'Clearing and re-tagging... This might take a while.';
-            status.className = 'small mt-2 text-info';
-            
-            try {
-                const res = await fetch('/admin/cleartags', { method: 'POST' });
-                if (!res.ok) {
-                    const text = await res.text();
-                    console.error('Server responded with error:', res.status, text);
-                    throw new Error(`Server error ${res.status}: ${res.statusText}`);
-                }
-                const data = await res.json();
-                if (data.success) {
-                    status.textContent = `Successfully cleared ${data.cleared_count} sessions and re-tagged ${data.stats.sessions_tagged} sessions!`;
+                    status.textContent = `Successfully cleared tags from ${data.count} sessions!`;
                     status.className = 'small mt-2 text-success';
                 } else {
                     status.textContent = 'Error: ' + (data.error || 'Unknown error');

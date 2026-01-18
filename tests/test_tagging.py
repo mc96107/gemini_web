@@ -98,28 +98,4 @@ async def test_tag_filtering(agent):
         filtered = await agent.get_user_sessions(user_id, tags=["work", "urgent"])
         assert len(filtered) == 1
         assert filtered[0]['uuid'] == s1
-
-@pytest.mark.asyncio
-async def test_suggest_tags(agent):
-    user_id = "test_user"
-    session_uuid = "12345678-1234-1234-1234-123456789012"
-    
-    agent.user_data[user_id] = {
-        "active_session": session_uuid,
-        "sessions": [session_uuid],
-        "session_tags": {}
-    }
-    
-    # Mock generate_response_stream
-    async def mock_stream(*args, **kwargs):
-        yield {"type": "message", "content": "ai, coding, pytest"}
-        yield {"type": "done"}
-
-    with patch.object(GeminiAgent, "generate_response_stream", side_effect=mock_stream):
-        tags = await agent.suggest_tags(user_id, session_uuid, "How do I write a pytest?")
-        
-        assert "ai" in tags
-        assert "coding" in tags
-        assert "pytest" in tags
-        assert agent.user_data[user_id]["session_tags"][session_uuid] == ["ai", "coding", "pytest"]
         

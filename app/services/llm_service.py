@@ -132,7 +132,7 @@ class GeminiAgent:
             global_log(f"Error in _get_latest_session_uuid: {str(e)}")
             return None
 
-    async def generate_response_stream(self, user_id: str, prompt: str, model: Optional[str] = None, file_path: Optional[str] = None) -> AsyncGenerator[Dict, None]:
+    async def generate_response_stream(self, user_id: str, prompt: str, model: Optional[str] = None, file_path: Optional[str] = None, resume_session: Optional[str] = "AUTO") -> AsyncGenerator[Dict, None]:
         def log_debug(msg): global_log(f"[{user_id}] {msg}", level="DEBUG")
 
         if user_id not in self.user_data:
@@ -143,7 +143,11 @@ class GeminiAgent:
             self.user_data[user_id].setdefault("session_tools", {})
             self.user_data[user_id].setdefault("pending_tools", [])
 
-        session_uuid = self.user_data[user_id].get("active_session")
+        if resume_session == "AUTO":
+            session_uuid = self.user_data[user_id].get("active_session")
+        else:
+            session_uuid = resume_session
+
         current_model = model or self.model_name
         
         attempt = 0
@@ -247,10 +251,6 @@ class GeminiAgent:
 
                                 self._save_user_data()
                                 session_uuid = new_id
-
-                                # Auto-tagging for new sessions
-                                if prompt:
-                                    asyncio.create_task(self.suggest_tags(user_id, new_id, prompt))
                         
                         # Check for capacity error in JSON chunks
                         content_to_check = str(data).lower()
@@ -308,9 +308,9 @@ class GeminiAgent:
                         await proc.wait()
                     except: pass
 
-    async def generate_response(self, user_id: str, prompt: str, model: Optional[str] = None, file_path: Optional[str] = None) -> str:
+    async def generate_response(self, user_id: str, prompt: str, model: Optional[str] = None, file_path: Optional[str] = None, resume_session: Optional[str] = "AUTO") -> str:
         full_response = ""
-        async for chunk in self.generate_response_stream(user_id, prompt, model, file_path):
+        async for chunk in self.generate_response_stream(user_id, prompt, model, file_path, resume_session=resume_session):
             if chunk.get("type") == "message":
                 full_response += chunk.get("content", "")
             elif chunk.get("type") == "error":
@@ -512,83 +512,6 @@ class GeminiAgent:
                 return True
             except: return False
         return False
-
-    async def suggest_tags(self, user_id: str, session_uuid: str, content: str):
-        """Use Gemini to suggest tags for a chat session."""
-        # More explicit prompt to avoid verbose responses
-        prompt = f"Suggest 1-3 short, descriptive tags for a conversation that starts with: '{content}'. Return ONLY the tags separated by commas, nothing else. No preamble, no quotes, no explanation."
-        try:
-            # We use a separate flash instance for speed and cost
-            # Consume stream directly to avoid 'raw' chunks (which may contain the echoed prompt)
-            tags_str = ""
-            async for chunk in self.generate_response_stream(user_id, prompt, model="gemini-2.5-flash"):
-                if chunk.get("type") == "message":
-                    tags_str += chunk.get("content", "")
-            
-            # Clean up and split
-            raw_tags = [t.strip() for t in tags_str.split(",") if t.strip()]
-            
-            # Filter out any leftover noise or prompt-like language
-            tags = []
-            # Words that commonly appear in instructions and should not be tags
-            blacklist = ["suggest", "message", "preamble", "nothing", "comma", "separated", "return", "only", "quotes", "explanation"]
-            
-            for t in raw_tags:
-                # Basic heuristics to avoid garbage
-                clean_t = re.sub(r'[^a-zA-Z0-9\s-]', '', t).strip()
-                if not clean_t:
-                    continue
-                
-                # Check if it's too long or too short
-                if len(clean_t) > 20 or len(clean_t) < 2:
-                    continue
-                
-                # Check blacklist
-                lower_t = clean_t.lower()
-                if any(word in lower_t for word in blacklist):
-                    continue
-                
-                # Check if it looks like a sentence (too many spaces)
-                if clean_t.count(' ') > 2:
-                    continue
-                    
-                tags.append(clean_t)
-            
-            if tags:
-                # Limit to 3 tags max
-                tags = tags[:3]
-                await self.update_session_tags(user_id, session_uuid, tags)
-                return tags
-        except Exception as e:
-            global_log(f"Error suggesting tags: {str(e)}")
-        return []
-
-    async def autogenerate_all_missing_tags(self) -> Dict[str, int]:
-        """Iterate through all users and sessions to generate tags for those missing them."""
-        stats = {"users_processed": 0, "sessions_tagged": 0}
-        try:
-            for user_id, user_info in self.user_data.items():
-                stats["users_processed"] += 1
-                session_tags = user_info.get("session_tags", {})
-                for session_uuid in user_info.get("sessions", []):
-                    if not session_tags.get(session_uuid):
-                        # Fetch first message for context
-                        messages = await self.get_session_messages(session_uuid, limit=1)
-                        if messages:
-                            content = messages[0].get("content", "")
-                            if content:
-                                global_log(f"Auto-tagging session {session_uuid} for user {user_id}...")
-                                try:
-                                    await self.suggest_tags(user_id, session_uuid, content)
-                                    stats["sessions_tagged"] += 1
-                                    # Avoid hitting rate limits too hard
-                                    await asyncio.sleep(0.5)
-                                except Exception as inner_e:
-                                    global_log(f"Error auto-tagging session {session_uuid}: {str(inner_e)}")
-        except Exception as e:
-            global_log(f"Fatal error in autogenerate_all_missing_tags: {str(e)}")
-            raise e
-        return stats
 
     async def clear_all_session_tags(self) -> int:
         """Clear session_tags for all users."""

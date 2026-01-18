@@ -58,7 +58,7 @@ def recombine():
     
     user_manager_code = strip_local_imports(get_file_content('app/services/user_manager.py'))
     auth_service_code = clean_config_ref(strip_local_imports(get_file_content('app/services/auth_service.py')))
-    llm_service_code = strip_local_imports(get_file_content('app/services/llm_service.py'))
+    llm_service_code = clean_config_ref(strip_local_imports(get_file_content('app/services/llm_service.py')))
     sync_service_code = strip_local_imports(get_file_content('app/services/pattern_sync_service.py'))
     
     auth_router_code = clean_config_ref(strip_local_imports(get_file_content('app/routers/auth.py')))

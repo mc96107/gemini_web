@@ -36,6 +36,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const tagFilterContainer = document.getElementById('tag-filter-container');
     const chatTagsHeader = document.getElementById('chat-tags-header');
 
+    const taggingModal = document.getElementById('taggingModal');
+    const modalCurrentTags = document.getElementById('modal-current-tags');
+    const modalExistingTags = document.getElementById('modal-existing-tags');
+    const tagInput = document.getElementById('tag-input');
+    const btnAddTag = document.getElementById('btn-add-tag');
+    const btnSaveTags = document.getElementById('btn-save-tags');
+
     let currentFile = null;
     let allPatterns = [];
     let currentOffset = 0;
@@ -150,16 +157,89 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const addBtn = chatTagsHeader.querySelector('.add-tag-btn');
         if (addBtn) {
-            addBtn.onclick = async () => {
-                const currentTagsStr = tags.join(', ');
-                const newTagsStr = prompt('Enter tags (comma separated):', currentTagsStr);
-                if (newTagsStr !== null) {
-                    const newTags = newTagsStr.split(',').map(t => t.trim()).filter(t => t !== '');
-                    if (await updateSessionTags(session.uuid, newTags)) {
-                        session.tags = newTags;
-                        renderChatTags(session);
+            addBtn.onclick = () => {
+                let modalInstance = bootstrap.Modal.getInstance(taggingModal);
+                if (!modalInstance) {
+                    modalInstance = new bootstrap.Modal(taggingModal);
+                }
+                
+                let workingTags = [...tags];
+                
+                function renderModalTags() {
+                    modalCurrentTags.innerHTML = workingTags.map(t => `
+                        <span class="tag-badge selected" data-tag="${t}">${t} <i class="bi bi-x ms-1 remove-tag"></i></span>
+                    `).join('');
+                    
+                    modalCurrentTags.querySelectorAll('.remove-tag').forEach(btn => {
+                        btn.onclick = (e) => {
+                            e.stopPropagation();
+                            const tagToRemove = btn.parentElement.dataset.tag;
+                            workingTags = workingTags.filter(t => t !== tagToRemove);
+                            renderModalTags();
+                        };
+                    });
+
+                    // Render existing tags suggestions
+                    modalExistingTags.innerHTML = allUniqueTags
+                        .filter(t => !workingTags.includes(t))
+                        .map(t => `<span class="tag-badge" data-tag="${t}">${t}</span>`)
+                        .join('');
+                    
+                    modalExistingTags.querySelectorAll('.tag-badge').forEach(badge => {
+                        badge.onclick = () => {
+                            workingTags.push(badge.dataset.tag);
+                            renderModalTags();
+                        };
+                    });
+                }
+
+                renderModalTags();
+                tagInput.value = '';
+                
+                function addTagFromInput() {
+                    const rawVal = tagInput.value.trim();
+                    if (!rawVal) return;
+                    
+                    // Support comma-separated tags
+                    const newTags = rawVal.split(',').map(t => t.trim()).filter(t => t !== '');
+                    let added = false;
+                    
+                    newTags.forEach(val => {
+                        if (!workingTags.includes(val)) {
+                            workingTags.push(val);
+                            added = true;
+                        }
+                    });
+                    
+                    if (added) {
+                        tagInput.value = '';
+                        renderModalTags();
                     }
                 }
+
+                tagInput.onkeydown = (e) => {
+                    if (e.key === 'Enter' || e.key === ',') {
+                        e.preventDefault();
+                        addTagFromInput();
+                    }
+                };
+
+                if (btnAddTag) {
+                    btnAddTag.onclick = (e) => {
+                        e.preventDefault();
+                        addTagFromInput();
+                    };
+                }
+
+                btnSaveTags.onclick = async () => {
+                    if (await updateSessionTags(session.uuid, workingTags)) {
+                        session.tags = workingTags;
+                        renderChatTags(session);
+                        modalInstance.hide();
+                    }
+                };
+
+                modalInstance.show();
             };
         }
     }
@@ -232,8 +312,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 toolsStatus.textContent = 'Settings applied successfully!';
                 toolsStatus.className = 'mt-2 small text-success';
                 setTimeout(() => {
-                    const modal = bootstrap.Modal.getInstance(toolsModal);
-                    if (modal) modal.hide();
+                    const modalInstance = bootstrap.Modal.getInstance(toolsModal);
+                    if (modalInstance) modalInstance.hide();
                 }, 1000);
             }
         } catch (error) {

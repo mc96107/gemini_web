@@ -202,7 +202,6 @@ async def chat(request: Request, message: str = Form(...), file: Optional[Upload
         if cmd == "/help": return {"response": "Commands: /reset, /pro, /p [pattern], /yolo, /help"}
     
     async def event_generator():
-        from app.core import config
         def log_sse(msg, level="DEBUG"):
             if config.LOG_LEVEL == "NONE":
                 return
