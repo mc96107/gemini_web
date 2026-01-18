@@ -200,32 +200,33 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderChatTags(session) {
-        if (!chatTagsHeader) return;
+        const headerContainer = document.getElementById('chat-tags-header');
+        const sidebarContainer = document.getElementById('chat-tags-sidebar');
+        if (!headerContainer || !sidebarContainer) return;
+
         if (!session || !session.uuid) {
-            chatTagsHeader.innerHTML = '';
+            headerContainer.innerHTML = '';
+            sidebarContainer.innerHTML = '';
             return;
         }
 
         const tags = session.tags || [];
         const isMobile = window.innerWidth < 768;
-        let visibleTags = tags;
-        let hiddenCount = 0;
 
-        if (isMobile && tags.length > 2) {
-            visibleTags = tags.slice(0, 2);
-            hiddenCount = tags.length - 2;
-        }
-
-        let html = visibleTags.map(tag => `<span class="tag-badge selected">${tag}</span>`).join('');
-        if (hiddenCount > 0) {
-            html += `<span class="tag-badge selected">+${hiddenCount} more</span>`;
-        }
+        let html = tags.map(tag => `<span class="tag-badge selected">${tag}</span>`).join('');
         html += `<span class="tag-badge add-tag-btn" title="Edit Tags"><i class="bi bi-plus"></i> Tags</span>`;
 
-        chatTagsHeader.innerHTML = html;
+        if (isMobile) {
+            headerContainer.innerHTML = '';
+            sidebarContainer.innerHTML = html;
+        } else {
+            sidebarContainer.innerHTML = '';
+            headerContainer.innerHTML = html;
+        }
 
-        // Grouping logic: clicking on "+N more" or individual tags on mobile can open the modal
-        const allBadges = chatTagsHeader.querySelectorAll('.tag-badge');
+        // Clicking on tags or the add button opens the modal
+        const targetContainer = isMobile ? sidebarContainer : headerContainer;
+        const allBadges = targetContainer.querySelectorAll('.tag-badge');
         allBadges.forEach(badge => {
             badge.onclick = () => {
                 let modalInstance = bootstrap.Modal.getInstance(taggingModal);
@@ -1308,34 +1309,48 @@ document.addEventListener('DOMContentLoaded', () => {
             root: chatContainer,
             threshold: 0.1
         });
+        observer.observe(scrollSentinel);
+    }
+
     // Swipe Gestures for Mobile
     let touchStartX = 0;
     let touchStartY = 0;
     const swipeThreshold = 50;
-    const edgeThreshold = 30;
+    const edgeThreshold = 40;
 
     document.addEventListener('touchstart', (e) => {
-        touchStartX = e.touches[0].clientX;
-        touchStartY = e.touches[0].clientY;
+        // Only track if swipe starts near edges
+        const x = e.touches[0].clientX;
+        if (x < edgeThreshold || x > window.innerWidth - edgeThreshold) {
+            touchStartX = x;
+            touchStartY = e.touches[0].clientY;
+        } else {
+            touchStartX = 0; // Reset
+        }
     }, { passive: true });
 
     document.addEventListener('touchend', (e) => {
+        if (touchStartX === 0) return;
+
         const touchEndX = e.changedTouches[0].clientX;
         const touchEndY = e.changedTouches[0].clientY;
         const diffX = touchEndX - touchStartX;
         const diffY = touchEndY - touchStartY;
 
-        // Ensure horizontal swipe
-        if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > swipeThreshold) {
+        // Must be horizontal and meet threshold
+        if (Math.abs(diffX) > Math.abs(diffY) * 1.5 && Math.abs(diffX) > swipeThreshold) {
             if (diffX > 0 && touchStartX < edgeThreshold) {
                 // Swipe Left-to-Right from left edge: Open History
-                const historyOffcanvas = bootstrap.Offcanvas.getInstance(document.getElementById('historySidebar')) || new bootstrap.Offcanvas(document.getElementById('historySidebar'));
+                const historyEl = document.getElementById('historySidebar');
+                const historyOffcanvas = bootstrap.Offcanvas.getInstance(historyEl) || new bootstrap.Offcanvas(historyEl);
                 historyOffcanvas.show();
             } else if (diffX < 0 && touchStartX > window.innerWidth - edgeThreshold) {
                 // Swipe Right-to-Left from right edge: Open Actions
-                const actionsOffcanvas = bootstrap.Offcanvas.getInstance(document.getElementById('actionsSidebar')) || new bootstrap.Offcanvas(document.getElementById('actionsSidebar'));
+                const actionsEl = document.getElementById('actionsSidebar');
+                const actionsOffcanvas = bootstrap.Offcanvas.getInstance(actionsEl) || new bootstrap.Offcanvas(actionsEl);
                 actionsOffcanvas.show();
             }
         }
+        touchStartX = 0; // Reset
     }, { passive: true });
 });

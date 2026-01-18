@@ -13,6 +13,7 @@ body {
     background-color: var(--bg-color) !important;
     color: var(--text-color) !important;
     font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    touch-action: pan-y;
 }
 
 /* Header Styling */
@@ -26,8 +27,7 @@ header {
 #chat-container {
     background-color: var(--chat-bg);
     padding-bottom: 2rem;
-    display: flex;
-    flex-direction: column;
+    touch-action: pan-y;
 }
 
 /* Messages */
@@ -169,17 +169,25 @@ textarea#message-input:focus {
     color: #888;
 }
 /* Mobile Safe Area Fixes */
-html, body { height: 100%; margin: 0; padding: 0; }
-.container-fluid { height: 100vh; display: flex; flex-direction: column; }
-#chat-container { flex-grow: 1; overflow-y: auto; }
-footer { 
-    flex-shrink: 0; 
-    padding-bottom: calc(1rem + env(safe-area-inset-bottom)) !important; 
-}
+html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+.container-fluid { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 @supports (height: 100dvh) {
     .container-fluid { height: 100dvh; }
 }
 
+#chat-container { 
+    flex: 1 1 0%;
+    min-height: 0;
+    overflow-y: auto;
+    background-color: var(--chat-bg);
+    padding-bottom: 2rem;
+    touch-action: pan-y;
+}
+
+footer {
+    flex-shrink: 0;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom)) !important;
+}
 /* Copy Button */
 .message { 
     position: relative; 

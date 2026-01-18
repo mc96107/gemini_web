@@ -23,19 +23,27 @@
 
 <div class="container-fluid d-flex flex-column vh-100 p-0">
     <!-- Header -->
-    <header class="p-3 border-bottom border-secondary bg-black d-flex justify-content-between align-items-center">
-        <div class="d-flex align-items-center gap-3">
-            <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="offcanvas" data-bs-target="#historySidebar" aria-controls="historySidebar">
+    <!-- Header -->
+    <header class="p-2 border-bottom border-secondary bg-black d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
+            <button class="btn btn-outline-secondary btn-sm me-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#historySidebar" aria-controls="historySidebar">
                 <i class="bi bi-layout-sidebar-inset"></i>
             </button>
-            <h1 class="h4 m-0 d-none d-md-block"><i class="bi bi-robot text-primary"></i></h1>
-            <div id="chat-tags-header" class="d-flex align-items-center gap-2 ms-2 overflow-auto" style="max-width: 40vw;">
-                <!-- Active session tags will be shown here -->
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-robot text-primary h4 m-0"></i>
+                <span class="small fw-bold d-md-none text-truncate" style="max-width: 100px;">{{ user }}</span>
+            </div>
+            <div id="chat-tags-header" class="d-none d-md-flex align-items-center gap-2 ms-3 overflow-auto" style="max-width: 40vw;">
+                <!-- Desktop tags -->
             </div>
         </div>
+
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-secondary d-none d-md-inline-block"><i class="bi bi-person"></i> {{ user }}</span>
+            
             <!-- Mobile Actions Button -->
             <div class="d-md-none">
-                <button class="btn btn-outline-light btn-sm" type="button" data-bs-toggle="offcanvas" data-bs-target="#actionsSidebar" aria-controls="actionsSidebar" id="mobile-actions-dropdown">
+                <button class="btn btn-outline-light btn-sm" type="button" data-bs-toggle="offcanvas" data-bs-target="#actionsSidebar" aria-controls="actionsSidebar" id="mobile-actions-toggle">
                     <i class="bi bi-three-dots-vertical"></i>
                 </button>
             </div>
@@ -52,37 +60,6 @@
                 <a href="/logout" class="btn btn-outline-danger btn-sm" title="Logout"><i class="bi bi-box-arrow-right"></i> <span class="d-none d-lg-inline">Logout</span></a>
             </div>
         </div>
-    </header>
-
-    <!-- History Sidebar (Offcanvas) -->
-    <!-- ... existing sidebar ... -->
-
-    <!-- Actions Sidebar (Right Offcanvas) -->
-    <div class="offcanvas offcanvas-end bg-dark text-light border-start border-secondary" tabindex="-1" id="actionsSidebar" aria-labelledby="actionsSidebarLabel">
-      <div class="offcanvas-header border-bottom border-secondary">
-        <h5 class="offcanvas-title" id="actionsSidebarLabel"><i class="bi bi-gear"></i> Actions</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-      </div>
-      <div class="offcanvas-body p-0">
-        <div class="list-group list-group-flush">
-            <div class="p-3 border-bottom border-secondary bg-black d-flex align-items-center gap-2">
-                <i class="bi bi-person-circle h4 m-0 text-primary"></i>
-                <span>{{ user }}</span>
-                {% if is_admin %}<span class="badge bg-info ms-auto">Admin</span>{% endif %}
-            </div>
-            {% if is_admin %}
-            <a href="/admin" class="list-group-item list-group-item-action bg-dark text-light border-secondary"><i class="bi bi-gear me-2"></i> Admin Maintenance</a>
-            {% endif %}
-            <button class="list-group-item list-group-item-action bg-dark text-light border-secondary" data-bs-toggle="modal" data-bs-target="#securityModal" data-bs-dismiss="offcanvas"><i class="bi bi-shield-lock me-2"></i> Security Settings</button>
-            <button class="list-group-item list-group-item-action bg-dark text-light border-secondary" data-bs-toggle="modal" data-bs-target="#patternsModal" data-bs-dismiss="offcanvas"><i class="bi bi-collection me-2"></i> Available Patterns</button>
-            <button id="export-btn-mobile" class="list-group-item list-group-item-action bg-dark text-light border-secondary" data-bs-dismiss="offcanvas"><i class="bi bi-download me-2"></i> Export Conversation</button>
-            <button id="reset-btn-mobile" class="list-group-item list-group-item-action bg-dark text-warning border-secondary" data-bs-dismiss="offcanvas"><i class="bi bi-trash me-2"></i> Reset History</button>
-            <a href="/logout" class="list-group-item list-group-item-action bg-dark text-danger border-secondary"><i class="bi bi-box-arrow-right me-2"></i> Logout</a>
-        </div>
-      </div>
-    </div>
-
-
     </header>
 
     <!-- History Sidebar (Offcanvas) -->
@@ -118,13 +95,47 @@
       </div>
     </div>
 
+    <!-- Actions Sidebar (Right Offcanvas) -->
+    <div class="offcanvas offcanvas-end bg-dark text-light border-start border-secondary" tabindex="-1" id="actionsSidebar" aria-labelledby="actionsSidebarLabel">
+      <div class="offcanvas-header border-bottom border-secondary">
+        <h5 class="offcanvas-title" id="actionsSidebarLabel"><i class="bi bi-gear"></i> Actions</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+      </div>
+      <div class="offcanvas-body p-0">
+        <div class="list-group list-group-flush">
+            <div class="p-3 border-bottom border-secondary bg-black d-flex align-items-center gap-2">
+                <i class="bi bi-person-circle h4 m-0 text-primary"></i>
+                <span class="text-truncate">{{ user }}</span>
+                {% if is_admin %}<span class="badge bg-info ms-auto">Admin</span>{% endif %}
+            </div>
+            
+            <!-- Mobile Tags Section -->
+            <div class="p-3 border-bottom border-secondary d-md-none">
+                <h6 class="small text-muted text-uppercase fw-bold mb-2">Chat Tags</h6>
+                <div id="chat-tags-sidebar" class="d-flex flex-wrap gap-2">
+                    <!-- Mobile tags will render here -->
+                </div>
+            </div>
+
+            {% if is_admin %}
+            <a href="/admin" class="list-group-item list-group-item-action bg-dark text-light border-secondary"><i class="bi bi-gear me-2"></i> Admin Maintenance</a>
+            {% endif %}
+            <button class="list-group-item list-group-item-action bg-dark text-light border-secondary" data-bs-toggle="modal" data-bs-target="#securityModal" data-bs-dismiss="offcanvas"><i class="bi bi-shield-lock me-2"></i> Security Settings</button>
+            <button class="list-group-item list-group-item-action bg-dark text-light border-secondary" data-bs-toggle="modal" data-bs-target="#patternsModal" data-bs-dismiss="offcanvas"><i class="bi bi-collection me-2"></i> Available Patterns</button>
+            <button id="export-btn-mobile" class="list-group-item list-group-item-action bg-dark text-light border-secondary" data-bs-dismiss="offcanvas"><i class="bi bi-download me-2"></i> Export Conversation</button>
+            <button id="reset-btn-mobile" class="list-group-item list-group-item-action bg-dark text-warning border-secondary" data-bs-dismiss="offcanvas"><i class="bi bi-trash me-2"></i> Reset History</button>
+            <a href="/logout" class="list-group-item list-group-item-action bg-dark text-danger border-secondary"><i class="bi bi-box-arrow-right me-2"></i> Logout</a>
+        </div>
+      </div>
+    </div>
+
     <!-- Chat Area -->
     <div id="chat-container" class="flex-grow-1 overflow-auto p-3">
         <div id="scroll-sentinel" style="height: 10px; width: 100%;"></div>
         <div id="load-more-container" class="text-center {{ 'd-none' if not has_more else '' }} mb-3">
             <button id="load-more-btn" class="btn btn-outline-secondary btn-sm">Load Older Messages</button>
         </div>
-        <div id="chat-welcome" class="text-center text-muted mt-5">
+        <div id="chat-welcome" class="text-center text-muted mt-3">
             <p>Start a conversation with Gemini.</p>
             <p class="small">Try <code>/help</code> to see available commands.</p>
         </div>
