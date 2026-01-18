@@ -40,10 +40,11 @@ async def index(request: Request, user=Depends(get_user)):
     )
 
 @router.get("/sessions")
-async def get_sess(request: Request, limit: Optional[int] = None, offset: int = 0, user=Depends(get_user)):
+async def get_sess(request: Request, limit: Optional[int] = None, offset: int = 0, tags: Optional[str] = None, user=Depends(get_user)):
     agent = request.app.state.agent
     if not user: raise HTTPException(401)
-    return await agent.get_user_sessions(user, limit=limit, offset=offset)
+    tag_list = tags.split(",") if tags else None
+    return await agent.get_user_sessions(user, limit=limit, offset=offset, tags=tag_list)
 
 @router.get("/sessions/search")
 async def search_sess(request: Request, q: str = "", user=Depends(get_user)):
@@ -99,6 +100,25 @@ async def rename_sess(session_uuid: str, request: Request, user=Depends(get_user
     if not new_title:
         raise HTTPException(400, "Title is required")
     success = await agent.update_session_title(user, session_uuid, new_title)
+    if not success:
+        raise HTTPException(404, "Session not found")
+    return {"success": True}
+
+@router.get("/sessions/tags")
+async def get_all_tags(request: Request, user=Depends(get_user)):
+    agent = request.app.state.agent
+    if not user: raise HTTPException(401)
+    return {"tags": agent.get_unique_tags(user)}
+
+@router.post("/sessions/{session_uuid}/tags")
+async def set_sess_tags(session_uuid: str, request: Request, user=Depends(get_user)):
+    agent = request.app.state.agent
+    if not user: raise HTTPException(401)
+    data = await request.json()
+    tags = data.get("tags", [])
+    if not isinstance(tags, list):
+        raise HTTPException(400, "Tags must be a list of strings")
+    success = await agent.update_session_tags(user, session_uuid, tags)
     if not success:
         raise HTTPException(404, "Session not found")
     return {"success": True}

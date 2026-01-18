@@ -33,6 +33,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const sidebarLoadMoreBtn = document.getElementById('sidebar-load-more-btn');
     const sendBtn = document.getElementById('send-btn');
     const stopBtn = document.getElementById('stop-btn');
+    const tagFilterContainer = document.getElementById('tag-filter-container');
+    const chatTagsHeader = document.getElementById('chat-tags-header');
 
     let currentFile = null;
     let allPatterns = [];
@@ -42,6 +44,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const SIDEBAR_PAGE_LIMIT = 10;
     let isLoadingHistory = false;
     let isLoadingSidebar = false;
+
+    let activeTags = new Set();
+    let allUniqueTags = [];
 
     function toggleStopButton(show) {
         if (show) {
@@ -71,6 +76,92 @@ document.addEventListener('DOMContentLoaded', () => {
         toastBody.textContent = message;
         const toast = new bootstrap.Toast(liveToast);
         toast.show();
+    }
+
+    async function fetchUniqueTags() {
+        try {
+            const response = await fetch('/sessions/tags');
+            const data = await response.json();
+            allUniqueTags = data.tags || [];
+            renderTagFilters();
+        } catch (error) {
+            console.error('Error fetching tags:', error);
+        }
+    }
+
+    function renderTagFilters() {
+        if (!tagFilterContainer) return;
+        if (allUniqueTags.length === 0) {
+            tagFilterContainer.innerHTML = '';
+            return;
+        }
+
+        tagFilterContainer.innerHTML = allUniqueTags.map(tag => `
+            <span class="tag-badge ${activeTags.has(tag) ? 'selected' : ''}" data-tag="${tag}">${tag}</span>
+        `).join('');
+
+        tagFilterContainer.querySelectorAll('.tag-badge').forEach(badge => {
+            badge.onclick = () => toggleTagFilter(badge.dataset.tag);
+        });
+    }
+
+    function toggleTagFilter(tag) {
+        if (activeTags.has(tag)) {
+            activeTags.delete(tag);
+        } else {
+            activeTags.add(tag);
+        }
+        renderTagFilters();
+        sidebarOffset = 0;
+        loadSessions(false);
+    }
+
+    async function updateSessionTags(uuid, tags) {
+        try {
+            const response = await fetch(`/sessions/${uuid}/tags`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tags })
+            });
+            const data = await response.json();
+            if (data.success) {
+                fetchUniqueTags();
+                loadSessions(false);
+                return true;
+            }
+        } catch (error) {
+            console.error('Error updating tags:', error);
+        }
+        return false;
+    }
+
+    function renderChatTags(session) {
+        if (!chatTagsHeader) return;
+        if (!session) {
+            chatTagsHeader.innerHTML = '';
+            return;
+        }
+
+        const tags = session.tags || [];
+        let html = tags.map(tag => `<span class="tag-badge selected">${tag}</span>`).join('');
+        html += `<span class="tag-badge add-tag-btn" title="Edit Tags"><i class="bi bi-plus"></i> Tags</span>`;
+        
+        chatTagsHeader.innerHTML = html;
+
+        const addBtn = chatTagsHeader.querySelector('.add-tag-btn');
+        if (addBtn) {
+            addBtn.onclick = async () => {
+                const currentTagsStr = tags.join(', ');
+                const newTagsStr = prompt('Enter tags (comma separated):', currentTagsStr);
+                if (newTagsStr !== null) {
+                    const newTags = newTagsStr.split(',').map(t => t.trim()).filter(t => t !== '');
+                    if (await updateSessionTags(session.uuid, newTags)) {
+                        session.tags = newTags;
+                        renderChatTags(session);
+                    }
+                }
+            };
+        }
     }
 
     function debounce(func, timeout = 300) {
@@ -167,6 +258,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (sessionSearch) {
         sessionSearch.addEventListener('input', debounce(() => {
+            if (sessionSearch.value.trim() !== "") {
+                activeTags.clear();
+                renderTagFilters();
+            }
             loadSessions();
         }, 300));
     }
@@ -182,6 +277,7 @@ document.addEventListener('DOMContentLoaded', () => {
     historySidebar.addEventListener('show.bs.offcanvas', () => loadSessions());
 
     // Load sessions on page load
+    fetchUniqueTags();
     loadSessions();
 
     // Initial load from server-side messages
@@ -278,8 +374,14 @@ document.addEventListener('DOMContentLoaded', () => {
         
         let url = `/sessions?limit=${SIDEBAR_PAGE_LIMIT}&offset=${sidebarOffset}`;
         
+        if (activeTags.size > 0) {
+            url += `&tags=${encodeURIComponent(Array.from(activeTags).join(','))}`;
+        }
+        
         if (query) {
             url = `/sessions/search?q=${encodeURIComponent(query)}`;
+            // Clear tags if searching by text for now to avoid complexity, 
+            // or we could combine them if backend search supported it.
         }
 
         try {
@@ -312,6 +414,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const activeSession = sessions.find(s => s.active);
+            renderChatTags(activeSession);
             
             // Check if we need to auto-load (only on initial load)
             if (!append && !query) {
@@ -339,6 +442,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="d-flex justify-content-between align-items-start">
                     <div class="flex-grow-1 overflow-hidden">
                         <span class="session-title text-truncate">${s.title || 'Untitled Chat'}</span>
+                        <div class="session-tags-list">
+                            ${(s.tags || []).map(t => `<span class="session-tag-item">${t}</span>`).join('')}
+                        </div>
                         <span class="session-time">${s.time || ''}</span>
                     </div>
                     <div class="d-flex align-items-center gap-1">

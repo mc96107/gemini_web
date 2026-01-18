@@ -28,7 +28,10 @@
             <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="offcanvas" data-bs-target="#historySidebar" aria-controls="historySidebar">
                 <i class="bi bi-layout-sidebar-inset"></i>
             </button>
-            <h1 class="h4 m-0"><i class="bi bi-robot text-primary"></i></h1>
+            <h1 class="h4 m-0 d-none d-md-block"><i class="bi bi-robot text-primary"></i></h1>
+            <div id="chat-tags-header" class="d-flex align-items-center gap-2 ms-2 overflow-auto" style="max-width: 40vw;">
+                <!-- Active session tags will be shown here -->
+            </div>
         </div>
         <div class="d-flex gap-2 align-items-center">
             <span class="badge bg-secondary me-2"><i class="bi bi-person"></i> {{ user }}</span>
@@ -57,6 +60,9 @@
                     <span class="input-group-text bg-dark border-secondary text-secondary"><i class="bi bi-search"></i></span>
                     <input type="text" id="session-search" class="form-control bg-dark text-light border-secondary shadow-none" placeholder="Search history...">
                 </div>
+            </div>
+            <div id="tag-filter-container" class="mt-2 d-flex flex-wrap gap-1">
+                <!-- Tags will be loaded here -->
             </div>
         </div>
         <div class="flex-grow-1 overflow-auto">

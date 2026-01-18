@@ -45,6 +45,7 @@ class GeminiAgent:
                         if "sessions" not in data[uid]: data[uid]["sessions"] = []
                         if "active_session" not in data[uid]: data[uid]["active_session"] = None
                         if "session_tools" not in data[uid]: data[uid]["session_tools"] = {}
+                        if "session_tags" not in data[uid]: data[uid]["session_tags"] = {}
                         if "pending_tools" not in data[uid]: data[uid]["pending_tools"] = []
                         if "pinned_sessions" not in data[uid]: data[uid]["pinned_sessions"] = []
                     return data
@@ -241,6 +242,10 @@ class GeminiAgent:
 
                                 self._save_user_data()
                                 session_uuid = new_id
+
+                                # Auto-tagging for new sessions
+                                if prompt:
+                                    asyncio.create_task(self.suggest_tags(user_id, new_id, prompt))
                         
                         # Check for capacity error in JSON chunks
                         content_to_check = str(data).lower()
@@ -318,13 +323,32 @@ class GeminiAgent:
             return True
         return False
 
-    async def get_user_sessions(self, user_id: str, limit: Optional[int] = None, offset: int = 0) -> List[Dict]:
+    async def update_session_tags(self, user_id: str, uuid: str, tags: List[str]) -> bool:
+        if user_id in self.user_data and uuid in self.user_data[user_id]["sessions"]:
+            if "session_tags" not in self.user_data[user_id]:
+                self.user_data[user_id]["session_tags"] = {}
+            self.user_data[user_id]["session_tags"][uuid] = tags
+            self._save_user_data()
+            return True
+        return False
+
+    def get_unique_tags(self, user_id: str) -> List[str]:
+        if user_id not in self.user_data: return []
+        user_info = self.user_data[user_id]
+        all_tags = set()
+        for tags in user_info.get("session_tags", {}).values():
+            for t in tags:
+                all_tags.add(t)
+        return sorted(list(all_tags))
+
+    async def get_user_sessions(self, user_id: str, limit: Optional[int] = None, offset: int = 0, tags: Optional[List[str]] = None) -> List[Dict]:
         if user_id not in self.user_data:
             self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": [], "pinned_sessions": []}
             self._save_user_data()
         user_info = self.user_data[user_id]
         uuids = user_info.get("sessions", [])
         custom_titles = user_info.get("custom_titles", {})
+        session_tags = user_info.get("session_tags", {})
         if not uuids: return []
         try:
             proc = await asyncio.create_subprocess_exec(self.gemini_cmd, "--list-sessions", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=self.working_dir)
@@ -341,8 +365,15 @@ class GeminiAgent:
                 if info["uuid"] in uuids:
                     info["active"] = (info["uuid"] == user_info.get("active_session"))
                     info["pinned"] = (info["uuid"] in pinned_uuids)
+                    info["tags"] = session_tags.get(info["uuid"], [])
                     if info["uuid"] in custom_titles:
                         info["title"] = custom_titles[info["uuid"]]
+                    
+                    # Filter by tags if specified
+                    if tags:
+                        if not all(tag in info["tags"] for tag in tags):
+                            continue
+                            
                     all_sessions.append(info)
             
             # Sort by recency (assuming list-sessions is chronological, we want reverse chronological)
@@ -364,12 +395,19 @@ class GeminiAgent:
             all_fallback = []
             for u in uuids:
                 title = custom_titles.get(u, "Unknown")
+                tags_list = session_tags.get(u, [])
+                
+                if tags:
+                    if not all(tag in tags_list for tag in tags):
+                        continue
+
                 all_fallback.append({
                     "uuid": u, 
                     "title": title, 
                     "time": "Unknown", 
                     "active": (u == user_info.get("active_session")), 
-                    "pinned": (u in pinned_uuids)
+                    "pinned": (u in pinned_uuids),
+                    "tags": tags_list
                 })
             
             all_fallback = all_fallback[::-1]
@@ -469,6 +507,20 @@ class GeminiAgent:
                 return True
             except: return False
         return False
+
+    async def suggest_tags(self, user_id: str, session_uuid: str, content: str):
+        """Use Gemini to suggest tags for a chat session."""
+        prompt = f"Based on the following message, suggest 1-3 short, descriptive tags for this conversation. Return ONLY a comma-separated list of tags.\n\nMessage: {content}"
+        try:
+            # We use a separate flash instance for speed and cost
+            tags_str = await self.generate_response(user_id, prompt, model="gemini-2.5-flash")
+            tags = [t.strip() for t in tags_str.split(",") if t.strip()]
+            if tags:
+                await self.update_session_tags(user_id, session_uuid, tags)
+                return tags
+        except Exception as e:
+            global_log(f"Error suggesting tags: {str(e)}")
+        return []
 
     async def reset_chat(self, user_id: str) -> str:
         uuid = self.user_data.get(user_id, {}).get("active_session")
