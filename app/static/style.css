@@ -236,6 +236,14 @@ footer {
 .pin-btn.pinned {
     color: #ffc107 !important; /* Gold */
 }
+.rename-session-btn {
+    color: rgba(255, 255, 255, 0.3);
+    transition: all 0.2s;
+    padding: 0.25rem 0.5rem !important;
+}
+.rename-session-btn:hover {
+    color: rgba(255, 255, 255, 0.7);
+}
 .delete-session-btn {
     color: rgba(220, 53, 69, 0.5);
     transition: all 0.2s;
