@@ -100,6 +100,47 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnAddTag = document.getElementById('btn-add-tag');
     const btnSaveTags = document.getElementById('btn-save-tags');
 
+    const renameModalEl = document.getElementById('renameSessionModal');
+    const renameInput = document.getElementById('rename-input');
+    const btnSaveRename = document.getElementById('btn-save-rename');
+    let renameModal = null;
+    let currentRenameUUID = null;
+    let currentRenameTitleEl = null; // To update UI immediately
+
+    if (renameModalEl) {
+        renameModal = new bootstrap.Modal(renameModalEl);
+        
+        renameModalEl.addEventListener('shown.bs.modal', () => {
+            renameInput.focus();
+        });
+
+        if (btnSaveRename) {
+            btnSaveRename.addEventListener('click', async () => {
+                const newTitle = renameInput.value.trim();
+                if (!newTitle || !currentRenameUUID) return;
+                
+                try {
+                    const response = await fetch(`/sessions/${currentRenameUUID}/title`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ title: newTitle })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        if (currentRenameTitleEl) currentRenameTitleEl.textContent = newTitle;
+                        showToast('Chat renamed');
+                        renameModal.hide();
+                    } else {
+                        alert('Failed to rename chat: ' + (data.error || 'Unknown error'));
+                    }
+                } catch (error) {
+                    console.error('Error renaming session:', error);
+                    alert('Failed to rename chat.');
+                }
+            });
+        }
+    }
+
     let currentFile = null;
     let allPatterns = [];
     let currentOffset = 0;
@@ -705,10 +746,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const titleSpan = item.querySelector('.session-title');
                 const oldTitle = titleSpan.textContent.trim();
                 
-                const newTitle = prompt('Enter new chat title:', oldTitle);
-                if (newTitle && newTitle !== oldTitle) {
-                    renameSession(uuid, newTitle, titleSpan);
-                }
+                currentRenameUUID = uuid;
+                currentRenameTitleEl = titleSpan;
+                if (renameInput) renameInput.value = oldTitle;
+                if (renameModal) renameModal.show();
             };
         });
 

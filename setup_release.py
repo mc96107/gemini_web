@@ -12,15 +12,14 @@ def run_command(args, cwd=None):
 def setup():
     app_file = "gemini_agent_release.py"
     
-    # 0. Regenerate bundle if missing
-    if not os.path.exists(app_file):
-        print(f"{app_file} missing. Regenerating...")
-        try:
-            import scripts.recombine
-            scripts.recombine.recombine()
-        except ImportError:
-            # Fallback to shell if import fails
-            run_command([sys.executable, "scripts/recombine.py"])
+    # ALWAYS Regenerate bundle
+    print(f"Regenerating {app_file}...")
+    try:
+        import scripts.recombine
+        scripts.recombine.recombine()
+    except ImportError:
+        # Fallback to shell if import fails
+        run_command([sys.executable, "scripts/recombine.py"])
 
     # 1. Create virtual environment
     venv_dir = "venv_release"

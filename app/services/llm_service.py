@@ -17,7 +17,9 @@ FALLBACK_MODELS = {
 
 CAPACITY_KEYWORDS = ["429", "capacity", "quota", "exhausted", "rate limit"]
 
-def global_log(msg, level="INFO"):
+def global_log(msg, level="INFO", user_data=None):
+    # If user_data has a 'verbose_logging' setting, we might force INFO level or something.
+    # For now, stick to config.
     if config.LOG_LEVEL == "NONE":
         return
     if config.LOG_LEVEL == "INFO" and level == "DEBUG":
@@ -53,6 +55,7 @@ class GeminiAgent:
                         if "session_tags" not in data[uid]: data[uid]["session_tags"] = {}
                         if "pending_tools" not in data[uid]: data[uid]["pending_tools"] = []
                         if "pinned_sessions" not in data[uid]: data[uid]["pinned_sessions"] = []
+                        if "session_metadata" not in data[uid]: data[uid]["session_metadata"] = {}
                     return data
             except: return {}
         return {}
@@ -62,7 +65,7 @@ class GeminiAgent:
 
     def toggle_pin(self, user_id: str, session_uuid: str) -> bool:
         if user_id not in self.user_data:
-            self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": [], "pinned_sessions": []}
+            self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": [], "pinned_sessions": [], "session_metadata": {}}
         
         user_info = self.user_data[user_id]
         if "pinned_sessions" not in user_info: user_info["pinned_sessions"] = []
@@ -85,7 +88,7 @@ class GeminiAgent:
 
     def set_session_tools(self, user_id: str, session_uuid: str, tools: List[str]):
         if user_id not in self.user_data:
-            self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": []}
+            self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": [], "session_metadata": {}}
         if session_uuid == "pending":
             self.user_data[user_id]["pending_tools"] = tools
         else:
@@ -136,12 +139,13 @@ class GeminiAgent:
         def log_debug(msg): global_log(f"[{user_id}] {msg}", level="DEBUG")
 
         if user_id not in self.user_data:
-            self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": []}
+            self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": [], "session_metadata": {}}
         else:
             self.user_data[user_id].setdefault("sessions", [])
             self.user_data[user_id].setdefault("active_session", None)
             self.user_data[user_id].setdefault("session_tools", {})
             self.user_data[user_id].setdefault("pending_tools", [])
+            self.user_data[user_id].setdefault("session_metadata", {})
 
         if resume_session == "AUTO":
             session_uuid = self.user_data[user_id].get("active_session")
@@ -348,81 +352,127 @@ class GeminiAgent:
 
     async def get_user_sessions(self, user_id: str, limit: Optional[int] = None, offset: int = 0, tags: Optional[List[str]] = None) -> List[Dict]:
         if user_id not in self.user_data:
-            self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": [], "pinned_sessions": []}
+            self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": [], "pinned_sessions": [], "session_metadata": {}}
             self._save_user_data()
+        
         user_info = self.user_data[user_id]
         uuids = user_info.get("sessions", [])
         custom_titles = user_info.get("custom_titles", {})
         session_tags = user_info.get("session_tags", {})
+        session_metadata = user_info.get("session_metadata", {})
+        
         if not uuids: return []
-        try:
-            proc = await asyncio.create_subprocess_exec(self.gemini_cmd, "--list-sessions", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=self.working_dir)
-            stdout, stderr = await proc.communicate()
-            content = self._filter_errors(stdout.decode() + stderr.decode())
-            pattern = r"^\s*\d+\.\s+(?P<title>.*?)\s+\((?P<time>.*?)\)\s+\[(?P<uuid>[a-fA-F0-9-]{36})\]"
-            matches = re.finditer(pattern, content, re.MULTILINE)
-            
-            all_sessions = []
+
+        # Check if we have metadata for all sessions
+        missing_metadata = [u for u in uuids if u not in session_metadata]
+        
+        all_sessions = []
+        
+        if not missing_metadata:
+            # All metadata cached, build from cache
             pinned_uuids = user_info.get("pinned_sessions", [])
-            
-            for m in matches:
-                info = m.groupdict()
-                if info["uuid"] in uuids:
-                    info["active"] = (info["uuid"] == user_info.get("active_session"))
-                    info["pinned"] = (info["uuid"] in pinned_uuids)
-                    info["tags"] = session_tags.get(info["uuid"], [])
-                    if info["uuid"] in custom_titles:
-                        info["title"] = custom_titles[info["uuid"]]
-                    
-                    # Filter by tags if specified
-                    if tags:
-                        if not all(tag in info["tags"] for tag in tags):
-                            continue
-                            
-                    all_sessions.append(info)
-            
-            # Sort by recency (assuming list-sessions is chronological, we want reverse chronological)
+            for u in uuids:
+                meta = session_metadata.get(u, {"original_title": "Unknown", "time": "Unknown"})
+                
+                # Check tags filter
+                current_tags = session_tags.get(u, [])
+                if tags:
+                    if not all(tag in current_tags for tag in tags):
+                        continue
+                        
+                title = custom_titles.get(u, meta.get("original_title", "Unknown"))
+                
+                all_sessions.append({
+                    "uuid": u,
+                    "title": title,
+                    "time": meta.get("time", "Unknown"),
+                    "active": (u == user_info.get("active_session")),
+                    "pinned": (u in pinned_uuids),
+                    "tags": current_tags
+                })
+                
             all_sessions = all_sessions[::-1]
             
-            pinned = [s for s in all_sessions if s["pinned"]]
-            unpinned = [s for s in all_sessions if not s["pinned"]]
-            
-            if limit is not None:
-                paged_unpinned = unpinned[offset : offset + limit]
-            else:
-                paged_unpinned = unpinned[offset:]
+        else:
+            # Need to fetch from CLI
+            try:
+                proc = await asyncio.create_subprocess_exec(self.gemini_cmd, "--list-sessions", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=self.working_dir)
+                stdout, stderr = await proc.communicate()
+                raw_content = stdout.decode() + stderr.decode()
+                content = self._filter_errors(raw_content)
                 
-            return pinned + paged_unpinned
-            
-        except: 
-            pinned_uuids = user_info.get("pinned_sessions", [])
-            # Fallback logic also needs to handle pagination
-            all_fallback = []
-            for u in uuids:
-                title = custom_titles.get(u, "Unknown")
-                tags_list = session_tags.get(u, [])
+                pattern = r"^\s*\d+\.\s+(?P<title>.*?)\s+\((?P<time>.*?)\)\s+\[(?P<uuid>[a-fA-F0-9-]{36})\]"
+                matches = list(re.finditer(pattern, content, re.MULTILINE))
                 
-                if tags:
-                    if not all(tag in tags_list for tag in tags):
-                        continue
+                pinned_uuids = user_info.get("pinned_sessions", [])
+                found_uuids = set()
+                
+                cli_sessions = []
+                for m in matches:
+                    info = m.groupdict()
+                    u = info["uuid"]
+                    found_uuids.add(u)
+                    
+                    # ONLY update metadata cache if the session belongs to this user
+                    if u in uuids:
+                        session_metadata[u] = {
+                            "original_title": info["title"],
+                            "time": info["time"]
+                        }
+                        
+                        current_tags = session_tags.get(u, [])
+                        if tags:
+                            if not all(tag in current_tags for tag in tags):
+                                continue
+                                
+                        title = custom_titles.get(u, info["title"])
+                        
+                        cli_sessions.append({
+                            "uuid": u,
+                            "title": title,
+                            "time": info["time"],
+                            "active": (u == user_info.get("active_session")),
+                            "pinned": (u in pinned_uuids),
+                            "tags": current_tags
+                        })
+                
+                # Update user_data with new metadata
+                self.user_data[user_id]["session_metadata"] = session_metadata
+                
+                # Sync sessions list
+                valid_uuids = [u for u in uuids if u in found_uuids]
+                if len(valid_uuids) != len(uuids):
+                    self.user_data[user_id]["sessions"] = valid_uuids
+                    for u in uuids:
+                        if u not in valid_uuids:
+                            session_metadata.pop(u, None)
+                            custom_titles.pop(u, None)
+                            session_tags.pop(u, None)
+                            if u in pinned_uuids: pinned_uuids.remove(u)
+                    
+                    self.user_data[user_id]["session_metadata"] = session_metadata
+                    self.user_data[user_id]["custom_titles"] = custom_titles
+                    self.user_data[user_id]["session_tags"] = session_tags
+                    self.user_data[user_id]["pinned_sessions"] = pinned_uuids
+                
+                self._save_user_data()
+                all_sessions = cli_sessions
+                all_sessions = all_sessions[::-1]
+                
+            except Exception as e:
+                global_log(f"Error fetching sessions for {user_id}: {e}", level="DEBUG")
+                return []
 
-                all_fallback.append({
-                    "uuid": u, 
-                    "title": title, 
-                    "time": "Unknown", 
-                    "active": (u == user_info.get("active_session")), 
-                    "pinned": (u in pinned_uuids),
-                    "tags": tags_list
-                })
+        # Common Pagination Logic
+        pinned = [s for s in all_sessions if s["pinned"]]
+        unpinned = [s for s in all_sessions if not s["pinned"]]
+        
+        if limit is not None:
+            paged_unpinned = unpinned[offset : offset + limit]
+        else:
+            paged_unpinned = unpinned[offset:]
             
-            all_fallback = all_fallback[::-1]
-            pinned = [s for s in all_fallback if s["pinned"]]
-            unpinned = [s for s in all_fallback if not s["pinned"]]
-            if limit is not None:
-                paged_unpinned = unpinned[offset : offset + limit]
-            else:
-                paged_unpinned = unpinned[offset:]
-            return pinned + paged_unpinned
+        return pinned + paged_unpinned
 
     async def search_sessions(self, user_id: str, query: str) -> List[Dict]:
         if not query: return await self.get_user_sessions(user_id)
@@ -508,6 +558,11 @@ class GeminiAgent:
                 await (await asyncio.create_subprocess_exec(self.gemini_cmd, "--delete-session", uuid, cwd=self.working_dir)).communicate()
                 self.user_data[user_id]["sessions"].remove(uuid)
                 if self.user_data[user_id]["active_session"] == uuid: self.user_data[user_id]["active_session"] = None
+                
+                # Cleanup metadata
+                if "session_metadata" in self.user_data[user_id] and uuid in self.user_data[user_id]["session_metadata"]:
+                    del self.user_data[user_id]["session_metadata"][uuid]
+                
                 self._save_user_data()
                 return True
             except: return False
