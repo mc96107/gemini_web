@@ -6,6 +6,10 @@ A mobile-first, secure web interface for interacting with Google's Gemini AI, sp
 
 *   **Modular Architecture:** Cleanly separated backend (FastAPI), frontend (Jinja2/Bootstrap), and service layers.
 *   **Multi-Modal Chat:** Support for text and file attachments.
+*   **Conversation Branching:** Edit previous questions to fork conversations and explore different paths seamlessly.
+*   **Tree View Visualization:** Visualize and navigate your conversation branches as a structured tree.
+*   **Advanced Chat Management:** Organize your history with tags, pinning, and custom chat titles.
+*   **Mobile-First UX:** Optimized for Termux with intuitive swipe gestures (swipe left for history, right for actions).
 *   **Advanced Authentication:** Login via Passkeys (WebAuthn), Ethereum Wallet signatures, or traditional passwords.
 *   **Progressive Web App (PWA):** Install the agent directly to your home screen for an app-like experience.
 *   **Pattern-Based Prompting:** Leverage specialized prompts for consistent, high-quality AI responses.
@@ -81,8 +85,10 @@ The application is optimized for Termux on Android.
 1.  **Initial Setup**: On your first run, visit `http://localhost:8000/setup` to create the admin user and configure your `GOOGLE_API_KEY`.
 2.  **Login**: Use the credentials created during setup. You can later add Passkeys or Link an Ethereum Wallet for faster login.
 3.  **Chatting**: Simply type your message in the chat box. Use the "Patterns" button to select specialized AI personas.
-4.  **History**: Access previous conversations via the sidebar or history button.
-5.  **PWA**: For the best experience, use the "Add to Home Screen" option in your mobile browser to install it as a Progressive Web App.
+4.  **Branching & Editing**: Click the edit icon next to any of your previous questions to fork the conversation from that point and explore a new path.
+5.  **History & Organization**: Access previous conversations via the sidebar. Use the "Tags" button to categorize chats and the "Tree" button to visualize conversation branches.
+6.  **Mobile Navigation**: Swipe from the left edge to open your chat history, or from the right edge to access chat actions.
+7.  **PWA**: For the best experience, use the "Add to Home Screen" option in your mobile browser to install it as a Progressive Web App.
 
 ## Serving with Nginx (Reverse Proxy)
 
