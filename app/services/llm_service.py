@@ -4,7 +4,7 @@ import re
 import asyncio
 import shutil
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, AsyncGenerator
 from app.core.patterns import PATTERNS
 from app.core import config
@@ -253,6 +253,27 @@ class GeminiAgent:
                                     self.user_data[user_id]["pending_tools"] = []
                                     log_debug(f"Promoted pending tools to session {new_id}")
 
+                                # Handle pending fork
+                                pending_fork = self.user_data[user_id].get("pending_fork")
+                                if pending_fork:
+                                    if "session_forks" not in self.user_data[user_id]:
+                                        self.user_data[user_id]["session_forks"] = {}
+                                    self.user_data[user_id]["session_forks"][new_id] = {
+                                        "parent": pending_fork["parent"],
+                                        "fork_point": pending_fork["fork_point"]
+                                    }
+                                    if pending_fork.get("title"):
+                                        if "custom_titles" not in self.user_data[user_id]:
+                                            self.user_data[user_id]["custom_titles"] = {}
+                                        self.user_data[user_id]["custom_titles"][new_id] = pending_fork["title"]
+                                    if pending_fork.get("tags"):
+                                        if "session_tags" not in self.user_data[user_id]:
+                                            self.user_data[user_id]["session_tags"] = {}
+                                        self.user_data[user_id]["session_tags"][new_id] = pending_fork["tags"]
+                                    
+                                    del self.user_data[user_id]["pending_fork"]
+                                    log_debug(f"Applied pending fork info to session {new_id}")
+
                                 self._save_user_data()
                                 session_uuid = new_id
                         
@@ -350,6 +371,11 @@ class GeminiAgent:
                 all_tags.add(t)
         return sorted(list(all_tags))
 
+    def is_user_session(self, user_id: str, session_uuid: str) -> bool:
+        """Check if a session belongs to a user without filtering for sidebar."""
+        if user_id not in self.user_data: return False
+        return session_uuid in self.user_data[user_id].get("sessions", [])
+
     async def get_user_sessions(self, user_id: str, limit: Optional[int] = None, offset: int = 0, tags: Optional[List[str]] = None) -> List[Dict]:
         if user_id not in self.user_data:
             self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": [], "pinned_sessions": [], "session_metadata": {}}
@@ -360,6 +386,7 @@ class GeminiAgent:
         custom_titles = user_info.get("custom_titles", {})
         session_tags = user_info.get("session_tags", {})
         session_metadata = user_info.get("session_metadata", {})
+        session_forks = user_info.get("session_forks", {})
         
         if not uuids: return []
 
@@ -390,7 +417,7 @@ class GeminiAgent:
                     "pinned": (u in pinned_uuids),
                     "tags": current_tags
                 })
-                
+            
             all_sessions = all_sessions[::-1]
             
         else:
@@ -463,9 +490,45 @@ class GeminiAgent:
                 global_log(f"Error fetching sessions for {user_id}: {e}", level="DEBUG")
                 return []
 
+        # --- Grouping Logic: Display them as one (the latest fork) ---
+        
+        def get_root(u):
+            """Find the root session UUID for a given session."""
+            visited = set()
+            curr = u
+            while curr in session_forks and session_forks[curr].get("parent") and curr not in visited:
+                visited.add(curr)
+                curr = session_forks[curr]["parent"]
+            return curr
+
+        # Map root -> latest session in that group found in all_sessions
+        # all_sessions is already ordered by time (newest first) because of [::-1]
+        grouped_sessions = []
+        seen_roots = set()
+        
+        for sess in all_sessions:
+            root_uuid = get_root(sess["uuid"])
+            if root_uuid not in seen_roots:
+                grouped_sessions.append(sess)
+                seen_roots.add(root_uuid)
+            else:
+                # If the current active session is a fork that is NOT the latest, 
+                # we still might want to show it? 
+                # The user said "display them as one" and "opening a chat start by displaying the latest fork".
+                # This implies we only show the most recent fork in the sidebar.
+                # If the user IS currently in an older fork, maybe we should show that one instead?
+                # Let's stick to showing the latest, but if the active session is in this group, 
+                # ensure the "active" badge or state is represented if possible.
+                if sess["active"]:
+                    # Update the already added group entry to be "active" if any member is active
+                    for gs in grouped_sessions:
+                        if get_root(gs["uuid"]) == root_uuid:
+                            gs["has_active_fork"] = True
+                            break
+
         # Common Pagination Logic
-        pinned = [s for s in all_sessions if s["pinned"]]
-        unpinned = [s for s in all_sessions if not s["pinned"]]
+        pinned = [s for s in grouped_sessions if s["pinned"]]
+        unpinned = [s for s in grouped_sessions if not s["pinned"]]
         
         if limit is not None:
             paged_unpinned = unpinned[offset : offset + limit]
@@ -512,16 +575,16 @@ class GeminiAgent:
         
         return results
 
-    async def get_session_messages(self, session_uuid: str, limit: Optional[int] = None, offset: int = 0) -> List[Dict]:
+    async def get_session_messages(self, session_uuid: str, limit: Optional[int] = None, offset: int = 0) -> Dict:
         try:
             uuid_start = session_uuid.split('-')[0]
             home = os.path.expanduser("~")
             gemini_tmp_base = os.path.join(home, ".gemini", "tmp")
-            if not os.path.exists(gemini_tmp_base): return []
+            if not os.path.exists(gemini_tmp_base): return {"messages": [], "total": 0}
             import glob
             search_path = os.path.join(gemini_tmp_base, "*", "chats", f"*{uuid_start}*.json")
             files = glob.glob(search_path)
-            if not files: return []
+            if not files: return {"messages": [], "total": 0}
             files.sort(key=os.path.getmtime, reverse=True)
             with open(files[0], 'r', encoding='utf-8') as f:
                 data = json.load(f)
@@ -536,10 +599,10 @@ class GeminiAgent:
                     content = msg.get("content", "")
                     if not content or content.strip() == "": continue
                     messages.append({"role": "user" if msg.get("type") == "user" else "bot", "content": content})
-                return messages
+                return {"messages": messages, "total": total}
         except Exception as e:
             print(f"Error loading session messages: {str(e)}")
-            return []
+            return {"messages": [], "total": 0}
 
     async def switch_session(self, user_id: str, uuid: str) -> bool:
         if user_id in self.user_data and uuid in self.user_data[user_id]["sessions"]:
@@ -548,25 +611,242 @@ class GeminiAgent:
             return True
         return False
 
+    async def clone_session(self, user_id: str, original_uuid: str, message_index: int) -> Optional[str]:
+        """
+        Clone a session up to a certain message index.
+        Returns the new session UUID if successful.
+        """
+        if user_id not in self.user_data or original_uuid not in self.user_data[user_id]["sessions"]:
+            return None
+
+        try:
+            if message_index == -1:
+                # We want to start a new session but linked to this tree
+                user_info = self.user_data[user_id]
+                user_info["active_session"] = None # Force new session in CLI
+                
+                # Store pending info to apply to the NEXT session created
+                user_info["pending_fork"] = {
+                    "parent": original_uuid,
+                    "fork_point": -1,
+                    "title": user_info.get("custom_titles", {}).get(original_uuid),
+                    "tags": list(user_info.get("session_tags", {}).get(original_uuid, []))
+                }
+                
+                self._save_user_data()
+                return "pending" # Frontend will handle this
+
+            uuid_start = original_uuid.split('-')[0]
+            home = os.path.expanduser("~")
+            gemini_tmp_base = os.path.join(home, ".gemini", "tmp")
+            import glob
+            search_path = os.path.join(gemini_tmp_base, "*", "chats", f"*{uuid_start}*.json")
+            files = glob.glob(search_path)
+            if not files: return None
+            files.sort(key=os.path.getmtime, reverse=True)
+            
+            with open(files[0], 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            # Truncate messages. message_index is 0-based.
+            # If message_index is 5, we keep 0, 1, 2, 3, 4, 5 (total 6 messages)
+            data["messages"] = data["messages"][:message_index + 1]
+            
+            # Generate new UUID
+            new_uuid = str(uuid.uuid4())
+            data["sessionId"] = new_uuid
+            data["startTime"] = datetime.now(timezone.utc).isoformat()
+            data["lastUpdated"] = data["startTime"]
+            
+            # Save to new file in the same directory as original
+            original_dir = os.path.dirname(files[0])
+            new_filename = f"session-{datetime.now(timezone.utc).strftime('%Y-%m-%dT%H-%M')}-{new_uuid[:8]}.json"
+            new_path = os.path.join(original_dir, new_filename)
+            
+            with open(new_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2)
+            
+            # Update user_data
+            user_info = self.user_data[user_id]
+            user_info["sessions"].append(new_uuid)
+            user_info["active_session"] = new_uuid
+            
+            # Inherit tags and title if they exist
+            if "custom_titles" in user_info and original_uuid in user_info["custom_titles"]:
+                user_info["custom_titles"][new_uuid] = user_info["custom_titles"][original_uuid]
+            
+            if "session_tags" in user_info and original_uuid in user_info["session_tags"]:
+                user_info["session_tags"][new_uuid] = list(user_info["session_tags"][original_uuid])
+            
+            # Inherit tools
+            if "session_tools" in user_info and original_uuid in user_info["session_tools"]:
+                user_info["session_tools"][new_uuid] = list(user_info["session_tools"][original_uuid])
+            
+            # Track fork relationship
+            if "session_forks" not in user_info:
+                user_info["session_forks"] = {}
+            user_info["session_forks"][new_uuid] = {
+                "parent": original_uuid,
+                "fork_point": message_index
+            }
+            
+            # Also inherit metadata (original title etc)
+            if "session_metadata" in user_info and original_uuid in user_info["session_metadata"]:
+                user_info["session_metadata"][new_uuid] = dict(user_info["session_metadata"][original_uuid])
+            
+            self._save_user_data()
+            return new_uuid
+            
+        except Exception as e:
+            global_log(f"Error cloning session {original_uuid}: {str(e)}", level="ERROR")
+            return None
+
+    def get_session_forks(self, user_id: str, session_uuid: str) -> Dict[int, List[str]]:
+        """
+        Get all forks related to this session, organized by fork point.
+        Returns a dict: { message_index: [uuid1, uuid2, ...] }
+        """
+        if user_id not in self.user_data: return {}
+        user_info = self.user_data[user_id]
+        forks_info = user_info.get("session_forks", {})
+        
+        fork_map = {}
+
+        def add_to_map(index, uid):
+            if index not in fork_map: fork_map[index] = []
+            if uid not in fork_map[index]: fork_map[index].append(uid)
+
+        # Current session's parent and fork point (if any)
+        my_info = forks_info.get(session_uuid)
+        parent_uuid = my_info["parent"] if my_info else None
+        my_fork_point = my_info["fork_point"] if my_info else None
+
+        # 1. Any children of the current session
+        for u, info in forks_info.items():
+            if info["parent"] == session_uuid:
+                add_to_map(info["fork_point"], u)
+        
+        # 2. If we have a parent, we are a fork at 'my_fork_point'
+        # The parent is a "branch" at that point, and so are our siblings
+        if parent_uuid:
+            add_to_map(my_fork_point, parent_uuid)
+            for u, info in forks_info.items():
+                if u != session_uuid and info["parent"] == parent_uuid and info["fork_point"] == my_fork_point:
+                    add_to_map(my_fork_point, u)
+            
+        return fork_map
+
+    def get_fork_graph(self, user_id: str) -> Dict[str, Dict]:
+        """Get the full fork graph for all sessions of a user."""
+        if user_id not in self.user_data: return {}
+        user_info = self.user_data[user_id]
+        forks_info = user_info.get("session_forks", {})
+        custom_titles = user_info.get("custom_titles", {})
+        session_metadata = user_info.get("session_metadata", {})
+        sessions = user_info.get("sessions", [])
+
+        graph = {}
+        for uuid in sessions:
+            info = forks_info.get(uuid, {})
+            meta = session_metadata.get(uuid, {})
+            title = custom_titles.get(uuid, meta.get("original_title", "Untitled Chat"))
+            
+            graph[uuid] = {
+                "parent": info.get("parent"),
+                "fork_point": info.get("fork_point"),
+                "title": title
+            }
+        return graph
+
+    async def sync_session_updates(self, user_id: str, session_uuid: str, title: Optional[str] = None, tags: Optional[List[str]] = None):
+        """Sync title/tags across all related forks."""
+        if user_id not in self.user_data: return
+        user_info = self.user_data[user_id]
+        forks_info = user_info.get("session_forks", {})
+        
+        # Find the root of the tree or just collect all related
+        related_uuids = {session_uuid}
+        
+        # Simple iterative search to find all connected nodes in the fork tree
+        changed = True
+        while changed:
+            changed = False
+            for u, info in forks_info.items():
+                if u in related_uuids and info["parent"] not in related_uuids:
+                    related_uuids.add(info["parent"])
+                    changed = True
+                if info["parent"] in related_uuids and u not in related_uuids:
+                    related_uuids.add(u)
+                    changed = True
+        
+        # Apply updates
+        for u in related_uuids:
+            if title is not None:
+                if "custom_titles" not in user_info: user_info["custom_titles"] = {}
+                user_info["custom_titles"][u] = title
+            if tags is not None:
+                if "session_tags" not in user_info: user_info["session_tags"] = {}
+                user_info["session_tags"][u] = tags
+                
+        self._save_user_data()
+
     async def new_session(self, user_id: str):
         self.user_data.setdefault(user_id, {})["active_session"] = None
+        self.user_data[user_id].pop("pending_fork", None)
         self._save_user_data()
 
     async def delete_specific_session(self, user_id: str, uuid: str) -> bool:
-        if user_id in self.user_data and uuid in self.user_data[user_id]["sessions"]:
+        if user_id not in self.user_data or uuid not in self.user_data[user_id]["sessions"]:
+            return False
+            
+        user_info = self.user_data[user_id]
+        forks_info = user_info.get("session_forks", {})
+        
+        # Find all related sessions in the tree
+        related_uuids = {uuid}
+        changed = True
+        while changed:
+            changed = False
+            for u, info in forks_info.items():
+                parent = info.get("parent")
+                if u in related_uuids and parent and parent not in related_uuids:
+                    related_uuids.add(parent)
+                    changed = True
+                if parent in related_uuids and u not in related_uuids:
+                    related_uuids.add(u)
+                    changed = True
+
+        success = True
+        for target_uuid in list(related_uuids):
             try:
-                await (await asyncio.create_subprocess_exec(self.gemini_cmd, "--delete-session", uuid, cwd=self.working_dir)).communicate()
-                self.user_data[user_id]["sessions"].remove(uuid)
-                if self.user_data[user_id]["active_session"] == uuid: self.user_data[user_id]["active_session"] = None
+                # 1. Delete from CLI
+                await (await asyncio.create_subprocess_exec(self.gemini_cmd, "--delete-session", target_uuid, cwd=self.working_dir)).communicate()
                 
-                # Cleanup metadata
-                if "session_metadata" in self.user_data[user_id] and uuid in self.user_data[user_id]["session_metadata"]:
-                    del self.user_data[user_id]["session_metadata"][uuid]
+                # 2. Cleanup local tracking
+                if target_uuid in user_info["sessions"]:
+                    user_info["sessions"].remove(target_uuid)
                 
-                self._save_user_data()
-                return True
-            except: return False
-        return False
+                if user_info.get("active_session") == target_uuid:
+                    user_info["active_session"] = None
+                
+                if "session_metadata" in user_info and target_uuid in user_info["session_metadata"]:
+                    del user_info["session_metadata"][target_uuid]
+                
+                if "custom_titles" in user_info and target_uuid in user_info["custom_titles"]:
+                    del user_info["custom_titles"][target_uuid]
+                
+                if "session_tags" in user_info and target_uuid in user_info["session_tags"]:
+                    del user_info["session_tags"][target_uuid]
+                
+                if "session_forks" in user_info and target_uuid in user_info["session_forks"]:
+                    del user_info["session_forks"][target_uuid]
+                    
+            except Exception as e:
+                global_log(f"Error deleting session {target_uuid}: {str(e)}", level="ERROR")
+                success = False
+        
+        self._save_user_data()
+        return success
 
     async def clear_all_session_tags(self) -> int:
         """Clear session_tags for all users."""

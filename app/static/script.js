@@ -24,6 +24,39 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function handleClone(uuid, messageIndex, showAlert = true) {
+        try {
+            const response = await fetch(`/sessions/${uuid}/clone`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message_index: messageIndex })
+            });
+            const data = await response.json();
+            if (data.success) {
+                if (showAlert) showToast('Conversation forked!');
+                
+                if (data.new_uuid === "pending") {
+                    // For -1 forks, the next message sent will establish the session.
+                    // We just need to clear the current chat display.
+                    chatContainer.innerHTML = '<div class="text-center text-muted mt-5"><p>Type your edited question to start the branch.</p></div>';
+                    currentOffset = 0;
+                    window.TOTAL_MESSAGES = 0;
+                    loadSessions();
+                } else {
+                    // The backend sets the new session as active, so we just need to reload.
+                    chatContainer.innerHTML = '<div class="text-center text-muted mt-5"><p>Loading forked conversation...</p></div>';
+                    await loadMessages(data.new_uuid);
+                    loadSessions();
+                }
+            } else {
+                alert('Failed to fork conversation.');
+            }
+        } catch (error) {
+            console.error('Error cloning chat:', error);
+            alert('Failed to fork chat.');
+        }
+    }
+
     async function handleExport() {
         const activeSessionItem = document.querySelector('.session-item.active-session');
         if (!activeSessionItem) {
@@ -107,6 +140,129 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentRenameUUID = null;
     let currentRenameTitleEl = null; // To update UI immediately
 
+    const treeViewModalEl = document.getElementById('treeViewModal');
+    const treeContainer = document.getElementById('tree-container');
+    const treeViewBtn = document.getElementById('tree-view-btn');
+    const treeViewBtnMobile = document.getElementById('tree-view-btn-mobile');
+    let treeViewModal = null;
+
+    if (treeViewModalEl) {
+        treeViewModal = new bootstrap.Modal(treeViewModalEl);
+        
+        const openTree = async () => {
+            treeContainer.innerHTML = '<div class="text-center p-5"><div class="spinner-border text-info" role="status"></div><p class="mt-2">Building conversation tree...</p></div>';
+            treeViewModal.show();
+            
+            try {
+                // Fetch full fork graph for the user
+                const graphRes = await fetch(`/sessions/fork-graph`);
+                const graphData = await graphRes.json();
+                const graph = graphData.graph; // { uuid: { parent, fork_point, title } }
+
+                renderGraph(graph, currentActiveUUID);
+
+            } catch (error) {
+                console.error('Error building tree:', error);
+                treeContainer.innerHTML = `<div class="alert alert-danger">Failed to build tree: ${error.message}</div>`;
+            }
+        };
+
+        if (treeViewBtn) treeViewBtn.onclick = openTree;
+        if (treeViewBtnMobile) treeViewBtnMobile.onclick = openTree;
+    }
+
+    function renderGraph(graph, activeUUID) {
+        treeContainer.innerHTML = '';
+        
+        if (!activeUUID || !graph[activeUUID]) {
+            treeContainer.innerHTML = '<div class="alert alert-info">No related forks found for this conversation.</div>';
+            return;
+        }
+
+        // Find the root of the current session's tree
+        let rootUUID = activeUUID;
+        let visited = new Set();
+        while (graph[rootUUID] && graph[rootUUID].parent && !visited.has(rootUUID)) {
+            visited.add(rootUUID);
+            rootUUID = graph[rootUUID].parent;
+        }
+
+        const treeRoot = document.createElement('div');
+        treeRoot.className = 'tree-view';
+        treeRoot.appendChild(createTreeNode(rootUUID, graph, activeUUID));
+
+        treeContainer.appendChild(treeRoot);
+    }
+
+    function createTreeNode(uuid, graph, activeUUID) {
+        const node = graph[uuid];
+        const div = document.createElement('div');
+        div.className = 'tree-node-wrapper';
+        
+        const content = document.createElement('div');
+        content.className = `tree-node p-2 mb-3 rounded border ${uuid === activeUUID ? 'bg-primary text-white shadow-lg border-light' : 'bg-dark text-light border-secondary'}`;
+        content.style.cursor = 'pointer';
+        content.style.maxWidth = '280px';
+        content.style.transition = 'all 0.2s';
+        content.style.borderRadius = '15px';
+        
+        const header = document.createElement('div');
+        header.className = 'd-flex align-items-center gap-2 mb-1';
+        header.innerHTML = `<i class="bi ${node.parent ? 'bi-diagram-2' : 'bi-chat-left-text'}"></i>`;
+        
+        const title = document.createElement('div');
+        title.className = 'fw-bold text-truncate flex-grow-1';
+        title.style.fontSize = '0.85rem';
+        title.textContent = node.title || 'Untitled Chat';
+        header.appendChild(title);
+        
+        const meta = document.createElement('div');
+        meta.className = `small ${uuid === activeUUID ? 'text-white-50' : 'text-muted'}`;
+        meta.style.fontSize = '0.7rem';
+        if (node.parent) {
+            meta.textContent = `Forked at msg #${node.fork_point + 1}`;
+        } else {
+            meta.textContent = 'Root Conversation';
+        }
+        
+        content.appendChild(header);
+        content.appendChild(meta);
+        
+        content.onclick = () => {
+            if (uuid !== activeUUID) {
+                switchSession(uuid);
+                treeViewModal.hide();
+            }
+        };
+
+        // Hover effect
+        content.onmouseover = () => { 
+            content.style.transform = 'scale(1.02)';
+            if (uuid !== activeUUID) content.classList.add('border-primary'); 
+        };
+        content.onmouseout = () => { 
+            content.style.transform = 'scale(1)';
+            if (uuid !== activeUUID) content.classList.remove('border-primary'); 
+        };
+
+        div.appendChild(content);
+
+        // Children - sort them by fork point
+        const children = Object.keys(graph).filter(u => graph[u].parent === uuid);
+        children.sort((a, b) => (graph[a].fork_point || 0) - (graph[b].fork_point || 0));
+
+        if (children.length > 0) {
+            const childrenContainer = document.createElement('div');
+            childrenContainer.className = 'tree-children ms-4 ps-3 border-start border-secondary';
+            children.forEach(childUUID => {
+                childrenContainer.appendChild(createTreeNode(childUUID, graph, activeUUID));
+            });
+            div.appendChild(childrenContainer);
+        }
+
+        return div;
+    }
+
     if (renameModalEl) {
         renameModal = new bootstrap.Modal(renameModalEl);
         
@@ -152,6 +308,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let activeTags = new Set();
     let allUniqueTags = [];
+    let currentForkMap = {}; // index -> [uuids]
+    let currentActiveUUID = window.ACTIVE_SESSION_UUID || null;
 
     function toggleStopButton(show) {
         if (show) {
@@ -191,6 +349,17 @@ document.addEventListener('DOMContentLoaded', () => {
             renderTagFilters();
         } catch (error) {
             console.error('Error fetching tags:', error);
+        }
+    }
+
+    async function fetchForks(uuid) {
+        try {
+            const response = await fetch(`/sessions/${uuid}/forks`);
+            const data = await response.json();
+            currentForkMap = data.forks || {};
+        } catch (error) {
+            console.error('Error fetching forks:', error);
+            currentForkMap = {};
         }
     }
 
@@ -475,8 +644,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initial load from server-side messages
     if (window.INITIAL_MESSAGES && window.INITIAL_MESSAGES.length > 0) {
         if (chatWelcome) chatWelcome.classList.add('d-none');
-        window.INITIAL_MESSAGES.forEach(msg => {
-            const msgDiv = createMessageDiv(msg.role, msg.content);
+        window.INITIAL_MESSAGES.forEach((msg, idx) => {
+            const msgDiv = createMessageDiv(msg.role, msg.content, null, null, idx);
             if (msgDiv) chatContainer.appendChild(msgDiv);
         });
         chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -489,39 +658,48 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isLoadingHistory) return;
         if (offset > 0) isLoadingHistory = true;
 
+        if (offset === 0) {
+            currentActiveUUID = uuid;
+            await fetchForks(uuid);
+        }
+
         try {
             const response = await fetch(`/sessions/${uuid}/messages?limit=${limit}&offset=${offset}`);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const messages = await response.json();
+            const data = await response.json();
+            const messages = data.messages || [];
+            const total = data.total || 0;
             
             if (offset === 0) {
                 // Clear existing messages only if it's the first page
                 chatContainer.innerHTML = '<div id="scroll-sentinel" style="height: 10px; width: 100%;"></div>';
                 currentOffset = 0;
+                window.TOTAL_MESSAGES = total; // Update global
                 if (chatWelcome) chatWelcome.classList.add('d-none');
             }
 
             if (messages.length > 0) {
                 if (offset === 0) {
-                    messages.forEach(msg => {
-                        const msgDiv = createMessageDiv(msg.role, msg.content);
+                    messages.forEach((msg, idx) => {
+                        const msgDiv = createMessageDiv(msg.role, msg.content, null, null, idx);
                         if (msgDiv) chatContainer.appendChild(msgDiv);
                     });
                     chatContainer.scrollTop = chatContainer.scrollHeight;
                 } else {
                     // Prepend for "Load More"
-                    // We need to maintain scroll position
                     const scrollHeightBefore = chatContainer.scrollHeight;
                     
-                    // Messages are in chronological order for the range.
-                    // To maintain chronological order when prepending, we insert each message 
-                    // before the original first message of the container.
                     const sentinel = document.getElementById('scroll-sentinel');
                     const loadMore = document.getElementById('load-more-container');
                     const originalFirstMessage = loadMore ? loadMore.nextSibling : (sentinel ? sentinel.nextSibling : chatContainer.firstChild);
 
-                    messages.forEach(msg => {
-                        const msgDiv = createMessageDiv(msg.role, msg.content);
+                    // If total is 100, offset is 20, limit is 20.
+                    // We loaded messages 60 to 79 (total - offset - limit to total - offset)
+                    // The index of the first message in this chunk is total - offset - messages.length
+                    const baseIndex = total - offset - messages.length;
+
+                    messages.forEach((msg, idx) => {
+                        const msgDiv = createMessageDiv(msg.role, msg.content, null, null, baseIndex + idx); 
                         if (msgDiv) {
                             chatContainer.insertBefore(msgDiv, originalFirstMessage);
                         }
@@ -532,8 +710,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 currentOffset += messages.length;
                 
-                // Show/Hide Load More (Still useful for fallback/logic)
-                if (messages.length === limit) {
+                // Show/Hide Load More
+                if (currentOffset < total) {
                     if (loadMoreContainer) loadMoreContainer.classList.remove('d-none');
                 } else {
                     if (loadMoreContainer) loadMoreContainer.classList.add('d-none');
@@ -638,7 +816,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const html = sessions.map(s => `
-            <div class="list-group-item list-group-item-action bg-dark text-light session-item ${s.active ? 'active-session' : ''}" data-uuid="${s.uuid}">
+            <div class="list-group-item list-group-item-action bg-dark text-light session-item ${(s.active || s.has_active_fork) ? 'active-session' : ''}" data-uuid="${s.uuid}">
                 <div class="d-flex justify-content-between align-items-start">
                     <div class="flex-grow-1 overflow-hidden">
                         <span class="session-title text-truncate">${s.title || 'Untitled Chat'}</span>
@@ -648,7 +826,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="session-time">${s.time || ''}</span>
                     </div>
                     <div class="d-flex align-items-center gap-1">
-                        ${s.active ? '<span class="badge bg-primary rounded-pill small me-1">Active</span>' : ''}
+                        ${(s.active || s.has_active_fork) ? '<span class="badge bg-primary rounded-pill small me-1">Active</span>' : ''}
                         <button class="btn btn-sm pin-btn border-0 ${s.pinned ? 'pinned' : ''}" data-uuid="${s.uuid}" title="${s.pinned ? 'Unpin Chat' : 'Pin Chat'}">
                             <i class="bi ${s.pinned ? 'bi-pin-fill' : 'bi-pin'}"></i>
                         </button>
@@ -692,6 +870,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function switchSession(uuid) {
+        try {
+            const formData = new FormData();
+            formData.append('session_uuid', uuid);
+            const response = await fetch('/sessions/switch', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            if (data.success) {
+                chatContainer.innerHTML = '<div class="text-center text-muted mt-5"><p>Loading conversation...</p></div>';
+                await loadMessages(uuid);
+                const historyEl = document.getElementById('historySidebar');
+                const offcanvas = bootstrap.Offcanvas.getInstance(historyEl);
+                if (offcanvas) offcanvas.hide();
+                loadSessions();
+            }
+        } catch (error) {
+            console.error('Error switching session:', error);
+            alert('Failed to switch session.');
+        }
+    }
+
     function attachSessionListeners() {
         document.querySelectorAll('.session-item').forEach(item => {
             item.onclick = async (e) => {
@@ -703,24 +904,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
                 
-                try {
-                    const formData = new FormData();
-                    formData.append('session_uuid', uuid);
-                    const response = await fetch('/sessions/switch', {
-                        method: 'POST',
-                        body: formData
-                    });
-                    const data = await response.json();
-                    if (data.success) {
-                        chatContainer.innerHTML = '<div class="text-center text-muted mt-5"><p>Loading conversation...</p></div>';
-                        await loadMessages(uuid);
-                        bootstrap.Offcanvas.getInstance(historySidebar).hide();
-                        loadSessions();
-                    }
-                } catch (error) {
-                    console.error('Error switching session:', error);
-                    alert('Failed to switch session.');
-                }
+                await switchSession(uuid);
             };
         });
 
@@ -927,7 +1111,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!message && !currentFile) return;
 
         // Add user message to chat
-        appendMessage('user', message, currentFile ? `[Attachment: ${currentFile.name}]` : null, currentFile);
+        const userMsgIndex = window.TOTAL_MESSAGES || 0;
+        appendMessage('user', message, currentFile ? `[Attachment: ${currentFile.name}]` : null, currentFile, userMsgIndex);
+        window.TOTAL_MESSAGES = userMsgIndex + 1;
         
         // Clear inputs immediately
         messageInput.value = '';
@@ -1077,7 +1263,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
                             
                             if (!messageDiv && (fullText.trim().length > 0 || toolLogs.length > 0)) {
-                                messageDiv = createStreamingMessage('bot');
+                                const botMsgIndex = window.TOTAL_MESSAGES || 0;
+                                messageDiv = createStreamingMessage('bot', botMsgIndex);
+                                window.TOTAL_MESSAGES = botMsgIndex + 1;
                                 removeLoading(loadingId);
                                 if (chatWelcome) chatWelcome.classList.add('d-none');
                             }
@@ -1116,9 +1304,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function createStreamingMessage(sender) {
+    function createStreamingMessage(sender, index = null) {
         const messageDiv = document.createElement('div');
         messageDiv.classList.add('message', sender);
+        if (index !== null) messageDiv.dataset.index = index;
         
         const contentArea = document.createElement('div');
         contentArea.className = 'message-content';
@@ -1172,9 +1361,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         if (isFinal) {
-            // Add copy button
+            // Update Actions
+            let actionsDiv = messageDiv.querySelector('.message-actions');
+            if (!actionsDiv) {
+                actionsDiv = document.createElement('div');
+                actionsDiv.className = 'message-actions';
+                messageDiv.prepend(actionsDiv);
+            }
+            actionsDiv.innerHTML = ''; // Clear
+
             const copyBtn = document.createElement('button');
             copyBtn.className = 'copy-btn';
+            copyBtn.title = 'Copy to clipboard';
             copyBtn.innerHTML = '<i class="bi bi-clipboard"></i>';
             copyBtn.onclick = (e) => {
                 e.stopPropagation();
@@ -1184,8 +1382,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     setTimeout(() => { icon.className = 'bi bi-clipboard'; }, 2000);
                 });
             };
-            messageDiv.prepend(copyBtn);
-            
+            actionsDiv.appendChild(copyBtn);
+
             // Highlight code
             if (typeof hljs !== 'undefined') {
                 messageDiv.querySelectorAll('pre code').forEach((block) => {
@@ -1214,12 +1412,13 @@ document.addEventListener('DOMContentLoaded', () => {
         chatContainer.scrollTop = chatContainer.scrollHeight;
     }
 
-    function createMessageDiv(sender, text, attachmentInfo = null, file = null) {
+    function createMessageDiv(sender, text, attachmentInfo = null, file = null, index = null) {
         if (!text && !attachmentInfo) return null;
         if (text && text.trim() === "" && !attachmentInfo) return null;
 
         const messageDiv = document.createElement('div');
         messageDiv.classList.add('message', sender);
+        if (index !== null) messageDiv.dataset.index = index;
         
         let contentHtml = '';
 
@@ -1261,9 +1460,14 @@ document.addEventListener('DOMContentLoaded', () => {
         contentHtml += `<div class="message-content">${parsedText}</div>`;
 
         messageDiv.innerHTML = contentHtml;
-        // Add copy button
+        
+        // Add Action Buttons
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'message-actions';
+
         const copyBtn = document.createElement('button');
         copyBtn.className = 'copy-btn';
+        copyBtn.title = 'Copy to clipboard';
         copyBtn.innerHTML = '<i class="bi bi-clipboard"></i>';
         copyBtn.onclick = (e) => {
             e.stopPropagation();
@@ -1273,7 +1477,67 @@ document.addEventListener('DOMContentLoaded', () => {
                 setTimeout(() => { icon.className = 'bi bi-clipboard'; }, 2000);
             });
         };
-        messageDiv.prepend(copyBtn);
+        actionsDiv.appendChild(copyBtn);
+
+        // User Message Actions: Edit and Fork Navigation
+        if (sender === 'user' && index !== null) {
+            // Edit Button
+            const editBtn = document.createElement('button');
+            editBtn.className = 'clone-btn'; // Reuse same style
+            editBtn.title = 'Edit and branch conversation';
+            editBtn.innerHTML = '<i class="bi bi-pencil"></i>';
+            editBtn.onclick = (e) => {
+                e.stopPropagation();
+                if (confirm('Edit this question and branch the conversation?')) {
+                    // 1. Populate input
+                    messageInput.value = text;
+                    messageInput.focus();
+                    messageInput.dispatchEvent(new Event('input'));
+                    
+                    // 2. Clone at the point before this message
+                    const activeSessionItem = document.querySelector('.session-item.active-session');
+                    if (activeSessionItem) {
+                        const msgIndex = parseInt(index);
+                        handleClone(activeSessionItem.dataset.uuid, msgIndex - 1, false); 
+                    }
+                }
+            };
+            actionsDiv.appendChild(editBtn);
+
+            // Fork Navigation Arrows (now on the user message that branched)
+            const forkPoint = index - 1;
+            if (currentForkMap[forkPoint]) {
+                const forks = currentForkMap[forkPoint];
+                const totalBranches = forks.length + 1;
+                
+                const navSpan = document.createElement('span');
+                navSpan.className = 'fork-nav-controls d-flex align-items-center bg-dark rounded px-1 me-1';
+                navSpan.style.fontSize = '0.7rem';
+                navSpan.style.border = '1px solid rgba(255,255,255,0.1)';
+
+                const prevBtn = document.createElement('button');
+                prevBtn.className = 'btn btn-link btn-sm p-0 text-secondary border-0';
+                prevBtn.innerHTML = '<i class="bi bi-chevron-left"></i>';
+                
+                const nextBtn = document.createElement('button');
+                nextBtn.className = 'btn btn-link btn-sm p-0 text-secondary border-0';
+                nextBtn.innerHTML = '<i class="bi bi-chevron-right"></i>';
+
+                const branchInfo = document.createElement('span');
+                branchInfo.className = 'mx-1 text-muted';
+                branchInfo.textContent = `${totalBranches} forks`;
+
+                nextBtn.onclick = (e) => { e.stopPropagation(); switchSession(forks[0]); };
+                prevBtn.onclick = (e) => { e.stopPropagation(); switchSession(forks[forks.length - 1]); };
+
+                navSpan.appendChild(prevBtn);
+                navSpan.appendChild(branchInfo);
+                navSpan.appendChild(nextBtn);
+                actionsDiv.appendChild(navSpan);
+            }
+        }
+
+        messageDiv.prepend(actionsDiv);
 
         // Highlight code blocks safely
         try {
@@ -1306,9 +1570,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return messageDiv;
     }
 
-    function appendMessage(sender, text, attachmentInfo = null, file = null) {
+    function appendMessage(sender, text, attachmentInfo = null, file = null, index = null) {
         try {
-            const messageDiv = createMessageDiv(sender, text, attachmentInfo, file);
+            const messageDiv = createMessageDiv(sender, text, attachmentInfo, file, index);
             chatContainer.appendChild(messageDiv);
             chatContainer.scrollTop = chatContainer.scrollHeight;
         } catch (e) {

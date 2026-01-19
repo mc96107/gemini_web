@@ -23,8 +23,11 @@ async def index(request: Request, user=Depends(get_user)):
     active_session = next((s for s in sessions if s.get('active')), None)
     initial_messages = []
     has_more = False
+    total_messages = 0
     if active_session:
-        initial_messages = await agent.get_session_messages(active_session['uuid'], limit=20)
+        msg_data = await agent.get_session_messages(active_session['uuid'], limit=20)
+        initial_messages = msg_data.get("messages", [])
+        total_messages = msg_data.get("total", 0)
         # If we got exactly 20, there might be more
         if len(initial_messages) == 20:
             has_more = True
@@ -36,7 +39,8 @@ async def index(request: Request, user=Depends(get_user)):
         is_admin=(user_manager.get_role(user) == "admin"),
         initial_messages=initial_messages,
         active_session=active_session,
-        has_more=has_more
+        has_more=has_more,
+        total_messages=total_messages
     )
 
 @router.get("/sessions")
@@ -57,8 +61,7 @@ async def get_sess_messages(session_uuid: str, request: Request, limit: Optional
     agent = request.app.state.agent
     if not user: raise HTTPException(401)
     # Security: check if this session belongs to the user
-    user_sessions = await agent.get_user_sessions(user)
-    if not any(s['uuid'] == session_uuid for s in user_sessions):
+    if not agent.is_user_session(user, session_uuid):
         raise HTTPException(403, "Access denied")
     return await agent.get_session_messages(session_uuid, limit=limit, offset=offset)
 
@@ -86,10 +89,35 @@ async def pin_sess(session_uuid: str, request: Request, user=Depends(get_user)):
     agent = request.app.state.agent
     if not user: raise HTTPException(401)
     # Security: check if this session belongs to the user
-    user_sessions = await agent.get_user_sessions(user)
-    if not any(s['uuid'] == session_uuid for s in user_sessions):
+    if not agent.is_user_session(user, session_uuid):
         raise HTTPException(403, "Access denied")
     return {"pinned": agent.toggle_pin(user, session_uuid)}
+
+@router.post("/sessions/{session_uuid}/clone")
+async def clone_sess(session_uuid: str, request: Request, user=Depends(get_user)):
+    agent = request.app.state.agent
+    if not user: raise HTTPException(401)
+    data = await request.json()
+    message_index = data.get("message_index")
+    if message_index is None:
+        raise HTTPException(400, "message_index is required")
+    
+    new_uuid = await agent.clone_session(user, session_uuid, message_index)
+    if not new_uuid:
+        raise HTTPException(500, "Failed to clone session")
+    return {"success": True, "new_uuid": new_uuid}
+
+@router.get("/sessions/{session_uuid}/forks")
+async def get_forks(session_uuid: str, request: Request, user=Depends(get_user)):
+    agent = request.app.state.agent
+    if not user: raise HTTPException(401)
+    return {"forks": agent.get_session_forks(user, session_uuid)}
+
+@router.get("/sessions/fork-graph")
+async def get_fork_graph(request: Request, user=Depends(get_user)):
+    agent = request.app.state.agent
+    if not user: raise HTTPException(401)
+    return {"graph": agent.get_fork_graph(user)}
 
 @router.post("/sessions/{session_uuid}/title")
 async def rename_sess(session_uuid: str, request: Request, user=Depends(get_user)):
@@ -99,9 +127,9 @@ async def rename_sess(session_uuid: str, request: Request, user=Depends(get_user
     new_title = data.get("title")
     if not new_title:
         raise HTTPException(400, "Title is required")
-    success = await agent.update_session_title(user, session_uuid, new_title)
-    if not success:
-        raise HTTPException(404, "Session not found")
+    
+    # Update and sync forks
+    await agent.sync_session_updates(user, session_uuid, title=new_title)
     return {"success": True}
 
 @router.get("/sessions/tags")
@@ -118,9 +146,9 @@ async def set_sess_tags(session_uuid: str, request: Request, user=Depends(get_us
     tags = data.get("tags", [])
     if not isinstance(tags, list):
         raise HTTPException(400, "Tags must be a list of strings")
-    success = await agent.update_session_tags(user, session_uuid, tags)
-    if not success:
-        raise HTTPException(404, "Session not found")
+    
+    # Update and sync forks
+    await agent.sync_session_updates(user, session_uuid, tags=tags)
     return {"success": True}
 
 @router.get("/sessions/{session_uuid}/tools")
@@ -128,8 +156,7 @@ async def get_sess_tools(session_uuid: str, request: Request, user=Depends(get_u
     agent = request.app.state.agent
     if not user: raise HTTPException(401)
     if session_uuid != "pending":
-        user_sessions = await agent.get_user_sessions(user)
-        if not any(s['uuid'] == session_uuid for s in user_sessions):
+        if not agent.is_user_session(user, session_uuid):
             raise HTTPException(403, "Access denied")
     return {"tools": agent.get_session_tools(user, session_uuid)}
 
@@ -138,8 +165,7 @@ async def set_sess_tools(session_uuid: str, request: Request, data: dict, user=D
     agent = request.app.state.agent
     if not user: raise HTTPException(401)
     if session_uuid != "pending":
-        user_sessions = await agent.get_user_sessions(user)
-        if not any(s['uuid'] == session_uuid for s in user_sessions):
+        if not agent.is_user_session(user, session_uuid):
             raise HTTPException(403, "Access denied")
     tools = data.get("tools", [])
     agent.set_session_tools(user, session_uuid, tools)
