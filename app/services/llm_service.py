@@ -99,10 +99,10 @@ class GeminiAgent:
     def list_patterns(self) -> List[str]:
         return sorted([k for k in PATTERNS.keys() if k != "__explanations__"])
 
-    async def apply_pattern(self, user_id: str, pattern_name: str, input_text: str, model: Optional[str] = None, file_path: Optional[str] = None) -> str:
+    async def apply_pattern(self, user_id: str, pattern_name: str, input_text: str, model: Optional[str] = None, file_paths: Optional[List[str]] = None) -> str:
         system = PATTERNS.get(pattern_name)
         if not system: return f"Error: Pattern '{pattern_name}' not found."
-        return await self.generate_response(user_id, f"{system}\n\nUSER INPUT:\n{input_text}", model=model, file_path=file_path)
+        return await self.generate_response(user_id, f"{system}\n\nUSER INPUT:\n{input_text}", model=model, file_paths=file_paths)
 
     def _filter_errors(self, err: str) -> str:
         err = re.sub(r".*?\[DEP0151\] DeprecationWarning:.*?(\n|$)", "", err)
@@ -135,7 +135,7 @@ class GeminiAgent:
             global_log(f"Error in _get_latest_session_uuid: {str(e)}")
             return None
 
-    async def generate_response_stream(self, user_id: str, prompt: str, model: Optional[str] = None, file_path: Optional[str] = None, resume_session: Optional[str] = "AUTO") -> AsyncGenerator[Dict, None]:
+    async def generate_response_stream(self, user_id: str, prompt: str, model: Optional[str] = None, file_paths: Optional[List[str]] = None, resume_session: Optional[str] = "AUTO") -> AsyncGenerator[Dict, None]:
         def log_debug(msg): global_log(f"[{user_id}] {msg}", level="DEBUG")
 
         if user_id not in self.user_data:
@@ -169,7 +169,9 @@ class GeminiAgent:
             if session_uuid: args.extend(["--resume", session_uuid])
             if current_model: args.extend(["--model", current_model])
             args.extend(["--include-directories", self.working_dir])
-            if file_path: args.append(f"@{file_path}")
+            if file_paths:
+                for fp in file_paths:
+                    args.append(f"@{fp}")
             
             log_debug(f"Attempt {attempt}: Running command {' '.join(args)}")
             
@@ -338,9 +340,9 @@ class GeminiAgent:
                         await proc.wait()
                     except: pass
 
-    async def generate_response(self, user_id: str, prompt: str, model: Optional[str] = None, file_path: Optional[str] = None, resume_session: Optional[str] = "AUTO") -> str:
+    async def generate_response(self, user_id: str, prompt: str, model: Optional[str] = None, file_paths: Optional[List[str]] = None, resume_session: Optional[str] = "AUTO") -> str:
         full_response = ""
-        async for chunk in self.generate_response_stream(user_id, prompt, model, file_path, resume_session=resume_session):
+        async for chunk in self.generate_response_stream(user_id, prompt, model, file_paths, resume_session=resume_session):
             if chunk.get("type") == "message":
                 full_response += chunk.get("content", "")
             elif chunk.get("type") == "error":

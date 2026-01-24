@@ -4,6 +4,9 @@ from typing import Optional
 import os
 import shutil
 import json
+import asyncio
+from datetime import datetime
+from app.core import config
 
 router = APIRouter()
 
@@ -190,15 +193,19 @@ async def get_pats(request: Request):
     return res
 
 @router.post("/chat")
-async def chat(request: Request, message: str = Form(...), file: Optional[UploadFile] = File(None), model: Optional[str] = Form(None), user=Depends(get_user)):
+async def chat(request: Request, message: str = Form(...), file: Optional[list[UploadFile]] = File(None), model: Optional[str] = Form(None), user=Depends(get_user)):
     agent = request.app.state.agent
     UPLOAD_DIR = request.app.state.UPLOAD_DIR
     if not user: raise HTTPException(401)
-    fpath = None
-    if file and file.filename:
-        fpath = os.path.join(UPLOAD_DIR, os.path.basename(file.filename))
-        with open(fpath, "wb") as f: shutil.copyfileobj(file.file, f)
-        fpath = os.path.relpath(fpath)
+    
+    file_paths = []
+    if file:
+        for f_upload in file:
+            if f_upload.filename:
+                fpath = os.path.join(UPLOAD_DIR, os.path.basename(f_upload.filename))
+                with open(fpath, "wb") as f: 
+                    shutil.copyfileobj(f_upload.file, f)
+                file_paths.append(os.path.relpath(fpath))
     
     # Handle model selection
     m_override = None
@@ -218,10 +225,10 @@ async def chat(request: Request, message: str = Form(...), file: Optional[Upload
         if cmd in ["/reset", "/clear"]: return {"response": await agent.reset_chat(user)}
         if cmd == "/pro":
             m_override = "gemini-3-pro-preview"
-            if len(parts) > 1: return {"response": await agent.generate_response(user, parts[1] + (f" {parts[2]}" if len(parts) > 2 else ""), model=m_override, file_path=fpath)}
+            if len(parts) > 1: return {"response": await agent.generate_response(user, parts[1] + (f" {parts[2]}" if len(parts) > 2 else ""), model=m_override, file_paths=file_paths)}
             return {"response": "Model set to Pro."}
         if cmd == "/p" or cmd == "/pattern":
-            if len(parts) >= 2: return {"response": await agent.apply_pattern(user, parts[1], parts[2] if len(parts) > 2 else "", model=m_override, file_path=fpath)}
+            if len(parts) >= 2: return {"response": await agent.apply_pattern(user, parts[1], parts[2] if len(parts) > 2 else "", model=m_override, file_paths=file_paths)}
         if cmd == "/yolo":
             agent.yolo_mode = not agent.yolo_mode
             return {"response": f"YOLO Mode {'ENABLED' if agent.yolo_mode else 'DISABLED'}."}
@@ -240,7 +247,7 @@ async def chat(request: Request, message: str = Form(...), file: Optional[Upload
 
         log_sse("Starting event_generator")
         try:
-            stream = agent.generate_response_stream(user, message, model=m_override, file_path=fpath)
+            stream = agent.generate_response_stream(user, message, model=m_override, file_paths=file_paths)
             it = stream.__aiter__()
             
             while True:
