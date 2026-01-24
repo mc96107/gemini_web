@@ -1,0 +1,8 @@
+{
+  "track_id": "fork_enhancements_20260124",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-24T10:24:00Z",
+  "updated_at": "2026-01-24T10:24:00Z",
+  "description": "Forked chats should retain original's tools permissions. Also replace tree icon with fork icon"
+}
