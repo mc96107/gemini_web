@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<coverage generated="1769284210747" clover="3.2.0">
+  <project timestamp="1769284210747" name="All files">
+    <metrics statements="7" coveredstatements="7" conditionals="8" coveredconditionals="7" methods="2" coveredmethods="2" elements="17" coveredelements="16" complexity="0" loc="7" ncloc="7" packages="1" files="1" classes="1"/>
+    <file name="drive_mode.js" path="C:\Users\dgar\g\gemini_web\app\static\drive_mode.js">
+      <metrics statements="7" coveredstatements="7" conditionals="8" coveredconditionals="7" methods="2" coveredmethods="2"/>
+      <line num="7" count="5" type="stmt"/>
+      <line num="8" count="5" type="stmt"/>
+      <line num="16" count="3" type="cond" truecount="2" falsecount="0"/>
+      <line num="17" count="3" type="stmt"/>
+      <line num="18" count="3" type="cond" truecount="2" falsecount="0"/>
+      <line num="22" count="1" type="cond" truecount="3" falsecount="1"/>
+      <line num="23" count="1" type="stmt"/>
+    </file>
+  </project>
+</coverage>
