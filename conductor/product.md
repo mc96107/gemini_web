@@ -22,6 +22,9 @@ The Gemini Termux Agent is designed for:
 * **Chat Tagging & Auto-Categorization:** Organize conversations with multiple tags. Gemini automatically suggests descriptive tags for new chats, and users can manually add or filter by tags in the sidebar.
 * **Math Rendering:** Built-in support for LaTeX mathematical expressions via KaTeX, enabling high-quality rendering of formulas.
 * **Chat Export:** Export full conversation history as Markdown files for offline storage or sharing.
+* **Multi-File Attachments:** Users can attach and send multiple files (images, documents, etc.) in a single message.
+* **Drag-and-Drop Upload:** Support for dragging and dropping multiple files directly into the chat interface for quick attachments.
+* **Attachment Queue & Previews:** An interactive queue for managing pending attachments before sending, including thumbnails for images and icons for other file types.
 * **Infinite Scroll History:** Seamlessly load and browse previous messages by scrolling to the top of the chat window.
 * **Sidebar Search and Pagination:** Efficiently browse long chat histories with paginated session titles (10 per page) and a "Load More" button.
 * **Global Live Search:** Instantly find conversations using a dedicated search bar that queries titles, message content, and attachment filenames across all history.
