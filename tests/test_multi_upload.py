@@ -28,6 +28,7 @@ def test_chat_multi_file_upload(mock_agent):
     files = [
         ("file", ("test1.txt", b"content1", "text/plain")),
         ("file", ("test2.txt", b"content2", "text/plain")),
+        ("file", ("test3.txt", b"content3", "text/plain")),
     ]
     
     # Mock the stream generator
@@ -45,14 +46,15 @@ def test_chat_multi_file_upload(mock_agent):
     
     assert response.status_code == 200
     
-    # Since it's a streaming response, we need to consume it to ensure the logic runs
+    # Consume stream
     for line in response.iter_lines():
         pass
 
-    # Check if generate_response_stream was called with a list of 2 file paths
+    # Check if generate_response_stream was called with a list of 3 file paths
     assert mock_agent.generate_response_stream.called
     args, kwargs = mock_agent.generate_response_stream.call_args
     assert "file_paths" in kwargs
-    assert len(kwargs["file_paths"]) == 2
+    assert len(kwargs["file_paths"]) == 3
     assert any("test1.txt" in fp for fp in kwargs["file_paths"])
     assert any("test2.txt" in fp for fp in kwargs["file_paths"])
+    assert any("test3.txt" in fp for fp in kwargs["file_paths"])

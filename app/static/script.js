@@ -151,6 +151,92 @@ document.addEventListener('DOMContentLoaded', () => {
     const treeViewBtnMobile = document.getElementById('tree-view-btn-mobile');
     let treeViewModal = null;
 
+    // --- Attachment Management ---
+    const attachmentQueue = document.getElementById('attachment-queue');
+    const dragDropOverlay = document.getElementById('drag-drop-overlay');
+    
+    const attachments = new AttachmentManager({
+        maxTotalSize: 20 * 1024 * 1024, // 20MB
+        onQueueChange: (items) => renderAttachmentQueue(items),
+        onSizeLimitExceeded: (fileName) => {
+            showToast(`Size limit exceeded: ${fileName} was not added.`);
+        }
+    });
+
+    function renderAttachmentQueue(items) {
+        if (!attachmentQueue) return;
+        attachmentQueue.innerHTML = items.map(item => {
+            const isImage = item.type.startsWith('image/');
+            return `
+                <div class="attachment-item position-relative bg-secondary bg-opacity-25 rounded p-1 d-flex align-items-center gap-2" style="max-width: 200px; border: 1px solid rgba(255,255,255,0.1);">
+                    ${isImage ? 
+                        `<img src="${item.previewUrl}" class="rounded" style="width: 40px; height: 40px; object-fit: cover;">` :
+                        `<div class="bg-dark rounded d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;"><i class="bi bi-file-earmark"></i></div>`
+                    }
+                    <div class="flex-grow-1 overflow-hidden">
+                        <div class="small text-truncate" title="${item.name}">${item.name}</div>
+                        <div class="text-muted" style="font-size: 0.6rem;">${(item.size / 1024).toFixed(1)} KB</div>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white small p-1" style="font-size: 0.5rem;" onclick="window.removeAttachment('${item.id}')"></button>
+                </div>
+            `;
+        }).join('');
+    }
+
+    window.removeAttachment = (id) => {
+        attachments.removeAttachment(id);
+    };
+
+    // --- Drag and Drop ---
+    if (chatContainer && dragDropOverlay) {
+        let dragCounter = 0;
+
+        window.addEventListener('dragenter', (e) => {
+            e.preventDefault();
+            dragCounter++;
+            dragDropOverlay.classList.remove('d-none');
+        });
+
+        window.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dragCounter--;
+            if (dragCounter === 0) {
+                dragDropOverlay.classList.add('d-none');
+            }
+        });
+
+        window.addEventListener('dragover', (e) => {
+            e.preventDefault();
+        });
+
+        window.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            dragCounter = 0;
+            dragDropOverlay.classList.add('d-none');
+            
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                await attachments.addFiles(e.dataTransfer.files);
+                // Auto-switch to Gemini 3 Flash Preview for better vision support
+                switchToFlashModel();
+            }
+        });
+    }
+
+    function switchToFlashModel() {
+        const flashModel = "gemini-3-flash-preview";
+        modelInput.value = flashModel;
+        modelLinks.forEach(link => {
+            if (link.dataset.model === flashModel) {
+                link.classList.add('active');
+                let modelName = link.innerText;
+                modelName = modelName.replace('Fast', '').replace('Smart', '').trim();
+                modelLabel.textContent = modelName + " (Auto-switched)";
+            } else {
+                link.classList.remove('active');
+            }
+        });
+    }
+
     if (treeViewModalEl) {
         treeViewModal = new bootstrap.Modal(treeViewModalEl);
         
@@ -1078,57 +1164,45 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // File handling
-    fileUpload.addEventListener('change', (e) => {
+    fileUpload.addEventListener('change', async (e) => {
         if (e.target.files.length > 0) {
-            currentFile = e.target.files[0];
-            fileNameDisplay.textContent = currentFile.name;
-            filePreviewArea.classList.remove('d-none');
-            
-            // Auto-switch to Gemini 3 Flash Preview for better vision support
-            const flashModel = "gemini-3-flash-preview";
-            modelInput.value = flashModel;
-            
-            // Update UI label and active state
-            modelLinks.forEach(link => {
-                if (link.dataset.model === flashModel) {
-                    link.classList.add('active');
-                    let modelName = link.innerText;
-                    modelName = modelName.replace('Fast', '').replace('Smart', '').trim();
-                    modelLabel.textContent = modelName + " (Auto-switched)";
-                } else {
-                    link.classList.remove('active');
-                }
-            });
+            await attachments.addFiles(e.target.files);
+            switchToFlashModel();
+            fileUpload.value = ''; // Reset input to allow re-selecting same file
         }
     });
 
+    /*
     clearFileBtn.addEventListener('click', () => {
         fileUpload.value = '';
         currentFile = null;
         filePreviewArea.classList.add('d-none');
     });
-
-        // Send Message
+    */
 
         chatForm.addEventListener('submit', async (e) => {
-
-    
         e.preventDefault();
         const message = messageInput.value.trim();
-        if (!message && !currentFile) return;
+        const queuedFiles = attachments.getFiles();
+        
+        if (!message && queuedFiles.length === 0) return;
 
         // Add user message to chat
         const userMsgIndex = window.TOTAL_MESSAGES || 0;
-        appendMessage('user', message, currentFile ? `[Attachment: ${currentFile.name}]` : null, currentFile, userMsgIndex);
+        const attachmentText = queuedFiles.length > 0 ? 
+            ` [${queuedFiles.length} attachment(s)]` : '';
+            
+        // For local display, we show the first file as a thumbnail if it's an image
+        const firstFile = queuedFiles.length > 0 ? queuedFiles[0] : null;
+        
+        appendMessage('user', message + attachmentText, null, firstFile, userMsgIndex);
         window.TOTAL_MESSAGES = userMsgIndex + 1;
         
         // Clear inputs immediately
         messageInput.value = '';
         messageInput.style.height = '';
-        fileUpload.value = '';
-        filePreviewArea.classList.add('d-none');
-        const fileToSend = currentFile; // Keep ref for sending
-        currentFile = null;
+        const filesToSend = [...queuedFiles]; 
+        attachments.clear();
 
         // Show loading state
         const loadingId = appendLoading();
@@ -1137,18 +1211,12 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const formData = new FormData();
             formData.append('message', message);
-            if (fileToSend) {
-                let finalFile = fileToSend;
-                // Compress if it's an image
-                if (fileToSend.type.startsWith('image/') && typeof compressImage === 'function') {
-                    try {
-                        finalFile = await compressImage(fileToSend);
-                    } catch (compressError) {
-                        console.error('Compression failed, sending original:', compressError);
-                    }
-                }
-                formData.append('file', finalFile);
+            
+            for (const file of filesToSend) {
+                // Files are already compressed by AttachmentManager if they are images
+                formData.append('file', file);
             }
+            
             formData.append('model', modelInput.value);
 
             const response = await fetch('/chat', {
