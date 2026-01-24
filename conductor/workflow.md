@@ -311,8 +311,11 @@ A task is complete when:
 
 ### Deployment Steps
 1. Merge feature branch to main
-2. Tag release with version
-3. Push to deployment service
+2. **Generate Release Artifact:**
+   - Execute `python scripts/recombine.py` to synthesize the modular `app/` structure into the single-file `gemini_agent_release.py`.
+   - Verify the artifact by running `python setup_release.py`, which sets up a clean `venv_release` environment and tests the bundle.
+3. Tag release with version
+4. Push to deployment service
 4. Run database migrations
 5. Verify deployment
 6. Test critical paths

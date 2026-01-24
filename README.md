@@ -90,6 +90,28 @@ The application is optimized for Termux on Android.
 6.  **Mobile Navigation**: Swipe from the left edge to open your chat history, or from the right edge to access chat actions.
 7.  **PWA**: For the best experience, use the "Add to Home Screen" option in your mobile browser to install it as a Progressive Web App.
 
+## Building for Release
+
+The Gemini Termux Agent can be bundled into a single-file portable application for easier distribution and deployment.
+
+### 1. Generate the Release Bundle
+To recombine the modular project structure into a single-file script, run the recombination script:
+```bash
+python scripts/recombine.py
+```
+This will create `gemini_agent_release.py` in the root directory.
+
+### 2. Setup & Test Release Environment
+You can automate the creation of a dedicated virtual environment and test the release bundle using:
+```bash
+python setup_release.py
+```
+This script will:
+*   Regenerate the `gemini_agent_release.py` bundle.
+*   Create a `venv_release` virtual environment.
+*   Install all necessary dependencies into that environment.
+*   Offer to start the bundled application for verification.
+
 ## Serving with Nginx (Reverse Proxy)
 
 To access your Gemini Agent securely over the internet or a local network via a standard domain, you can use Nginx as a reverse proxy.

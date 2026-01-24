@@ -58,19 +58,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function handleExport() {
-        const activeSessionItem = document.querySelector('.session-item.active-session');
-        if (!activeSessionItem) {
+        const uuid = currentActiveUUID;
+        if (!uuid) {
             alert('No active session to export.');
             return;
         }
-        const uuid = activeSessionItem.dataset.uuid;
-        let title = activeSessionItem.querySelector('.session-title').textContent.trim();
-        if (!title) title = "chat_export";
+
+        let title = "chat_export";
+        const activeSessionItem = document.querySelector(`.session-item[data-uuid="${uuid}"]`);
+        if (activeSessionItem) {
+            const titleEl = activeSessionItem.querySelector('.session-title');
+            if (titleEl) title = titleEl.textContent.trim();
+        }
 
         try {
             const response = await fetch(`/sessions/${uuid}/messages`);
             if (!response.ok) throw new Error('Network response was not ok');
-            const messages = await response.json();
+            const data = await response.json();
+            const messages = data.messages || [];
 
             let markdown = `# Chat Export: ${title}\n\n`;
             messages.forEach(msg => {
