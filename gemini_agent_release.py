@@ -1,4 +1,4 @@
-import json, os, mimetypes, hashlib, asyncio, re, secrets, shutil, uvicorn, bcrypt, subprocess, sys, base64, httpx
+import json, os, mimetypes, hashlib, asyncio, re, secrets, shutil, uvicorn, bcrypt, subprocess, sys, base64, httpx, pypandoc, pandas as pd
 from typing import Dict, Optional, List, Tuple, Any
 from fastapi import FastAPI, Request, Form, UploadFile, File, HTTPException, Depends, APIRouter
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response, FileResponse
@@ -1331,6 +1331,82 @@ class PatternSyncService:
         await self.client.aclose()
 
 
+import os
+import pypandoc
+import logging
+import pandas as pd
+
+logger = logging.getLogger(__name__)
+
+class PandocMissingError(RuntimeError):
+    """Raised when pandoc is not found on the system."""
+    pass
+
+class ConversionServiceError(RuntimeError):
+    """Raised when conversion fails."""
+    pass
+
+class FileConversionService:
+    def __init__(self):
+        self._pandoc_available = False
+        try:
+            pypandoc.get_pandoc_version()
+            self._pandoc_available = True
+        except OSError:
+            logger.warning("Pandoc not found. DOCX conversion will fail. Please install pandoc.")
+
+    def convert_to_markdown(self, file_path: str) -> str:
+        """
+        Converts a .docx or .xlsx file to markdown.
+        Returns the path to the converted .md file.
+        """
+        file_ext = os.path.splitext(file_path)[1].lower()
+        if file_ext not in [".docx", ".xlsx"]:
+            raise ValueError(f"Unsupported file extension: {file_ext}")
+
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"File not found: {file_path}")
+
+        output_path = os.path.splitext(file_path)[0] + ".md"
+        
+        try:
+            if file_ext == ".docx":
+                if not self._pandoc_available:
+                    raise PandocMissingError("Pandoc is not available for .docx conversion.")
+                
+                # For docx, we convert to gfm (GitHub Flavored Markdown)
+                # We explicitly do NOT use --extract-media to ensure images are not kept.
+                pypandoc.convert_file(
+                    file_path, 
+                    'gfm', 
+                    outputfile=output_path,
+                    extra_args=['--wrap=none']
+                )
+            elif file_ext == ".xlsx":
+                # For xlsx, use pandas to read all sheets and convert to markdown tables
+                # This does not depend on pandoc
+                all_sheets = pd.read_excel(file_path, sheet_name=None)
+                md_content = []
+                for sheet_name, df in all_sheets.items():
+                    md_content.append(f"## Sheet: {sheet_name}\n")
+                    try:
+                        md_content.append(df.to_markdown(index=False))
+                    except ImportError:
+                        md_content.append(df.to_string(index=False))
+                    md_content.append("\n\n")
+                
+                with open(output_path, "w", encoding="utf-8") as f:
+                    f.write("\n".join(md_content))
+            
+            return output_path
+        except (PandocMissingError, FileNotFoundError, ValueError):
+            # Re-raise expected errors
+            raise
+        except Exception as e:
+            logger.error(f"Error converting file {file_path} to markdown: {e}")
+            raise ConversionServiceError(f"Conversion failed: {e}")
+
+
 # --- ROUTERS ---
 auth_router = APIRouter()
 from fastapi import APIRouter, Request, Form, Depends, HTTPException
@@ -1695,11 +1771,31 @@ async def chat(request: Request, message: str = Form(...), file: Optional[list[U
     
     file_paths = []
     if file:
+        conversion_service = request.app.state.conversion_service
         for f_upload in file:
             if f_upload.filename:
                 fpath = os.path.join(UPLOAD_DIR, os.path.basename(f_upload.filename))
                 with open(fpath, "wb") as f: 
                     shutil.copyfileobj(f_upload.file, f)
+                
+                # Perform conversion if needed
+                if fpath.lower().endswith((".docx", ".xlsx")):
+                    try:
+                        old_fpath = fpath
+                        fpath = conversion_service.convert_to_markdown(fpath)
+                        import logging
+                        logging.getLogger(__name__).info(f"Converted {old_fpath} to {fpath}")
+                    except Exception as e:
+                        # Fallback to original file on error
+                        import logging
+                        from app.services.conversion_service import PandocMissingError, ConversionServiceError
+                        
+                        log = logging.getLogger(__name__)
+                        if isinstance(e, PandocMissingError):
+                            log.warning(f"Pandoc missing, using original file: {e}")
+                        else:
+                            log.error(f"Conversion failed, falling back to original: {e}")
+                
                 file_paths.append(os.path.relpath(fpath))
     
     # Handle model selection
@@ -1981,11 +2077,13 @@ def render(name, **ctx):
 user_manager = UserManager()
 auth_service = AuthService(RP_ID, RP_NAME, ORIGIN)
 agent = GeminiAgent()
+conversion_service = FileConversionService()
 
 # App State
 app.state.user_manager = user_manager
 app.state.auth_service = auth_service
 app.state.agent = agent
+app.state.conversion_service = conversion_service
 app.state.render = render
 app.state.UPLOAD_DIR = UPLOAD_DIR
 

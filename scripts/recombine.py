@@ -60,6 +60,7 @@ def recombine():
     auth_service_code = clean_config_ref(strip_local_imports(get_file_content('app/services/auth_service.py')))
     llm_service_code = clean_config_ref(strip_local_imports(get_file_content('app/services/llm_service.py')))
     sync_service_code = strip_local_imports(get_file_content('app/services/pattern_sync_service.py'))
+    conversion_service_code = clean_config_ref(strip_local_imports(get_file_content('app/services/conversion_service.py')))
     
     auth_router_code = clean_config_ref(strip_local_imports(get_file_content('app/routers/auth.py')))
     # Update auth_router setup to re-init auth_service
@@ -76,7 +77,7 @@ def recombine():
     combined = []
     
     # Headers
-    combined.append("import json, os, mimetypes, hashlib, asyncio, re, secrets, shutil, uvicorn, bcrypt, subprocess, sys, base64, httpx")
+    combined.append("import json, os, mimetypes, hashlib, asyncio, re, secrets, shutil, uvicorn, bcrypt, subprocess, sys, base64, httpx, pypandoc, pandas as pd")
     combined.append("from typing import Dict, Optional, List, Tuple, Any")
     combined.append("from fastapi import FastAPI, Request, Form, UploadFile, File, HTTPException, Depends, APIRouter")
     combined.append("from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response, FileResponse")
@@ -113,6 +114,8 @@ def recombine():
     combined.append(llm_service_code)
     combined.append("\n")
     combined.append(sync_service_code)
+    combined.append("\n")
+    combined.append(conversion_service_code)
     combined.append("\n")
 
     # Routers
