@@ -7,6 +7,14 @@ class DriveModeManager {
         this.isActive = false;
         this.state = 'idle'; // idle, listening, processing, speaking
         this.wakeLock = null;
+        
+        // Pre-load voices for Chrome/Android
+        if (typeof window !== 'undefined' && window.speechSynthesis) {
+            window.speechSynthesis.getVoices();
+            window.speechSynthesis.onvoiceschanged = () => {
+                window.speechSynthesis.getVoices();
+            };
+        }
     }
 
     /**
@@ -57,7 +65,10 @@ class DriveModeManager {
         }
 
         const recognition = new SpeechRecognition();
-        recognition.lang = document.documentElement.lang || 'el-GR';
+        
+        // Using el-GR generally allows for better recognition of Greek + English
+        // mixed together than using en-US on an English device.
+        recognition.lang = 'el-GR'; 
         recognition.interimResults = false;
         recognition.maxAlternatives = 1;
         recognition.continuous = false; // We want automatic end-of-speech detection
@@ -126,7 +137,26 @@ class DriveModeManager {
         window.speechSynthesis.cancel();
 
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = document.documentElement.lang || 'el-GR';
+        
+        // Smarter Voice Selection
+        const voices = window.speechSynthesis.getVoices();
+        if (voices.length > 0) {
+            // Detect if text is mostly Greek or English (simplified)
+            const isGreek = /[\u0370-\u03FF]/.test(text);
+            const targetLang = isGreek ? 'el' : 'en';
+            
+            // Find a voice that matches the language
+            const voice = voices.find(v => v.lang.startsWith(targetLang)) || 
+                          voices.find(v => v.lang.startsWith(document.documentElement.lang)) ||
+                          voices[0];
+            
+            if (voice) {
+                utterance.voice = voice;
+                utterance.lang = voice.lang;
+            }
+        } else {
+            utterance.lang = document.documentElement.lang || window.navigator.language || 'el-GR';
+        }
         
         utterance.onstart = () => {
             this.state = 'speaking';

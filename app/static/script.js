@@ -220,19 +220,53 @@ document.addEventListener('DOMContentLoaded', () => {
 
         driveMode.startListening(
             async (transcript) => {
+                const cmd = transcript.toLowerCase().trim();
+                // Check for stop words
+                if (cmd === 'stop' || cmd === 'σταμάτα' || cmd === 'σταμάτα.') {
+                    console.log('Voice Command: Stop detected.');
+                    stopDriveMode();
+                    driveMode.speak(cmd === 'stop' ? 'Stopping drive mode.' : 'Τερματισμός drive mode.');
+                    return;
+                }
+
                 // onResult
                 driveMode.state = 'processing';
                 updateDriveModeUI();
                 
+                // Add user message to chat UI using standard method
+                const userMsgIndex = window.TOTAL_MESSAGES || 0;
+                appendMessage('user', transcript, null, null, userMsgIndex);
+                window.TOTAL_MESSAGES = userMsgIndex + 1;
+
                 // Send to AI
                 try {
-                    const response = await sendToAI(transcript);
+                    const loadingObj = appendLoading();
+                    toggleStopButton(true);
+
+                    const formData = new FormData();
+                    formData.append('message', transcript);
+                    formData.append('model', document.getElementById('model-input').value);
+
+                    const response = await fetch('/chat', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (!response.ok) throw new Error('Chat request failed');
+
+                    // Process stream using NATIVE function for reliability
+                    await processStream(response, loadingObj.id);
+                    
                     if (!driveMode.isActive) return;
+
+                    // Capture the text from the message we just created
+                    const lastBotMsg = chatContainer.querySelector('.message.bot:last-child .message-content');
+                    const aiResponse = lastBotMsg ? lastBotMsg.innerText : "";
 
                     driveMode.state = 'speaking';
                     updateDriveModeUI();
 
-                    driveMode.speak(response, () => {
+                    driveMode.speak(aiResponse, () => {
                         // onEnd
                         if (driveMode.isActive) {
                             setTimeout(runDriveModeLoop, 500); // Small delay before restart
@@ -245,6 +279,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             setTimeout(runDriveModeLoop, 2000);
                         });
                     }
+                } finally {
+                    toggleStopButton(false);
                 }
             },
             (error) => {
@@ -265,6 +301,7 @@ document.addEventListener('DOMContentLoaded', () => {
         );
     }
 
+    // Remove the redundant processStreamWithCapture to prevent scope issues
     async function sendToAI(text) {
         // Prepare data
         const formData = new FormData();
@@ -1834,10 +1871,14 @@ document.addEventListener('DOMContentLoaded', () => {
     function appendMessage(sender, text, attachmentInfo = null, file = null, index = null) {
         try {
             const messageDiv = createMessageDiv(sender, text, attachmentInfo, file, index);
-            chatContainer.appendChild(messageDiv);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
+            if (messageDiv) {
+                chatContainer.appendChild(messageDiv);
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+            return messageDiv;
         } catch (e) {
             console.error('Error in appendMessage:', e);
+            return null;
         }
     }
 
@@ -1849,7 +1890,7 @@ document.addEventListener('DOMContentLoaded', () => {
         messageDiv.innerHTML = '<div class="spinner-border spinner-border-sm text-light" role="status"><span class="visually-hidden">Loading...</span></div> Thinking...';
         chatContainer.appendChild(messageDiv);
         chatContainer.scrollTop = chatContainer.scrollHeight;
-        return id;
+        return { id, element: messageDiv };
     }
 
     function removeLoading(id) {
