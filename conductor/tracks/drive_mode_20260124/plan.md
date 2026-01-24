@@ -4,7 +4,7 @@
 Establish the foundational state management for Drive Mode and implement detection for supported browsers.
 
 - [x] Task: Create `DriveModeManager` class in `app/static/drive_mode.js` to manage loop state and browser capability checks. e9b943d
-- [ ] Task: Implement `isSupported()` method to check for `webkitSpeechRecognition` and `speechSynthesis`.
+- [x] Task: Implement `isSupported()` method to check for `webkitSpeechRecognition` and `speechSynthesis`. e9b943d
 - [ ] Task: Write unit tests in `tests/drive_mode.test.js` verifying compatibility detection logic.
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: Infrastructure & Browser Compatibility' (Protocol in workflow.md)
 
