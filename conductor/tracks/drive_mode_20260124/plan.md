@@ -11,10 +11,10 @@ Establish the foundational state management for Drive Mode and implement detecti
 ## Phase 2: UI Integration & Wake-Lock
 Add the Drive Mode controls to the chat interface and implement screen wake-lock functionality.
 
-- [ ] Task: Add "Drive Mode" toggle button to the chat input area in `app/templates/index.html`.
-- [ ] Task: Implement button visibility logic to hide it on unsupported browsers.
-- [ ] Task: Implement Wake-Lock API integration in `DriveModeManager` to keep the screen on during active loops.
-- [ ] Task: Write tests in `tests/test_multi_file_ui.py` (or a new UI test file) to verify the button appears/disappears correctly based on browser capabilities.
+- [x] Task: Add "Drive Mode" toggle button to the chat input area in `app/templates/index.html`. [commit: b2431f9]
+- [x] Task: Implement button visibility logic to hide it on unsupported browsers. [commit: b2431f9]
+- [x] Task: Implement Wake-Lock API integration in `DriveModeManager` to keep the screen on during active loops. [commit: b2431f9]
+- [~] Task: Write tests in `tests/test_multi_file_ui.py` (or a new UI test file) to verify the button appears/disappears correctly based on browser capabilities.
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: UI Integration & Wake-Lock' (Protocol in workflow.md)
 
 ## Phase 3: The Conversation Loop (STT & TTS)
