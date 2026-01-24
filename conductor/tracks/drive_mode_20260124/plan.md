@@ -8,14 +8,14 @@ Establish the foundational state management for Drive Mode and implement detecti
 - [x] Task: Write unit tests in `tests/drive_mode.test.js` verifying compatibility detection logic. e9b943d
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Infrastructure & Browser Compatibility' (Protocol in workflow.md) b2431f9
 
-## Phase 2: UI Integration & Wake-Lock
+## Phase 2: UI Integration & Wake-Lock [checkpoint: 71be08d]
 Add the Drive Mode controls to the chat interface and implement screen wake-lock functionality.
 
 - [x] Task: Add "Drive Mode" toggle button to the chat input area in `app/templates/index.html`. [commit: b2431f9]
 - [x] Task: Implement button visibility logic to hide it on unsupported browsers. [commit: b2431f9]
 - [x] Task: Implement Wake-Lock API integration in `DriveModeManager` to keep the screen on during active loops. [commit: b2431f9]
-- [~] Task: Write tests in `tests/test_multi_file_ui.py` (or a new UI test file) to verify the button appears/disappears correctly based on browser capabilities.
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: UI Integration & Wake-Lock' (Protocol in workflow.md)
+- [x] Task: Write tests in `tests/test_multi_file_ui.py` (or a new UI test file) to verify the button appears/disappears correctly based on browser capabilities. [commit: 190a18e]
+- [x] Task: Conductor - User Manual Verification 'Phase 2: UI Integration & Wake-Lock' (Protocol in workflow.md) [checkpoint: 71be08d]
 
 ## Phase 3: The Conversation Loop (STT & TTS)
 Implement the core logic of the hands-free loop using Web Speech APIs.
