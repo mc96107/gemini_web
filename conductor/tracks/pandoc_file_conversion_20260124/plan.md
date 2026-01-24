@@ -3,7 +3,7 @@
 ## Phase 1: Environment Setup & Tooling
 - [x] Task: Verify Pandoc availability on the system and update `requirements.txt` if a wrapper like `pypandoc` is chosen. 150079c
 - [x] Task: Update `tech-stack.md` to include Pandoc as a document processing tool. 150079c
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Environment Setup'
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Environment Setup'
 
 ## Phase 2: Conversion Service
 - [ ] Task: Implement `FileConversionService` in `app/services/conversion_service.py` to handle Pandoc logic.
