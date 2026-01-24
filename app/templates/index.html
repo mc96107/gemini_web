@@ -132,7 +132,13 @@
     </div>
 
     <!-- Chat Area -->
-    <div id="chat-container" class="flex-grow-1 overflow-auto p-3">
+    <div id="chat-container" class="flex-grow-1 overflow-auto p-3 position-relative">
+        <div id="drag-drop-overlay" class="d-none position-absolute top-0 start-0 w-100 h-100 d-flex flex-column align-items-center justify-content-center bg-dark bg-opacity-75" style="z-index: 1000; pointer-events: none;">
+            <div class="border border-primary border-3 border-dashed rounded-3 p-5 d-flex flex-column align-items-center">
+                <i class="bi bi-cloud-arrow-up text-primary" style="font-size: 4rem;"></i>
+                <h4 class="text-primary mt-3">Drop files to attach</h4>
+            </div>
+        </div>
         <div id="scroll-sentinel" style="height: 10px; width: 100%;"></div>
         <div id="load-more-container" class="text-center {{ 'd-none' if not has_more else '' }} mb-3">
             <button id="load-more-btn" class="btn btn-outline-secondary btn-sm">Load Older Messages</button>
@@ -147,9 +153,8 @@
     <footer class="py-3 px-3 border-top border-secondary bg-black">
         <form id="chat-form" class="d-flex flex-column gap-2">
             
-            <div id="file-preview-area" class="d-none alert alert-secondary p-2 d-flex justify-content-between align-items-center mb-2">
-                <span id="file-name" class="text-truncate"></span>
-                <button type="button" class="btn-close" id="clear-file-btn"></button>
+            <div id="attachment-queue" class="d-flex flex-wrap gap-2 mb-2">
+                <!-- Attachment items will be injected here -->
             </div>
 
             <div class="d-flex align-items-end gap-2">
@@ -170,10 +175,10 @@
                     </div>
                     <input type="hidden" name="model" id="model-input" value="gemini-3-pro-preview">
                     
-                    <label class="btn btn-outline-secondary btn-sm rounded-circle" for="file-upload" title="Attach File">
+                    <label class="btn btn-outline-secondary btn-sm rounded-circle" for="file-upload" title="Attach Files">
                         <i class="bi bi-paperclip"></i>
                     </label>
-                    <input type="file" id="file-upload" name="file" class="d-none">
+                    <input type="file" id="file-upload" name="file" class="d-none" multiple>
                     
                     <button class="btn btn-outline-secondary btn-sm rounded-circle" type="button" id="tools-config-btn" data-bs-toggle="modal" data-bs-target="#toolsModal" title="Tools Settings">
                         <i class="bi bi-wrench"></i>
