@@ -23,14 +23,17 @@ def setup():
 
     # 1. Create virtual environment
     venv_dir = "venv_release"
-    if not os.path.exists(venv_dir):
-        print(f"Creating virtual environment in {venv_dir}...")
-        try:
-            # We start without pip and use ensurepip for better reliability
-            venv.create(venv_dir, with_pip=False)
-        except Exception as e:
-            print(f"Error creating virtual environment: {e}")
-            return
+    if os.path.exists(venv_dir):
+        print(f"Removing existing virtual environment in {venv_dir}...")
+        shutil.rmtree(venv_dir)
+        
+    print(f"Creating virtual environment in {venv_dir}...")
+    try:
+        # We start without pip and use ensurepip for better reliability
+        venv.create(venv_dir, with_pip=False)
+    except Exception as e:
+        print(f"Error creating virtual environment: {e}")
+        return
 
     # 2. Determine python path
     if sys.platform == "win32":
@@ -54,7 +57,8 @@ def setup():
     # 4. Install dependencies
     deps = [
         "python-dotenv", "fastapi", "uvicorn", "python-multipart",
-        "jinja2", "bcrypt", "itsdangerous", "eth-account", "webauthn", "httpx"
+        "jinja2", "bcrypt", "itsdangerous", "eth-account", "webauthn", "httpx",
+        "pypandoc", "pandas", "openpyxl", "tabulate"
     ]
     
     print("Installing dependencies...")
