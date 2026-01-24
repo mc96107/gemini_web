@@ -11,6 +11,8 @@
 * **Styling:** Bootstrap 5 - A powerful, extensible, and feature-packed frontend toolkit.
 * **Image Processing:** Browser Canvas API - For high-performance, client-side image compression and resizing.
 * **Math Rendering:** KaTeX - Fast, lightweight LaTeX math rendering library.
+* **Voice Interaction:** Web Speech API (SpeechRecognition & SpeechSynthesis) - For hands-free conversation loops.
+* **Power Management:** Screen Wake Lock API - To keep the device active during voice-only sessions.
 * **Icons:** Bootstrap Icons - A free, high-quality, open-source icon library.
 
 ## Security & Authentication
