@@ -271,6 +271,11 @@ class GeminiAgent:
                                             self.user_data[user_id]["session_tags"] = {}
                                         self.user_data[user_id]["session_tags"][new_id] = pending_fork["tags"]
                                     
+                                    if pending_fork.get("tools"):
+                                        if "session_tools" not in self.user_data[user_id]:
+                                            self.user_data[user_id]["session_tools"] = {}
+                                        self.user_data[user_id]["session_tools"][new_id] = pending_fork["tools"]
+                                    
                                     del self.user_data[user_id]["pending_fork"]
                                     log_debug(f"Applied pending fork info to session {new_id}")
 
@@ -630,7 +635,8 @@ class GeminiAgent:
                     "parent": original_uuid,
                     "fork_point": -1,
                     "title": user_info.get("custom_titles", {}).get(original_uuid),
-                    "tags": list(user_info.get("session_tags", {}).get(original_uuid, []))
+                    "tags": list(user_info.get("session_tags", {}).get(original_uuid, [])),
+                    "tools": list(user_info.get("session_tools", {}).get(original_uuid, []))
                 }
                 
                 self._save_user_data()
