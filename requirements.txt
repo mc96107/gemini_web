@@ -11,4 +11,7 @@ webauthn
 pytest
 
 pypandoc
+pandas
+openpyxl
+tabulate
 httpx
