@@ -4,9 +4,9 @@
 This phase focuses on updating the UI to support selecting multiple files and managing them in a queue.
 
 - [x] Task: Update chat UI template to support multiple file selection in input and add drag-and-drop overlay. 4249cb6
-- [ ] Task: Implement `AttachmentManager` JavaScript class to handle the queue, size limits, and removal logic.
-- [ ] Task: Write Tests: Verify `AttachmentManager` correctly adds/removes files and calculates cumulative size.
-- [ ] Task: Implement: `AttachmentManager` logic for queue management and size validation alerts.
+- [x] Task: Implement `AttachmentManager` JavaScript class to handle the queue, size limits, and removal logic. a93464c
+- [x] Task: Write Tests: Verify `AttachmentManager` correctly adds/removes files and calculates cumulative size. a93464c
+- [~] Task: Implement: `AttachmentManager` logic for queue management and size validation alerts.
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: Frontend Infrastructure' (Protocol in workflow.md)
 
 ## Phase 2: Integrated Compression & Previews
