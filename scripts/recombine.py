@@ -39,7 +39,7 @@ def recombine():
         lines = code.splitlines()
         filtered = []
         for line in lines:
-            if re.match(r'^(from|import) (app\.|core|services|routers)', line):
+            if re.match(r'^\s*(from|import) (app\.|core|services|routers)', line):
                 continue
             if 'from app.core import config' in line or 'from app.core.patterns' in line:
                 continue

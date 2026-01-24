@@ -1788,7 +1788,6 @@ async def chat(request: Request, message: str = Form(...), file: Optional[list[U
                     except Exception as e:
                         # Fallback to original file on error
                         import logging
-                        from app.services.conversion_service import PandocMissingError, ConversionServiceError
                         
                         log = logging.getLogger(__name__)
                         if isinstance(e, PandocMissingError):
