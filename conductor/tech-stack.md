@@ -19,6 +19,10 @@
 * **Hashing:** `bcrypt` - For secure password hashing (where applicable).
 * **Session Management:** `itsdangerous` & Starlette SessionMiddleware - For secure session handling.
 
+## Document Processing
+* **Pandoc:** A universal document converter used to transform `.docx` and `.xlsx` files into Markdown for AI consumption.
+* **pypandoc:** Python wrapper for Pandoc CLI.
+
 ## Runtime & Deployment
 * **Environment:** Android Termux - A terminal emulator and Linux environment for Android.
 * **Service Management:** `termux-services` (runit) - For managing background services and ensuring the agent remains running.
