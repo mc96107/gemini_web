@@ -215,11 +215,20 @@ async def chat(request: Request, message: str = Form(...), file: Optional[list[U
                 # Perform conversion if needed
                 if fpath.lower().endswith((".docx", ".xlsx")):
                     try:
+                        old_fpath = fpath
                         fpath = conversion_service.convert_to_markdown(fpath)
+                        import logging
+                        logging.getLogger(__name__).info(f"Converted {old_fpath} to {fpath}")
                     except Exception as e:
                         # Fallback to original file on error
                         import logging
-                        logging.getLogger(__name__).error(f"Conversion failed, falling back to original: {e}")
+                        from app.services.conversion_service import PandocMissingError, ConversionServiceError
+                        
+                        log = logging.getLogger(__name__)
+                        if isinstance(e, PandocMissingError):
+                            log.warning(f"Pandoc missing, using original file: {e}")
+                        else:
+                            log.error(f"Conversion failed, falling back to original: {e}")
                 
                 file_paths.append(os.path.relpath(fpath))
     
