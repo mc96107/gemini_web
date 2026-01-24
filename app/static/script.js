@@ -211,9 +211,8 @@ document.addEventListener('DOMContentLoaded', () => {
         content.style.transition = 'all 0.2s';
         content.style.borderRadius = '15px';
         
-        const header = document.createElement('div');
-        header.className = 'd-flex align-items-center gap-2 mb-1';
-        header.innerHTML = `<i class="bi ${node.parent ? 'bi-diagram-2' : 'bi-chat-left-text'}"></i>`;
+        const forkIcon = `<svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16" style="margin-top: -2px;"><path d="M5 5.372v.878c0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75v-.878a2.25 2.25 0 1 1 1.5 0v.878a2.25 2.25 0 0 1-2.25 2.25h-1.5v2.128a2.251 2.251 0 1 1-1.5 0V8.5h-1.5A2.25 2.25 0 0 1 3.5 6.25v-.878a2.25 2.25 0 1 1 1.5 0ZM5 3.25a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0Zm6.75.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm-3 8.75a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0Z"></path></svg>`;
+        header.innerHTML = node.parent ? forkIcon : `<i class="bi bi-chat-left-text"></i>`;
         
         const title = document.createElement('div');
         title.className = 'fw-bold text-truncate flex-grow-1';
@@ -1389,6 +1388,19 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             actionsDiv.appendChild(copyBtn);
 
+            const forkBtn = document.createElement('button');
+            forkBtn.className = 'clone-btn';
+            forkBtn.title = 'Fork conversation from this message';
+            forkBtn.innerHTML = `<svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M5 5.372v.878c0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75v-.878a2.25 2.25 0 1 1 1.5 0v.878a2.25 2.25 0 0 1-2.25 2.25h-1.5v2.128a2.251 2.251 0 1 1-1.5 0V8.5h-1.5A2.25 2.25 0 0 1 3.5 6.25v-.878a2.25 2.25 0 1 1 1.5 0ZM5 3.25a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0Zm6.75.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm-3 8.75a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0Z"></path></svg>`;
+            forkBtn.onclick = (e) => {
+                e.stopPropagation();
+                const activeSessionItem = document.querySelector('.session-item.active-session');
+                if (activeSessionItem) {
+                    handleClone(activeSessionItem.dataset.uuid, parseInt(messageDiv.dataset.index));
+                }
+            };
+            actionsDiv.appendChild(forkBtn);
+
             // Highlight code
             if (typeof hljs !== 'undefined') {
                 messageDiv.querySelectorAll('pre code').forEach((block) => {
@@ -1483,6 +1495,21 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         };
         actionsDiv.appendChild(copyBtn);
+
+        if (sender === 'bot' && index !== null) {
+            const forkBtn = document.createElement('button');
+            forkBtn.className = 'clone-btn';
+            forkBtn.title = 'Fork conversation from this message';
+            forkBtn.innerHTML = `<svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M5 5.372v.878c0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75v-.878a2.25 2.25 0 1 1 1.5 0v.878a2.25 2.25 0 0 1-2.25 2.25h-1.5v2.128a2.251 2.251 0 1 1-1.5 0V8.5h-1.5A2.25 2.25 0 0 1 3.5 6.25v-.878a2.25 2.25 0 1 1 1.5 0ZM5 3.25a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0Zm6.75.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm-3 8.75a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0Z"></path></svg>`;
+            forkBtn.onclick = (e) => {
+                e.stopPropagation();
+                const activeSessionItem = document.querySelector('.session-item.active-session');
+                if (activeSessionItem) {
+                    handleClone(activeSessionItem.dataset.uuid, parseInt(index));
+                }
+            };
+            actionsDiv.appendChild(forkBtn);
+        }
 
         // User Message Actions: Edit and Fork Navigation
         if (sender === 'user' && index !== null) {
