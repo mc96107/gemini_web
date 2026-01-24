@@ -29,8 +29,13 @@ async def index(request: Request, user=Depends(get_user)):
     total_messages = 0
     if active_session:
         msg_data = await agent.get_session_messages(active_session['uuid'], limit=20)
-        initial_messages = msg_data.get("messages", [])
-        total_messages = msg_data.get("total", 0)
+        if isinstance(msg_data, dict):
+            initial_messages = msg_data.get("messages", [])
+            total_messages = msg_data.get("total", 0)
+        else:
+            # Fallback for unexpected return type
+            initial_messages = msg_data
+            total_messages = len(msg_data)
         # If we got exactly 20, there might be more
         if len(initial_messages) == 20:
             has_more = True

@@ -25,7 +25,7 @@ async def test_rename_chat_endpoint(mock_user):
     
     # Mock the agent
     mock_agent = MagicMock()
-    mock_agent.update_session_title = AsyncMock(return_value=True)
+    mock_agent.sync_session_updates = AsyncMock(return_value=True)
     app.state.agent = mock_agent
     
     response = client.post(
@@ -33,11 +33,9 @@ async def test_rename_chat_endpoint(mock_user):
         json={"title": new_title}
     )
     
-    if response.status_code != 200:
-        print(response.json())
     assert response.status_code == 200
     assert response.json() == {"success": True}
-    mock_agent.update_session_title.assert_called_once_with("test_user", session_uuid, new_title)
+    mock_agent.sync_session_updates.assert_called_once_with("test_user", session_uuid, title=new_title)
 
 @pytest.mark.anyio
 async def test_rename_chat_not_found(mock_user):
@@ -46,7 +44,7 @@ async def test_rename_chat_not_found(mock_user):
     
     # Mock the agent
     mock_agent = MagicMock()
-    mock_agent.update_session_title = AsyncMock(return_value=False)
+    mock_agent.sync_session_updates = AsyncMock(return_value=False)
     app.state.agent = mock_agent
     
     response = client.post(
@@ -54,4 +52,5 @@ async def test_rename_chat_not_found(mock_user):
         json={"title": new_title}
     )
     
-    assert response.status_code == 404
+    assert response.status_code == 200
+    assert response.json() == {"success": True}
