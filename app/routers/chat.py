@@ -205,11 +205,22 @@ async def chat(request: Request, message: str = Form(...), file: Optional[list[U
     
     file_paths = []
     if file:
+        conversion_service = request.app.state.conversion_service
         for f_upload in file:
             if f_upload.filename:
                 fpath = os.path.join(UPLOAD_DIR, os.path.basename(f_upload.filename))
                 with open(fpath, "wb") as f: 
                     shutil.copyfileobj(f_upload.file, f)
+                
+                # Perform conversion if needed
+                if fpath.lower().endswith((".docx", ".xlsx")):
+                    try:
+                        fpath = conversion_service.convert_to_markdown(fpath)
+                    except Exception as e:
+                        # Fallback to original file on error
+                        import logging
+                        logging.getLogger(__name__).error(f"Conversion failed, falling back to original: {e}")
+                
                 file_paths.append(os.path.relpath(fpath))
     
     # Handle model selection
