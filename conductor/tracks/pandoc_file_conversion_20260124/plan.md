@@ -1,7 +1,7 @@
 # Implementation Plan: Pandoc File Conversion
 
 ## Phase 1: Environment Setup & Tooling
-- [ ] Task: Verify Pandoc availability on the system and update `requirements.txt` if a wrapper like `pypandoc` is chosen.
+- [x] Task: Verify Pandoc availability on the system and update `requirements.txt` if a wrapper like `pypandoc` is chosen. 150079c
 - [ ] Task: Update `tech-stack.md` to include Pandoc as a document processing tool.
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: Environment Setup'
 
