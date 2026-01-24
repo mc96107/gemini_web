@@ -9,7 +9,7 @@
 - [x] Task: Implement `FileConversionService` in `app/services/conversion_service.py` to handle Pandoc logic. 2cc903d
 - [x] Task: Write Tests: Verify `.docx` to `.md` conversion strips images. 2cc903d
 - [x] Task: Write Tests: Verify `.xlsx` to `.md` conversion produces readable tables. 2cc903d
-- [~] Task: Conductor - User Manual Verification 'Phase 2: Conversion Service'
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Conversion Service'
 
 ## Phase 3: Router Integration
 - [ ] Task: Update `app/routers/chat.py` to route uploaded `.docx`/`.xlsx` files through the conversion service.
