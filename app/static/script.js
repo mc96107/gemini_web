@@ -163,6 +163,153 @@ document.addEventListener('DOMContentLoaded', () => {
         driveModeBtn.classList.remove('d-none');
     }
 
+    driveModeBtn?.addEventListener('click', () => {
+        if (!driveMode.isActive) {
+            startDriveMode();
+        } else {
+            stopDriveMode();
+        }
+    });
+
+    async function startDriveMode() {
+        driveMode.isActive = true;
+        driveModeBtn.classList.replace('btn-outline-info', 'btn-info');
+        driveModeBtn.innerHTML = '<i class="bi bi-stop-circle-fill"></i>';
+        await driveMode.requestWakeLock();
+        runDriveModeLoop();
+    }
+
+    function stopDriveMode() {
+        driveMode.isActive = false;
+        driveMode.stopListening();
+        driveMode.stopSpeaking();
+        driveMode.releaseWakeLock();
+        driveModeBtn.classList.replace('btn-info', 'btn-outline-info');
+        driveModeBtn.innerHTML = '<i class="bi bi-mic-fill"></i>';
+        driveMode.state = 'idle';
+        updateDriveModeUI();
+    }
+
+    function updateDriveModeUI() {
+        const state = driveMode.state;
+        const btn = document.getElementById('drive-mode-btn');
+        if (!btn) return;
+
+        // Reset icon and animation
+        btn.innerHTML = driveMode.isActive ? '<i class="bi bi-stop-circle-fill"></i>' : '<i class="bi bi-mic-fill"></i>';
+        btn.classList.remove('pulse-animation');
+
+        if (driveMode.isActive) {
+            if (state === 'listening') {
+                btn.classList.add('pulse-animation');
+                btn.style.color = '#fff';
+            } else if (state === 'processing') {
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+            } else if (state === 'speaking') {
+                btn.innerHTML = '<i class="bi bi-volume-up-fill"></i>';
+            }
+        }
+    }
+
+    function runDriveModeLoop() {
+        if (!driveMode.isActive) return;
+
+        updateDriveModeUI();
+        driveMode.state = 'listening';
+        updateDriveModeUI();
+
+        driveMode.startListening(
+            async (transcript) => {
+                // onResult
+                driveMode.state = 'processing';
+                updateDriveModeUI();
+                
+                // Send to AI
+                try {
+                    const response = await sendToAI(transcript);
+                    if (!driveMode.isActive) return;
+
+                    driveMode.state = 'speaking';
+                    updateDriveModeUI();
+
+                    driveMode.speak(response, () => {
+                        // onEnd
+                        if (driveMode.isActive) {
+                            setTimeout(runDriveModeLoop, 500); // Small delay before restart
+                        }
+                    });
+                } catch (err) {
+                    console.error('Drive Mode AI Error:', err);
+                    if (driveMode.isActive) {
+                        driveMode.speak('Σφάλμα επικοινωνίας. Ξαναπροσπαθώ.', () => {
+                            setTimeout(runDriveModeLoop, 2000);
+                        });
+                    }
+                }
+            },
+            (error) => {
+                // onError
+                console.warn('Drive Mode STT Error:', error);
+                if (driveMode.isActive) {
+                    if (error === 'no-speech') {
+                        // Silent retry
+                        setTimeout(runDriveModeLoop, 1000);
+                    } else {
+                        driveMode.state = 'idle';
+                        updateDriveModeUI();
+                        // Possible permanent error, but let's try to recover once
+                        setTimeout(runDriveModeLoop, 3000);
+                    }
+                }
+            }
+        );
+    }
+
+    async function sendToAI(text) {
+        // Prepare data
+        const formData = new FormData();
+        formData.append('message', text);
+        formData.append('model', document.getElementById('model-input').value);
+
+        const response = await fetch('/chat', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) throw new Error('Chat request failed');
+
+        // Since it's a streaming response usually, we need to handle it.
+        // For Drive Mode, we want the FULL text to speak it.
+        // We'll use a modified logic or wait for completion.
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let fullText = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+            
+            // Extract text from SSE format "data: ..."
+            const lines = chunk.split('\n');
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    try {
+                        const data = JSON.parse(line.substring(6));
+                        if (data.type === 'text') {
+                            fullText += data.content;
+                        } else if (data.type === 'error') {
+                            throw new Error(data.content);
+                        }
+                    } catch (e) {
+                        // Ignore partial JSON or other types
+                    }
+                }
+            }
+        }
+        return fullText;
+    }
+
     const attachments = new AttachmentManager({
         maxTotalSize: 20 * 1024 * 1024, // 20MB
         onQueueChange: (items) => renderAttachmentQueue(items),
@@ -424,6 +571,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (stopBtn) {
         stopBtn.addEventListener('click', async () => {
+            if (driveMode.isActive) {
+                stopDriveMode();
+            }
             try {
                 const response = await fetch('/stop', { method: 'POST' });
                 if (response.ok) {

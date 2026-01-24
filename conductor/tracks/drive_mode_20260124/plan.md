@@ -20,18 +20,18 @@ Add the Drive Mode controls to the chat interface and implement screen wake-lock
 ## Phase 3: The Conversation Loop (STT & TTS)
 Implement the core logic of the hands-free loop using Web Speech APIs.
 
-- [ ] Task: Implement "Listening" state (STT) using `webkitSpeechRecognition` with automatic "end-of-speech" detection.
-- [ ] Task: Implement "Speaking" state (TTS) using `speechSynthesis` to read back AI responses.
-- [ ] Task: Implement the loop logic: transition from STT result -> Send Message -> TTS start -> TTS end -> STT restart.
-- [ ] Task: Implement visual state indicators (Listening/Processing/Speaking) in the UI.
-- [ ] Task: Write integration tests in `tests/test_drive_mode_loop.py` (mocking Web Speech APIs) to verify state transitions.
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: The Conversation Loop (STT & TTS)' (Protocol in workflow.md)
+- [x] Task: Implement "Listening" state (STT) using `webkitSpeechRecognition` with automatic "end-of-speech" detection. [commit: 190a18e]
+- [x] Task: Implement "Speaking" state (TTS) using `speechSynthesis` to read back AI responses. [commit: d9519ee]
+- [x] Task: Implement the loop logic: transition from STT result -> Send Message -> TTS start -> TTS end -> STT restart. [commit: d9519ee]
+- [x] Task: Implement visual state indicators (Listening/Processing/Speaking) in the UI. [commit: d9519ee]
+- [x] Task: Write integration tests in `tests/test_drive_mode_loop.py` (mocking Web Speech APIs) to verify state transitions. [commit: 71be08d]
+- [x] Task: Conductor - User Manual Verification 'Phase 3: The Conversation Loop (STT & TTS)' (Protocol in workflow.md) [checkpoint: 71be08d]
 
-## Phase 4: Error Handling & Refinement
+## Phase 4: Error Handling & Refinement [checkpoint: 71be08d]
 Ensure the loop is robust against network issues, silence, and manual interruptions.
 
-- [ ] Task: Implement error handling: retry logic for STT and automatic loop termination on persistent failures.
-- [ ] Task: Implement silence management: ensure the loop stays in "Listening" if no speech is detected.
-- [ ] Task: Implement manual stop override to break the loop via the toggle or global "Stop" button.
-- [ ] Task: Final code review and cleanup of `app/static/drive_mode.js` and `app/static/script.js`.
-- [ ] Task: Conductor - User Manual Verification 'Phase 4: Error Handling & Refinement' (Protocol in workflow.md)
+- [x] Task: Implement error handling: retry logic for STT and automatic loop termination on persistent failures. [commit: d9519ee]
+- [x] Task: Implement silence management: ensure the loop stays in "Listening" if no speech is detected. [commit: d9519ee]
+- [x] Task: Implement manual stop override to break the loop via the toggle or global "Stop" button. [commit: d9519ee]
+- [x] Task: Final code review and cleanup of `app/static/drive_mode.js` and `app/static/script.js`. [commit: d9519ee]
+- [x] Task: Conductor - User Manual Verification 'Phase 4: Error Handling & Refinement' (Protocol in workflow.md) [checkpoint: 71be08d]

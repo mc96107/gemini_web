@@ -92,4 +92,80 @@ describe('DriveModeManager', () => {
 
         expect(driveModeBtn.classList.contains('d-none')).toBe(false);
     });
+
+    test('should start listening and handle result', (done) => {
+        const mockRecognition = {
+            start: jest.fn(),
+            stop: jest.fn()
+        };
+        const SpeechRecognitionMock = jest.fn(() => mockRecognition);
+        Object.defineProperty(window, 'webkitSpeechRecognition', {
+            value: SpeechRecognitionMock,
+            configurable: true
+        });
+
+        manager.startListening((transcript) => {
+            expect(transcript).toBe('hello');
+            done();
+        });
+
+        // Simulate start
+        mockRecognition.onstart();
+
+        expect(mockRecognition.start).toHaveBeenCalled();
+        expect(manager.state).toBe('listening');
+
+        // Simulate result
+        mockRecognition.onresult({
+            results: [[{ transcript: 'hello' }]]
+        });
+    });
+
+    test('should handle listening error', (done) => {
+        const mockRecognition = {
+            start: jest.fn(),
+            stop: jest.fn()
+        };
+        const SpeechRecognitionMock = jest.fn(() => mockRecognition);
+        Object.defineProperty(window, 'webkitSpeechRecognition', {
+            value: SpeechRecognitionMock,
+            configurable: true
+        });
+
+        manager.startListening(null, (error) => {
+            expect(error).toBe('no-speech');
+            done();
+        });
+
+        // Simulate error
+        mockRecognition.onerror({ error: 'no-speech' });
+    });
+
+    test('should speak and handle end', (done) => {
+        const mockUtterance = {};
+        global.SpeechSynthesisUtterance = jest.fn(() => mockUtterance);
+        
+        Object.defineProperty(window, 'speechSynthesis', {
+            value: {
+                speak: jest.fn(),
+                cancel: jest.fn()
+            },
+            configurable: true
+        });
+
+        manager.speak('test', () => {
+            expect(manager.state).toBe('idle');
+            done();
+        });
+
+        expect(window.speechSynthesis.cancel).toHaveBeenCalled();
+        expect(window.speechSynthesis.speak).toHaveBeenCalledWith(mockUtterance);
+
+        // Simulate start
+        mockUtterance.onstart();
+        expect(manager.state).toBe('speaking');
+
+        // Simulate end
+        mockUtterance.onend();
+    });
 });
