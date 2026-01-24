@@ -23,6 +23,7 @@ The Gemini Termux Agent is designed for:
 * **Math Rendering:** Built-in support for LaTeX mathematical expressions via KaTeX, enabling high-quality rendering of formulas.
 * **Chat Export:** Export full conversation history as Markdown files for offline storage or sharing.
 * **Multi-File Attachments:** Users can attach and send multiple files (images, documents, etc.) in a single message.
+* **Automatic Document Conversion:** Automatically converts uploaded `.docx` and `.xlsx` files into Markdown format for better AI readability while excluding images to optimize token usage.
 * **Drag-and-Drop Upload:** Support for dragging and dropping multiple files directly into the chat interface for quick attachments.
 * **Attachment Queue & Previews:** An interactive queue for managing pending attachments before sending, including thumbnails for images and icons for other file types.
 * **Infinite Scroll History:** Seamlessly load and browse previous messages by scrolling to the top of the chat window.
