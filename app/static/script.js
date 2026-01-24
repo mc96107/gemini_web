@@ -155,6 +155,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const attachmentQueue = document.getElementById('attachment-queue');
     const dragDropOverlay = document.getElementById('drag-drop-overlay');
     
+    // --- Drive Mode ---
+    const driveModeBtn = document.getElementById('drive-mode-btn');
+    const driveMode = new DriveModeManager();
+
+    if (driveMode.isSupported() && driveModeBtn) {
+        driveModeBtn.classList.remove('d-none');
+    }
+
     const attachments = new AttachmentManager({
         maxTotalSize: 20 * 1024 * 1024, // 20MB
         onQueueChange: (items) => renderAttachmentQueue(items),
