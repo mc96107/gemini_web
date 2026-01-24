@@ -1,8 +1,0 @@
-{
-  "name": "chat_history_opt_and_mgmt_20260119",
-  "description": "Optimizations for chat history loading and adding chat deletion functionality.",
-  "type": "feature",
-  "source": "github_issue_9",
-  "status": "completed",
-  "created_at": "2026-01-19"
-}
