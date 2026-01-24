@@ -2,6 +2,7 @@ from fastapi import APIRouter, Request, Form, Depends, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from typing import Optional
 
+from app.core import config
 from app.services.pattern_sync_service import PatternSyncService
 
 router = APIRouter()
