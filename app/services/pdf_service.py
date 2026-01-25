@@ -4,6 +4,7 @@ import asyncio
 import logging
 import uuid
 import sys
+import subprocess
 from datetime import datetime
 from app.core import config
 
@@ -38,24 +39,13 @@ class PDFService:
     def is_gs_available(self):
         return self.gs_path is not None
 
-    async def _create_subprocess(self, args, **kwargs):
-        try:
-            return await asyncio.create_subprocess_exec(*args, **kwargs)
-        except NotImplementedError:
-            if sys.platform == 'win32':
-                from subprocess import list2cmdline
-                cmd_str = list2cmdline(args)
-                return await asyncio.create_subprocess_shell(cmd_str, **kwargs)
-            else:
-                raise
-
     async def compress_pdf(self, input_path: str, output_path: str) -> str:
         """
         Compresses a PDF file using Ghostscript.
         Returns the path to the compressed file if successful and smaller,
         otherwise returns the original input_path.
         
-        Handles non-ASCII filenames by using temporary safe ASCII names.
+        Uses synchronous subprocess.run in a thread for maximum reliability on Windows.
         """
         if not self.is_gs_available():
             return input_path
@@ -87,18 +77,18 @@ class PDFService:
                 safe_in_path
             ]
 
-            global_log(f"Starting compression: {input_path}", level="INFO")
+            global_log(f"Starting compression (sync thread): {input_path}", level="INFO")
             
-            process = await self._create_subprocess(
-                cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
+            # Using asyncio.to_thread to run the synchronous subprocess call
+            # This bypasses all Proactor/Selector event loop issues on Windows.
+            def run_sync():
+                return subprocess.run(cmd, capture_output=True, text=False)
 
-            stdout, stderr = await process.communicate()
+            result = await asyncio.to_thread(run_sync)
 
-            if process.returncode != 0:
-                global_log(f"Ghostscript failed with return code {process.returncode}: {stderr.decode()}", level="ERROR")
+            if result.returncode != 0:
+                stderr_text = result.stderr.decode(errors='replace')
+                global_log(f"Ghostscript failed with return code {result.returncode}: {stderr_text}", level="ERROR")
                 return input_path
 
             if not os.path.exists(safe_out_path):
@@ -119,11 +109,10 @@ class PDFService:
                 return output_path
             else:
                 global_log(f"Compression did not reduce size ({original_size} -> {compressed_size}). Keeping original.", level="INFO")
-                # output_path is not created if we return input_path, so we don't need to move
                 return input_path
 
         except Exception as e:
-            global_log(f"Error during PDF compression: {str(e)}", level="ERROR")
+            global_log(f"Error during PDF compression: {repr(e)}", level="ERROR")
             return input_path
         finally:
             # Clean up temp files

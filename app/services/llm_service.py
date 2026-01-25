@@ -5,6 +5,8 @@ import re
 import asyncio
 import shutil
 import uuid
+import subprocess
+import threading
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, AsyncGenerator
 from app.core.patterns import PATTERNS
@@ -30,6 +32,68 @@ def global_log(msg, level="INFO", user_data=None):
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
         print(f"[{ts}] [{level}] {msg}")
     except: pass
+
+class ThreadedStreamReader:
+    """Helper to read a pipe in a thread and provide an async interface."""
+    def __init__(self, pipe, loop):
+        self.pipe = pipe
+        self.loop = loop
+        self.queue = asyncio.Queue()
+        self.thread = threading.Thread(target=self._read_pipe, daemon=True)
+        self.thread.start()
+
+    def _read_pipe(self):
+        try:
+            for line in iter(self.pipe.readline, b''):
+                self.loop.call_soon_threadsafe(self.queue.put_nowait, line)
+        finally:
+            self.loop.call_soon_threadsafe(self.queue.put_nowait, None)
+
+    async def readline(self):
+        line = await self.queue.get()
+        return line if line is not None else b''
+
+class ThreadedProcess:
+    """Minimal wrapper for subprocess.Popen to match asyncio.subprocess.Process."""
+    def __init__(self, popen_proc, loop):
+        self.proc = popen_proc
+        self.loop = loop
+        self.stdout = ThreadedStreamReader(popen_proc.stdout, loop) if popen_proc.stdout else None
+        self.stderr = ThreadedStreamReader(popen_proc.stderr, loop) if popen_proc.stderr else None
+        self.stdin = popen_proc.stdin # synchronous writing usually works ok if not blocked
+        self.returncode = None
+
+    async def wait(self):
+        while self.proc.poll() is None:
+            await asyncio.sleep(0.1)
+        self.returncode = self.proc.returncode
+        return self.returncode
+
+    async def communicate(self, input=None):
+        if input:
+            self.proc.stdin.write(input)
+            self.proc.stdin.flush()
+        
+        stdout_content = b''
+        stderr_content = b''
+        
+        if self.stdout:
+            while True:
+                line = await self.stdout.readline()
+                if not line: break
+                stdout_content += line
+        
+        if self.stderr:
+            while True:
+                line = await self.stderr.readline()
+                if not line: break
+                stderr_content += line
+                
+        await self.wait()
+        return stdout_content, stderr_content
+
+    def terminate(self):
+        self.proc.terminate()
 
 class GeminiAgent:
     def __init__(self, model: str = "gemini-2.5-flash", working_dir: Optional[str] = None):
@@ -66,13 +130,29 @@ class GeminiAgent:
 
     async def _create_subprocess(self, args, **kwargs):
         try:
+            # Try the standard asyncio approach first
             return await asyncio.create_subprocess_exec(*args, **kwargs)
         except NotImplementedError:
             if sys.platform == 'win32':
-                from subprocess import list2cmdline
-                cmd_str = list2cmdline(args)
-                # Remove args from kwargs since we're using shell
-                return await asyncio.create_subprocess_shell(cmd_str, **kwargs)
+                # Robust fallback for Windows (works on ALL loops)
+                global_log("asyncio subprocess not implemented, using ThreadedProcess fallback", level="INFO")
+                from subprocess import Popen, PIPE
+                loop = asyncio.get_running_loop()
+                
+                # Adapt kwargs for Popen
+                popen_kwargs = {
+                    "stdout": kwargs.get("stdout", PIPE),
+                    "stderr": kwargs.get("stderr", PIPE),
+                    "stdin": kwargs.get("stdin", PIPE),
+                    "cwd": kwargs.get("cwd"),
+                    "env": kwargs.get("env"),
+                    "bufsize": 0 # Unbuffered for streaming
+                }
+                
+                # If it's a list, we might need list2cmdline for shell consistency, 
+                # but Popen handles lists well on Windows if NOT using shell=True.
+                proc = Popen(args, **popen_kwargs)
+                return ThreadedProcess(proc, loop)
             else:
                 raise
 
@@ -202,9 +282,19 @@ class GeminiAgent:
                 
                 if prompt:
                     log_debug("Writing prompt to stdin...")
-                    proc.stdin.write(prompt.encode('utf-8'))
-                    await proc.stdin.drain()
-                    proc.stdin.close()
+                    async def write_to_stdin(proc, data):
+                        if hasattr(proc.stdin, 'drain'): # asyncio.StreamWriter
+                            proc.stdin.write(data)
+                            await proc.stdin.drain()
+                            proc.stdin.close()
+                        else: # Synchronous pipe from Popen
+                            def sync_write():
+                                proc.stdin.write(data)
+                                proc.stdin.flush()
+                                proc.stdin.close()
+                            await asyncio.to_thread(sync_write)
+                    
+                    await write_to_stdin(proc, prompt.encode('utf-8'))
                 
                 async def capture_stderr(pipe):
                     while True:
