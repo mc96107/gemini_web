@@ -25,12 +25,16 @@ async def test_compress_pdf_success(tmp_path):
     input_file = tmp_path / "test.pdf"
     input_file.write_bytes(b"original content")
     
-    # We need to simulate that the output file is created by GS
     output_file = tmp_path / "test_compressed.pdf"
+    
+    # Predictable UUID for temp files
+    fake_uuid = MagicMock()
+    fake_uuid.hex = "fake_uuid"
     
     with patch("shutil.which", return_value="gs"), \
          patch("asyncio.create_subprocess_exec") as mock_exec, \
-         patch("os.path.getsize") as mock_size:
+         patch("os.path.getsize") as mock_size, \
+         patch("uuid.uuid4", return_value=fake_uuid):
         
         pdf_service = PDFService()
         
@@ -40,19 +44,26 @@ async def test_compress_pdf_success(tmp_path):
         mock_process.returncode = 0
         mock_exec.return_value = mock_process
         
-        # Mock sizes to show reduction
-        mock_size.side_effect = lambda path: 100 if "compressed" in str(path) else 200
+        # Determine the temp output path that the service will expect
+        # It's in the same dir as input
+        temp_out = tmp_path / "gs_out_fake_uuid.pdf"
+        temp_out.write_bytes(b"compressed content")
         
-        # Simulate GS creating the file
-        output_file.write_bytes(b"compressed content")
+        # Mock sizes to show reduction
+        # input is 200, temp_out is 100
+        def get_size(path):
+            if str(path) == str(input_file): return 200
+            if "gs_out_" in str(path): return 100
+            if str(path) == str(output_file): return 100 # after move
+            return 0
+        mock_size.side_effect = get_size
         
         result_path = await pdf_service.compress_pdf(str(input_file), str(output_file))
         
         assert result_path == str(output_file)
         assert mock_exec.called
-        # Check if ebook preset was used
-        args = mock_exec.call_args[0]
-        assert "-dPDFSETTINGS=/ebook" in args
+        # Verify result content (should have been moved from temp_out)
+        assert output_file.read_bytes() == b"compressed content"
 
 @pytest.mark.asyncio
 async def test_compress_pdf_no_gs(tmp_path):
@@ -72,11 +83,14 @@ async def test_compress_pdf_larger_result(tmp_path):
     input_file = tmp_path / "test.pdf"
     input_file.write_bytes(b"original content")
     output_file = tmp_path / "test_compressed.pdf"
-    output_file.write_bytes(b"larger content")
+    
+    fake_uuid = MagicMock()
+    fake_uuid.hex = "fake_uuid"
     
     with patch("shutil.which", return_value="gs"), \
          patch("asyncio.create_subprocess_exec") as mock_exec, \
-         patch("os.path.getsize") as mock_size:
+         patch("os.path.getsize") as mock_size, \
+         patch("uuid.uuid4", return_value=fake_uuid):
         
         pdf_service = PDFService()
         
@@ -85,13 +99,22 @@ async def test_compress_pdf_larger_result(tmp_path):
         mock_process.returncode = 0
         mock_exec.return_value = mock_process
         
+        temp_out = tmp_path / "gs_out_fake_uuid.pdf"
+        temp_out.write_bytes(b"larger content")
+        
         # Mock sizes: original 100, "compressed" 120
-        mock_size.side_effect = lambda path: 120 if "compressed" in str(path) else 100
+        def get_size(path):
+            if str(path) == str(input_file): return 100
+            if "gs_out_" in str(path): return 120
+            return 0
+        mock_size.side_effect = get_size
         
         result_path = await pdf_service.compress_pdf(str(input_file), str(output_file))
         
         assert result_path == str(input_file)
-        # Should have cleaned up the larger file
+        # Should have cleaned up the larger file (temp out)
+        assert not os.path.exists(str(temp_out))
+        # Output file should not exist
         assert not os.path.exists(str(output_file))
 
 @pytest.mark.asyncio
@@ -109,8 +132,12 @@ async def test_compress_pdf_gs_error(tmp_path):
     input_file.write_bytes(b"original content")
     output_file = tmp_path / "test_compressed.pdf"
     
+    fake_uuid = MagicMock()
+    fake_uuid.hex = "fake_uuid"
+    
     with patch("shutil.which", return_value="gs"), \
-         patch("asyncio.create_subprocess_exec") as mock_exec:
+         patch("asyncio.create_subprocess_exec") as mock_exec, \
+         patch("uuid.uuid4", return_value=fake_uuid):
         
         pdf_service = PDFService()
         

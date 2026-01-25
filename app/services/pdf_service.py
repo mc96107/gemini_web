@@ -2,6 +2,7 @@ import os
 import shutil
 import asyncio
 import logging
+import uuid
 from datetime import datetime
 from app.core import config
 
@@ -41,6 +42,8 @@ class PDFService:
         Compresses a PDF file using Ghostscript.
         Returns the path to the compressed file if successful and smaller,
         otherwise returns the original input_path.
+        
+        Handles non-ASCII filenames by using temporary safe ASCII names.
         """
         if not self.is_gs_available():
             return input_path
@@ -49,9 +52,17 @@ class PDFService:
             global_log(f"Input file not found: {input_path}", level="ERROR")
             return input_path
 
+        # Create safe temporary paths to avoid encoding issues with Ghostscript on Windows
+        base_dir = os.path.dirname(input_path)
+        safe_id = uuid.uuid4().hex
+        safe_in_path = os.path.join(base_dir, f"gs_in_{safe_id}.pdf")
+        safe_out_path = os.path.join(base_dir, f"gs_out_{safe_id}.pdf")
+        
         try:
+            # Copy input to safe path
+            shutil.copy2(input_path, safe_in_path)
+            
             # Ghostscript command for ebook quality (150 dpi)
-            # Using list for subprocess to avoid shell injection
             cmd = [
                 self.gs_path,
                 "-sDEVICE=pdfwrite",
@@ -60,8 +71,8 @@ class PDFService:
                 "-dNOPAUSE",
                 "-dQUIET",
                 "-dBATCH",
-                f"-sOutputFile={output_path}",
-                input_path
+                f"-sOutputFile={safe_out_path}",
+                safe_in_path
             ]
 
             global_log(f"Starting compression: {input_path}", level="INFO")
@@ -78,25 +89,35 @@ class PDFService:
                 global_log(f"Ghostscript failed with return code {process.returncode}: {stderr.decode()}", level="ERROR")
                 return input_path
 
-            if not os.path.exists(output_path):
-                global_log(f"Ghostscript finished but output file missing: {output_path}", level="ERROR")
+            if not os.path.exists(safe_out_path):
+                global_log(f"Ghostscript finished but output file missing: {safe_out_path}", level="ERROR")
                 return input_path
 
             # Compare sizes
             original_size = os.path.getsize(input_path)
-            compressed_size = os.path.getsize(output_path)
+            compressed_size = os.path.getsize(safe_out_path)
             
             reduction = original_size - compressed_size
             if reduction > 0:
                 percent = (reduction / original_size) * 100
                 global_log(f"Compression successful: {original_size} -> {compressed_size} ({percent:.1f}% reduction)", level="INFO")
+                
+                # Move safe output to final destination
+                shutil.move(safe_out_path, output_path)
                 return output_path
             else:
                 global_log(f"Compression did not reduce size ({original_size} -> {compressed_size}). Keeping original.", level="INFO")
-                if os.path.exists(output_path):
-                    os.remove(output_path)
+                # output_path is not created if we return input_path, so we don't need to move
                 return input_path
 
         except Exception as e:
             global_log(f"Error during PDF compression: {str(e)}", level="ERROR")
             return input_path
+        finally:
+            # Clean up temp files
+            if os.path.exists(safe_in_path):
+                try: os.remove(safe_in_path)
+                except: pass
+            if os.path.exists(safe_out_path):
+                try: os.remove(safe_out_path)
+                except: pass
