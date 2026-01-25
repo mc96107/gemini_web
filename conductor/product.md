@@ -21,8 +21,10 @@ The Gemini Termux Agent is designed for:
 * **Mobile Swipe Gestures:** Intuitive swipe-to-open gestures for accessing chat history and session actions on mobile devices.
 * **Chat Renaming:** Manually rename chat sessions to easily identify and organize different conversations.
 * **Chat Tagging & Auto-Categorization:** Organize conversations with multiple tags. Gemini automatically suggests descriptive tags for new chats, and users can manually add or filter by tags in the sidebar.
-* **Math Rendering:** Built-in support for LaTeX mathematical expressions via KaTeX, enabling high-quality rendering of formulas.
-* **Chat Export:** Export full conversation history as Markdown files for offline storage or sharing.
+*   **Math Rendering:** Built-in support for LaTeX mathematical expressions via KaTeX, enabling high-quality rendering of formulas.
+*   **Automatic PDF Compression:** Automatically optimizes uploaded PDF files using Ghostscript to reduce file size while maintaining readability for the AI model.
+*   **Filename Sanitization:** Automatically sanitizes uploaded filenames to strict ASCII to ensure compatibility with downstream CLI tools and cross-platform environments.
+*   **Chat Export:** Export full conversation history as Markdown files for offline storage or sharing.
 * **Multi-File Attachments:** Users can attach and send multiple files (images, documents, etc.) in a single message.
 * **Automatic Document Conversion:** Automatically converts uploaded `.docx` and `.xlsx` files into Markdown format for better AI readability while excluding images to optimize token usage.
 * **Drag-and-Drop Upload:** Support for dragging and dropping multiple files directly into the chat interface for quick attachments.

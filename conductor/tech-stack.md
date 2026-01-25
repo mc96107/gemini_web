@@ -22,9 +22,14 @@
 * **Session Management:** `itsdangerous` & Starlette SessionMiddleware - For secure session handling.
 
 ## Document Processing
-* **Pandoc:** A universal document converter used to transform `.docx` and `.xlsx` files into Markdown for AI consumption.
-* **pypandoc:** Python wrapper for Pandoc CLI.
-* **Pandas:** Used for robust extraction and conversion of `.xlsx` spreadsheets to Markdown tables.
+
+*   **Pandoc:** A universal document converter used to transform `.docx` and `.xlsx` files into Markdown for AI consumption.
+
+*   **pypandoc:** Python wrapper for Pandoc CLI.
+
+*   **Ghostscript:** Used for high-performance PDF optimization and compression.
+
+*   **Pandas:** Used for robust extraction and conversion of `.xlsx` spreadsheets to Markdown tables.
 * **Tabulate:** Dependency for Pandas to generate well-formatted Markdown tables.
 
 ## Runtime & Deployment
