@@ -179,13 +179,30 @@ class GeminiAgent:
             proc = None
             stderr_buffer = []
             try:
-                proc = await asyncio.create_subprocess_exec(
-                    *args, 
-                    stdin=asyncio.subprocess.PIPE, 
-                    stdout=asyncio.subprocess.PIPE, 
-                    stderr=asyncio.subprocess.PIPE, 
-                    cwd=self.working_dir
-                )
+                try:
+                    proc = await asyncio.create_subprocess_exec(
+                        *args, 
+                        stdin=asyncio.subprocess.PIPE, 
+                        stdout=asyncio.subprocess.PIPE, 
+                        stderr=asyncio.subprocess.PIPE, 
+                        cwd=self.working_dir
+                    )
+                except NotImplementedError:
+                    if sys.platform == 'win32':
+                        # Fallback for Windows if Proactor loop isn't active or cmd is a batch file
+                        # We need to join args into a single string for shell
+                        from subprocess import list2cmdline
+                        cmd_str = list2cmdline(args)
+                        log_debug(f"create_subprocess_exec failed, falling back to shell: {cmd_str}")
+                        proc = await asyncio.create_subprocess_shell(
+                            cmd_str,
+                            stdin=asyncio.subprocess.PIPE,
+                            stdout=asyncio.subprocess.PIPE,
+                            stderr=asyncio.subprocess.PIPE,
+                            cwd=self.working_dir
+                        )
+                    else:
+                        raise
                 
                 if prompt:
                     log_debug("Writing prompt to stdin...")

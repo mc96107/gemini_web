@@ -24,7 +24,23 @@ from app.services.conversion_service import FileConversionService
 from app.services.pdf_service import PDFService
 from app.routers import auth, chat, admin
 
-app = FastAPI()
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Verify/Force ProactorEventLoop on Windows at runtime
+    if sys.platform == 'win32':
+        loop = asyncio.get_running_loop()
+        from asyncio import ProactorEventLoop
+        if not isinstance(loop, ProactorEventLoop):
+            # We can't easily swap the loop if it's already running, 
+            # but we can log it for debugging.
+            print(f"WARNING: Running on {type(loop).__name__}, but ProactorEventLoop is required for subprocesses.")
+        else:
+            print("INFO: ProactorEventLoop is active.")
+    yield
+
+app = FastAPI(lifespan=lifespan)
 
 # Session Middleware
 # We enable https_only if the origin starts with https

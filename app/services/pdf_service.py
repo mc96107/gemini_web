@@ -3,6 +3,7 @@ import shutil
 import asyncio
 import logging
 import uuid
+import sys
 from datetime import datetime
 from app.core import config
 
@@ -77,11 +78,23 @@ class PDFService:
 
             global_log(f"Starting compression: {input_path}", level="INFO")
             
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
+            try:
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+            except NotImplementedError:
+                if sys.platform == 'win32':
+                    from subprocess import list2cmdline
+                    cmd_str = list2cmdline(cmd)
+                    process = await asyncio.create_subprocess_shell(
+                        cmd_str,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                else:
+                    raise
 
             stdout, stderr = await process.communicate()
 
