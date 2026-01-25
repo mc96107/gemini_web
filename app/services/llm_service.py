@@ -197,7 +197,7 @@ class GeminiAgent:
                     while True:
                         line = await pipe.readline()
                         if not line: break
-                        line_str = line.decode().strip()
+                        line_str = line.decode(errors='replace').strip()
                         log_debug(f"STDERR: {line_str}")
                         stderr_buffer.append(line_str)
                 
@@ -209,7 +209,7 @@ class GeminiAgent:
                     if not line:
                         log_debug("Stdout closed (EOF)")
                         break
-                    line_str = line.decode().strip()
+                    line_str = line.decode(errors='replace').strip()
                     if not line_str: continue
                     
                     log_debug(f"Received line ({len(line_str)} chars)")
@@ -330,8 +330,8 @@ class GeminiAgent:
                 break 
 
             except Exception as e:
-                log_debug(f"Exception in stream: {str(e)}")
-                yield {"type": "error", "content": f"Exception: {str(e)}"}
+                log_debug(f"Exception in stream: {repr(e)}")
+                yield {"type": "error", "content": f"Exception: {repr(e)}"}
                 break
             finally:
                 if proc and proc.returncode is None:
