@@ -1,6 +1,12 @@
 import os
+import sys
+import asyncio
 import mimetypes
 from fastapi import FastAPI, Request
+
+# Set Windows Event Loop Policy for subprocess support
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 # Register WebP MIME type if not present
 mimetypes.add_type('image/webp', '.webp')
