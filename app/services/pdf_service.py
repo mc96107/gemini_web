@@ -38,6 +38,17 @@ class PDFService:
     def is_gs_available(self):
         return self.gs_path is not None
 
+    async def _create_subprocess(self, args, **kwargs):
+        try:
+            return await asyncio.create_subprocess_exec(*args, **kwargs)
+        except NotImplementedError:
+            if sys.platform == 'win32':
+                from subprocess import list2cmdline
+                cmd_str = list2cmdline(args)
+                return await asyncio.create_subprocess_shell(cmd_str, **kwargs)
+            else:
+                raise
+
     async def compress_pdf(self, input_path: str, output_path: str) -> str:
         """
         Compresses a PDF file using Ghostscript.
@@ -78,23 +89,11 @@ class PDFService:
 
             global_log(f"Starting compression: {input_path}", level="INFO")
             
-            try:
-                process = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
-                )
-            except NotImplementedError:
-                if sys.platform == 'win32':
-                    from subprocess import list2cmdline
-                    cmd_str = list2cmdline(cmd)
-                    process = await asyncio.create_subprocess_shell(
-                        cmd_str,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE
-                    )
-                else:
-                    raise
+            process = await self._create_subprocess(
+                cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
 
             stdout, stderr = await process.communicate()
 

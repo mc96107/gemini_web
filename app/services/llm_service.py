@@ -64,6 +64,18 @@ class GeminiAgent:
     def _save_user_data(self):
         with open(self.session_file, "w") as f: json.dump(self.user_data, f, indent=2)
 
+    async def _create_subprocess(self, args, **kwargs):
+        try:
+            return await asyncio.create_subprocess_exec(*args, **kwargs)
+        except NotImplementedError:
+            if sys.platform == 'win32':
+                from subprocess import list2cmdline
+                cmd_str = list2cmdline(args)
+                # Remove args from kwargs since we're using shell
+                return await asyncio.create_subprocess_shell(cmd_str, **kwargs)
+            else:
+                raise
+
     def toggle_pin(self, user_id: str, session_uuid: str) -> bool:
         if user_id not in self.user_data:
             self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": [], "pinned_sessions": [], "session_metadata": {}}
@@ -125,7 +137,7 @@ class GeminiAgent:
     async def _get_latest_session_uuid(self) -> Optional[str]:
         try:
             global_log("Executing --list-sessions...")
-            proc = await asyncio.create_subprocess_exec(self.gemini_cmd, "--list-sessions", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=self.working_dir)
+            proc = await self._create_subprocess([self.gemini_cmd, "--list-sessions"], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=self.working_dir)
             stdout, stderr = await proc.communicate()
             content = (stdout.decode() + stderr.decode())
             matches = re.findall(r"\x20\[([a-fA-F0-9-]{36})\]", content)
@@ -180,30 +192,13 @@ class GeminiAgent:
             proc = None
             stderr_buffer = []
             try:
-                try:
-                    proc = await asyncio.create_subprocess_exec(
-                        *args, 
-                        stdin=asyncio.subprocess.PIPE, 
-                        stdout=asyncio.subprocess.PIPE, 
-                        stderr=asyncio.subprocess.PIPE, 
-                        cwd=self.working_dir
-                    )
-                except NotImplementedError:
-                    if sys.platform == 'win32':
-                        # Fallback for Windows if Proactor loop isn't active or cmd is a batch file
-                        # We need to join args into a single string for shell
-                        from subprocess import list2cmdline
-                        cmd_str = list2cmdline(args)
-                        log_debug(f"create_subprocess_exec failed, falling back to shell: {cmd_str}")
-                        proc = await asyncio.create_subprocess_shell(
-                            cmd_str,
-                            stdin=asyncio.subprocess.PIPE,
-                            stdout=asyncio.subprocess.PIPE,
-                            stderr=asyncio.subprocess.PIPE,
-                            cwd=self.working_dir
-                        )
-                    else:
-                        raise
+                proc = await self._create_subprocess(
+                    args, 
+                    stdin=asyncio.subprocess.PIPE, 
+                    stdout=asyncio.subprocess.PIPE, 
+                    stderr=asyncio.subprocess.PIPE, 
+                    cwd=self.working_dir
+                )
                 
                 if prompt:
                     log_debug("Writing prompt to stdin...")
@@ -447,9 +442,10 @@ class GeminiAgent:
             
         else:
             # Need to fetch from CLI
-            try:
-                proc = await asyncio.create_subprocess_exec(self.gemini_cmd, "--list-sessions", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=self.working_dir)
-                stdout, stderr = await proc.communicate()
+        try:
+            global_log("Executing --list-sessions...")
+            proc = await self._create_subprocess([self.gemini_cmd, "--list-sessions"], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=self.working_dir)
+            stdout, stderr = await proc.communicate()
                 raw_content = stdout.decode() + stderr.decode()
                 content = self._filter_errors(raw_content)
                 
@@ -846,7 +842,7 @@ class GeminiAgent:
         for target_uuid in list(related_uuids):
             try:
                 # 1. Delete from CLI
-                await (await asyncio.create_subprocess_exec(self.gemini_cmd, "--delete-session", target_uuid, cwd=self.working_dir)).communicate()
+                await (await self._create_subprocess([self.gemini_cmd, "--delete-session", target_uuid], cwd=self.working_dir)).communicate()
                 
                 # 2. Cleanup local tracking
                 if target_uuid in user_info["sessions"]:
