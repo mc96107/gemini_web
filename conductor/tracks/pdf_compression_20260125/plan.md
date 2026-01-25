@@ -8,16 +8,9 @@ This plan implements server-side PDF compression using Ghostscript to optimize f
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Environment & Discovery' (Protocol in workflow.md) dd2fc62
 
 ## Phase 2: Core Service Implementation
-- [ ] Task: Create `app/services/pdf_service.py` with a `compress_pdf` function.
-    - [ ] Implement Ghostscript detection logic.
-    - [ ] Implement `subprocess` call with proper error handling and timeouts.
-    - [ ] Implement filename sanitization for shell safety.
-    - [ ] Implement size comparison logging.
-- [ ] Task: Write unit tests for `pdf_service.py`.
-    - [ ] Test compression with a sample PDF (mocking Ghostscript if necessary).
-    - [ ] Test fallback behavior when Ghostscript is missing.
-    - [ ] Test behavior with invalid or encrypted PDFs.
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Core Service Implementation' (Protocol in workflow.md)
+- [x] Task: Create `app/services/pdf_service.py` with a `compress_pdf` function. d20f92e
+- [x] Task: Write unit tests for `pdf_service.py`. d20f92e
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Core Service Implementation' (Protocol in workflow.md) d20f92e
 
 ## Phase 3: Integration & UI
 - [ ] Task: Integrate `pdf_service` into the file upload pipeline in `app/services/conversion_service.py` or the upload router.
