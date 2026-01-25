@@ -5,6 +5,8 @@ import os
 import shutil
 import json
 import asyncio
+import re
+import uuid
 from datetime import datetime
 from app.core import config
 
@@ -209,7 +211,16 @@ async def chat(request: Request, message: str = Form(...), file: Optional[list[U
         pdf_service = request.app.state.pdf_service
         for f_upload in file:
             if f_upload.filename:
-                fpath = os.path.join(UPLOAD_DIR, os.path.basename(f_upload.filename))
+                # Sanitize filename to ensure ASCII-only for CLI compatibility
+                base_name = os.path.basename(f_upload.filename)
+                safe_name = re.sub(r'[^a-zA-Z0-9._-]', '_', base_name)
+                
+                # Fallback if sanitization leaves it empty
+                if not safe_name or safe_name.replace("_", "") == "":
+                    ext = os.path.splitext(base_name)[1]
+                    safe_name = f"upload_{uuid.uuid4().hex}{ext}"
+
+                fpath = os.path.join(UPLOAD_DIR, safe_name)
                 with open(fpath, "wb") as f: 
                     shutil.copyfileobj(f_upload.file, f)
                 
