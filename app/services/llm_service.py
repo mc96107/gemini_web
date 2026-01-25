@@ -442,10 +442,10 @@ class GeminiAgent:
             
         else:
             # Need to fetch from CLI
-        try:
-            global_log("Executing --list-sessions...")
-            proc = await self._create_subprocess([self.gemini_cmd, "--list-sessions"], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=self.working_dir)
-            stdout, stderr = await proc.communicate()
+            try:
+                global_log("Executing --list-sessions...")
+                proc = await self._create_subprocess([self.gemini_cmd, "--list-sessions"], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=self.working_dir)
+                stdout, stderr = await proc.communicate()
                 raw_content = stdout.decode() + stderr.decode()
                 content = self._filter_errors(raw_content)
                 
@@ -508,9 +508,8 @@ class GeminiAgent:
                 all_sessions = all_sessions[::-1]
                 
             except Exception as e:
-                global_log(f"Error fetching sessions for {user_id}: {e}", level="DEBUG")
+                global_log(f"Error in get_user_sessions (fetching): {str(e)}")
                 return []
-
         # --- Grouping Logic: Display them as one (the latest fork) ---
         
         def get_root(u):
