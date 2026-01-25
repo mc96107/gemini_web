@@ -8,7 +8,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [~] **Track: compress pdfs on upload**
+- [x] **Track: compress pdfs on upload**
 *Link: [./tracks/pdf_compression_20260125/](./tracks/pdf_compression_20260125/)*
 
 ---
