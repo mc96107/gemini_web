@@ -375,10 +375,13 @@ class AuthService:
 
 import json
 import os
+import sys
 import re
 import asyncio
 import shutil
 import uuid
+import subprocess
+import threading
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, AsyncGenerator
 
@@ -402,6 +405,68 @@ def global_log(msg, level="INFO", user_data=None):
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
         print(f"[{ts}] [{level}] {msg}")
     except: pass
+
+class ThreadedStreamReader:
+    """Helper to read a pipe in a thread and provide an async interface."""
+    def __init__(self, pipe, loop):
+        self.pipe = pipe
+        self.loop = loop
+        self.queue = asyncio.Queue()
+        self.thread = threading.Thread(target=self._read_pipe, daemon=True)
+        self.thread.start()
+
+    def _read_pipe(self):
+        try:
+            for line in iter(self.pipe.readline, b''):
+                self.loop.call_soon_threadsafe(self.queue.put_nowait, line)
+        finally:
+            self.loop.call_soon_threadsafe(self.queue.put_nowait, None)
+
+    async def readline(self):
+        line = await self.queue.get()
+        return line if line is not None else b''
+
+class ThreadedProcess:
+    """Minimal wrapper for subprocess.Popen to match asyncio.subprocess.Process."""
+    def __init__(self, popen_proc, loop):
+        self.proc = popen_proc
+        self.loop = loop
+        self.stdout = ThreadedStreamReader(popen_proc.stdout, loop) if popen_proc.stdout else None
+        self.stderr = ThreadedStreamReader(popen_proc.stderr, loop) if popen_proc.stderr else None
+        self.stdin = popen_proc.stdin # synchronous writing usually works ok if not blocked
+        self.returncode = None
+
+    async def wait(self):
+        while self.proc.poll() is None:
+            await asyncio.sleep(0.1)
+        self.returncode = self.proc.returncode
+        return self.returncode
+
+    async def communicate(self, input=None):
+        if input:
+            self.proc.stdin.write(input)
+            self.proc.stdin.flush()
+        
+        stdout_content = b''
+        stderr_content = b''
+        
+        if self.stdout:
+            while True:
+                line = await self.stdout.readline()
+                if not line: break
+                stdout_content += line
+        
+        if self.stderr:
+            while True:
+                line = await self.stderr.readline()
+                if not line: break
+                stderr_content += line
+                
+        await self.wait()
+        return stdout_content, stderr_content
+
+    def terminate(self):
+        self.proc.terminate()
 
 class GeminiAgent:
     def __init__(self, model: str = "gemini-2.5-flash", working_dir: Optional[str] = None):
@@ -435,6 +500,34 @@ class GeminiAgent:
 
     def _save_user_data(self):
         with open(self.session_file, "w") as f: json.dump(self.user_data, f, indent=2)
+
+    async def _create_subprocess(self, args, **kwargs):
+        try:
+            # Try the standard asyncio approach first
+            return await asyncio.create_subprocess_exec(*args, **kwargs)
+        except NotImplementedError:
+            if sys.platform == 'win32':
+                # Robust fallback for Windows (works on ALL loops)
+                global_log("asyncio subprocess not implemented, using ThreadedProcess fallback", level="INFO")
+                from subprocess import Popen, PIPE
+                loop = asyncio.get_running_loop()
+                
+                # Adapt kwargs for Popen
+                popen_kwargs = {
+                    "stdout": kwargs.get("stdout", PIPE),
+                    "stderr": kwargs.get("stderr", PIPE),
+                    "stdin": kwargs.get("stdin", PIPE),
+                    "cwd": kwargs.get("cwd"),
+                    "env": kwargs.get("env"),
+                    "bufsize": 0 # Unbuffered for streaming
+                }
+                
+                # If it's a list, we might need list2cmdline for shell consistency, 
+                # but Popen handles lists well on Windows if NOT using shell=True.
+                proc = Popen(args, **popen_kwargs)
+                return ThreadedProcess(proc, loop)
+            else:
+                raise
 
     def toggle_pin(self, user_id: str, session_uuid: str) -> bool:
         if user_id not in self.user_data:
@@ -497,7 +590,7 @@ class GeminiAgent:
     async def _get_latest_session_uuid(self) -> Optional[str]:
         try:
             global_log("Executing --list-sessions...")
-            proc = await asyncio.create_subprocess_exec(self.gemini_cmd, "--list-sessions", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=self.working_dir)
+            proc = await self._create_subprocess([self.gemini_cmd, "--list-sessions"], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=self.working_dir)
             stdout, stderr = await proc.communicate()
             content = (stdout.decode() + stderr.decode())
             matches = re.findall(r"\x20\[([a-fA-F0-9-]{36})\]", content)
@@ -552,8 +645,8 @@ class GeminiAgent:
             proc = None
             stderr_buffer = []
             try:
-                proc = await asyncio.create_subprocess_exec(
-                    *args, 
+                proc = await self._create_subprocess(
+                    args, 
                     stdin=asyncio.subprocess.PIPE, 
                     stdout=asyncio.subprocess.PIPE, 
                     stderr=asyncio.subprocess.PIPE, 
@@ -562,15 +655,25 @@ class GeminiAgent:
                 
                 if prompt:
                     log_debug("Writing prompt to stdin...")
-                    proc.stdin.write(prompt.encode('utf-8'))
-                    await proc.stdin.drain()
-                    proc.stdin.close()
+                    async def write_to_stdin(proc, data):
+                        if hasattr(proc.stdin, 'drain'): # asyncio.StreamWriter
+                            proc.stdin.write(data)
+                            await proc.stdin.drain()
+                            proc.stdin.close()
+                        else: # Synchronous pipe from Popen
+                            def sync_write():
+                                proc.stdin.write(data)
+                                proc.stdin.flush()
+                                proc.stdin.close()
+                            await asyncio.to_thread(sync_write)
+                    
+                    await write_to_stdin(proc, prompt.encode('utf-8'))
                 
                 async def capture_stderr(pipe):
                     while True:
                         line = await pipe.readline()
                         if not line: break
-                        line_str = line.decode().strip()
+                        line_str = line.decode(errors='replace').strip()
                         log_debug(f"STDERR: {line_str}")
                         stderr_buffer.append(line_str)
                 
@@ -582,7 +685,7 @@ class GeminiAgent:
                     if not line:
                         log_debug("Stdout closed (EOF)")
                         break
-                    line_str = line.decode().strip()
+                    line_str = line.decode(errors='replace').strip()
                     if not line_str: continue
                     
                     log_debug(f"Received line ({len(line_str)} chars)")
@@ -703,8 +806,8 @@ class GeminiAgent:
                 break 
 
             except Exception as e:
-                log_debug(f"Exception in stream: {str(e)}")
-                yield {"type": "error", "content": f"Exception: {str(e)}"}
+                log_debug(f"Exception in stream: {repr(e)}")
+                yield {"type": "error", "content": f"Exception: {repr(e)}"}
                 break
             finally:
                 if proc and proc.returncode is None:
@@ -803,7 +906,8 @@ class GeminiAgent:
         else:
             # Need to fetch from CLI
             try:
-                proc = await asyncio.create_subprocess_exec(self.gemini_cmd, "--list-sessions", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=self.working_dir)
+                global_log("Executing --list-sessions...")
+                proc = await self._create_subprocess([self.gemini_cmd, "--list-sessions"], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=self.working_dir)
                 stdout, stderr = await proc.communicate()
                 raw_content = stdout.decode() + stderr.decode()
                 content = self._filter_errors(raw_content)
@@ -867,9 +971,8 @@ class GeminiAgent:
                 all_sessions = all_sessions[::-1]
                 
             except Exception as e:
-                global_log(f"Error fetching sessions for {user_id}: {e}", level="DEBUG")
+                global_log(f"Error in get_user_sessions (fetching): {str(e)}")
                 return []
-
         # --- Grouping Logic: Display them as one (the latest fork) ---
         
         def get_root(u):
@@ -1201,7 +1304,7 @@ class GeminiAgent:
         for target_uuid in list(related_uuids):
             try:
                 # 1. Delete from CLI
-                await (await asyncio.create_subprocess_exec(self.gemini_cmd, "--delete-session", target_uuid, cwd=self.working_dir)).communicate()
+                await (await self._create_subprocess([self.gemini_cmd, "--delete-session", target_uuid], cwd=self.working_dir)).communicate()
                 
                 # 2. Cleanup local tracking
                 if target_uuid in user_info["sessions"]:
@@ -1411,6 +1514,131 @@ class FileConversionService:
             raise ConversionServiceError(f"Conversion failed: {e}")
 
 
+import os
+import shutil
+import asyncio
+import logging
+import uuid
+import sys
+import subprocess
+from datetime import datetime
+
+logger = logging.getLogger(__name__)
+
+def global_log(msg, level="INFO"):
+    if LOG_LEVEL == "NONE":
+        return
+    if LOG_LEVEL == "INFO" and level == "DEBUG":
+        return
+    try:
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+        print(f"[{ts}] [{level}] [PDFService] {msg}")
+    except: pass
+
+class PDFService:
+    def __init__(self):
+        self.gs_path = self._find_ghostscript()
+        if self.gs_path:
+            global_log(f"Ghostscript found at: {self.gs_path}", level="INFO")
+        else:
+            global_log("Ghostscript not found. PDF compression will be skipped.", level="WARNING")
+
+    def _find_ghostscript(self):
+        # Check for common Ghostscript executable names
+        for name in ["gswin64c", "gswin32c", "gs"]:
+            path = shutil.which(name)
+            if path:
+                return path
+        return None
+
+    def is_gs_available(self):
+        return self.gs_path is not None
+
+    async def compress_pdf(self, input_path: str, output_path: str) -> str:
+        """
+        Compresses a PDF file using Ghostscript.
+        Returns the path to the compressed file if successful and smaller,
+        otherwise returns the original input_path.
+        
+        Uses synchronous subprocess.run in a thread for maximum reliability on Windows.
+        """
+        if not self.is_gs_available():
+            return input_path
+
+        if not os.path.exists(input_path):
+            global_log(f"Input file not found: {input_path}", level="ERROR")
+            return input_path
+
+        # Create safe temporary paths to avoid encoding issues with Ghostscript on Windows
+        base_dir = os.path.dirname(input_path)
+        safe_id = uuid.uuid4().hex
+        safe_in_path = os.path.join(base_dir, f"gs_in_{safe_id}.pdf")
+        safe_out_path = os.path.join(base_dir, f"gs_out_{safe_id}.pdf")
+        
+        try:
+            # Copy input to safe path
+            shutil.copy2(input_path, safe_in_path)
+            
+            # Ghostscript command for ebook quality (150 dpi)
+            cmd = [
+                self.gs_path,
+                "-sDEVICE=pdfwrite",
+                "-dCompatibilityLevel=1.4",
+                "-dPDFSETTINGS=/ebook",
+                "-dNOPAUSE",
+                "-dQUIET",
+                "-dBATCH",
+                f"-sOutputFile={safe_out_path}",
+                safe_in_path
+            ]
+
+            global_log(f"Starting compression (sync thread): {input_path}", level="INFO")
+            
+            # Using asyncio.to_thread to run the synchronous subprocess call
+            # This bypasses all Proactor/Selector event loop issues on Windows.
+            def run_sync():
+                return subprocess.run(cmd, capture_output=True, text=False)
+
+            result = await asyncio.to_thread(run_sync)
+
+            if result.returncode != 0:
+                stderr_text = result.stderr.decode(errors='replace')
+                global_log(f"Ghostscript failed with return code {result.returncode}: {stderr_text}", level="ERROR")
+                return input_path
+
+            if not os.path.exists(safe_out_path):
+                global_log(f"Ghostscript finished but output file missing: {safe_out_path}", level="ERROR")
+                return input_path
+
+            # Compare sizes
+            original_size = os.path.getsize(input_path)
+            compressed_size = os.path.getsize(safe_out_path)
+            
+            reduction = original_size - compressed_size
+            if reduction > 0:
+                percent = (reduction / original_size) * 100
+                global_log(f"Compression successful: {original_size} -> {compressed_size} ({percent:.1f}% reduction)", level="INFO")
+                
+                # Move safe output to final destination
+                shutil.move(safe_out_path, output_path)
+                return output_path
+            else:
+                global_log(f"Compression did not reduce size ({original_size} -> {compressed_size}). Keeping original.", level="INFO")
+                return input_path
+
+        except Exception as e:
+            global_log(f"Error during PDF compression: {repr(e)}", level="ERROR")
+            return input_path
+        finally:
+            # Clean up temp files
+            if os.path.exists(safe_in_path):
+                try: os.remove(safe_in_path)
+                except: pass
+            if os.path.exists(safe_out_path):
+                try: os.remove(safe_out_path)
+                except: pass
+
+
 # --- ROUTERS ---
 auth_router = APIRouter()
 from fastapi import APIRouter, Request, Form, Depends, HTTPException
@@ -1577,6 +1805,8 @@ import os
 import shutil
 import json
 import asyncio
+import re
+import uuid
 from datetime import datetime
 
 
@@ -1776,9 +2006,19 @@ async def chat(request: Request, message: str = Form(...), file: Optional[list[U
     file_paths = []
     if file:
         conversion_service = request.app.state.conversion_service
+        pdf_service = request.app.state.pdf_service
         for f_upload in file:
             if f_upload.filename:
-                fpath = os.path.join(UPLOAD_DIR, os.path.basename(f_upload.filename))
+                # Sanitize filename to ensure ASCII-only for CLI compatibility
+                base_name = os.path.basename(f_upload.filename)
+                safe_name = re.sub(r'[^a-zA-Z0-9._-]', '_', base_name)
+                
+                # Fallback if sanitization leaves it empty
+                if not safe_name or safe_name.replace("_", "") == "":
+                    ext = os.path.splitext(base_name)[1]
+                    safe_name = f"upload_{uuid.uuid4().hex}{ext}"
+
+                fpath = os.path.join(UPLOAD_DIR, safe_name)
                 with open(fpath, "wb") as f: 
                     shutil.copyfileobj(f_upload.file, f)
                 
@@ -1798,6 +2038,15 @@ async def chat(request: Request, message: str = Form(...), file: Optional[list[U
                             log.warning(f"Pandoc missing, using original file: {e}")
                         else:
                             log.error(f"Conversion failed, falling back to original: {e}")
+                elif fpath.lower().endswith(".pdf"):
+                    try:
+                        # Compress PDF
+                        compressed_path = os.path.join(UPLOAD_DIR, f"compressed_{os.path.basename(fpath)}")
+                        # We use a distinct name for output to avoid issues during processing
+                        fpath = await pdf_service.compress_pdf(fpath, compressed_path)
+                    except Exception as e:
+                        import logging
+                        logging.getLogger(__name__).error(f"PDF compression failed: {e}")
                 
                 file_paths.append(os.path.relpath(fpath))
     
@@ -2016,8 +2265,14 @@ async def adm_upd(request: Request, username: str = Form(...), new_password: str
 
 # --- MAIN ---
 import os
+import sys
+import asyncio
 import mimetypes
 from fastapi import FastAPI, Request
+
+# Set Windows Event Loop Policy for subprocess support
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 # Register WebP MIME type if not present
 mimetypes.add_type('image/webp', '.webp')
@@ -2028,7 +2283,23 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from jinja2 import Environment, FileSystemLoader
 
-app = FastAPI()
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Verify/Force ProactorEventLoop on Windows at runtime
+    if sys.platform == 'win32':
+        loop = asyncio.get_running_loop()
+        from asyncio import ProactorEventLoop
+        if not isinstance(loop, ProactorEventLoop):
+            # We can't easily swap the loop if it's already running, 
+            # but we can log it for debugging.
+            print(f"WARNING: Running on {type(loop).__name__}, but ProactorEventLoop is required for subprocesses.")
+        else:
+            print("INFO: ProactorEventLoop is active.")
+    yield
+
+app = FastAPI(lifespan=lifespan)
 
 # Session Middleware
 # We enable https_only if the origin starts with https
@@ -2081,12 +2352,14 @@ user_manager = UserManager()
 auth_service = AuthService(RP_ID, RP_NAME, ORIGIN)
 agent = GeminiAgent()
 conversion_service = FileConversionService()
+pdf_service = PDFService()
 
 # App State
 app.state.user_manager = user_manager
 app.state.auth_service = auth_service
 app.state.agent = agent
 app.state.conversion_service = conversion_service
+app.state.pdf_service = pdf_service
 app.state.render = render
 app.state.UPLOAD_DIR = UPLOAD_DIR
 

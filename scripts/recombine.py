@@ -61,6 +61,7 @@ def recombine():
     llm_service_code = clean_config_ref(strip_local_imports(get_file_content('app/services/llm_service.py')))
     sync_service_code = strip_local_imports(get_file_content('app/services/pattern_sync_service.py'))
     conversion_service_code = clean_config_ref(strip_local_imports(get_file_content('app/services/conversion_service.py')))
+    pdf_service_code = clean_config_ref(strip_local_imports(get_file_content('app/services/pdf_service.py')))
     
     auth_router_code = clean_config_ref(strip_local_imports(get_file_content('app/routers/auth.py')))
     # Update auth_router setup to re-init auth_service
@@ -116,6 +117,8 @@ def recombine():
     combined.append(sync_service_code)
     combined.append("\n")
     combined.append(conversion_service_code)
+    combined.append("\n")
+    combined.append(pdf_service_code)
     combined.append("\n")
 
     # Routers
