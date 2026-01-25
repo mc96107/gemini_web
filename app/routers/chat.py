@@ -206,6 +206,7 @@ async def chat(request: Request, message: str = Form(...), file: Optional[list[U
     file_paths = []
     if file:
         conversion_service = request.app.state.conversion_service
+        pdf_service = request.app.state.pdf_service
         for f_upload in file:
             if f_upload.filename:
                 fpath = os.path.join(UPLOAD_DIR, os.path.basename(f_upload.filename))
@@ -229,6 +230,15 @@ async def chat(request: Request, message: str = Form(...), file: Optional[list[U
                             log.warning(f"Pandoc missing, using original file: {e}")
                         else:
                             log.error(f"Conversion failed, falling back to original: {e}")
+                elif fpath.lower().endswith(".pdf"):
+                    try:
+                        # Compress PDF
+                        compressed_path = os.path.join(UPLOAD_DIR, f"compressed_{os.path.basename(fpath)}")
+                        # We use a distinct name for output to avoid issues during processing
+                        fpath = await pdf_service.compress_pdf(fpath, compressed_path)
+                    except Exception as e:
+                        import logging
+                        logging.getLogger(__name__).error(f"PDF compression failed: {e}")
                 
                 file_paths.append(os.path.relpath(fpath))
     
