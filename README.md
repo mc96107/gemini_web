@@ -58,6 +58,7 @@ The application is optimized for Termux on Android.
     ```
 4.  **Run the automated Termux setup**:
     ```bash
+    pkg install ghostscript -y
     chmod +x setup_py.sh
     ./setup_py.sh
     ```
@@ -72,9 +73,13 @@ The application is optimized for Termux on Android.
 ### For Desktop / Development
 1.  Clone the repository.
 2.  Install dependencies:
-    ```bash
-    pip install -r requirements.txt
-    ```
+    *   **Ghostscript:** Required for PDF compression.
+        *   **Windows:** [Download and install Ghostscript](https://ghostscript.com/releases/gsdnld.html). Ensure the `bin` folder is in your PATH.
+        *   **Linux/macOS:** `sudo apt install ghostscript` or `brew install ghostscript`.
+    *   **Python packages:**
+        ```bash
+        pip install -r requirements.txt
+        ```
 3.  Run the application:
     ```bash
     python -m app.main
