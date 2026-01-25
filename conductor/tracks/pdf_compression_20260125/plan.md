@@ -12,13 +12,13 @@ This plan implements server-side PDF compression using Ghostscript to optimize f
 - [x] Task: Write unit tests for `pdf_service.py`. d20f92e
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Core Service Implementation' (Protocol in workflow.md) d20f92e
 
-## Phase 3: Integration & UI
+## Phase 3: Integration & UI [checkpoint: 58fb31a]
 - [x] Task: Integrate `pdf_service` into the file upload pipeline in `app/services/conversion_service.py` or the upload router. 6029330
 - [x] Task: Update the `Admin Dashboard` or server logs to show PDF compression statistics (original vs. compressed). 6029330
 - [x] Task: Write integration tests for the upload flow with PDF files. 6029330
 - [x] Task: Conductor - User Manual Verification 'Phase 3: Integration & UI' (Protocol in workflow.md) 9ce4143
 
-## Phase 4: Finalization
-- [ ] Task: Verify end-to-end flow in a Termux-like environment.
-- [ ] Task: Ensure documentation (README or a new setup guide) mentions `pkg install ghostscript` for optimal performance.
-- [ ] Task: Conductor - User Manual Verification 'Phase 4: Finalization' (Protocol in workflow.md)
+## Phase 4: Finalization [checkpoint: 4c33b19]
+- [x] Task: Verify end-to-end flow in a Termux-like environment. 58fb31a
+- [x] Task: Ensure documentation (README or a new setup guide) mentions `pkg install ghostscript` for optimal performance. 5966cfa
+- [x] Task: Conductor - User Manual Verification 'Phase 4: Finalization' (Protocol in workflow.md) 4c33b19
