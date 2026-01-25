@@ -2,7 +2,7 @@
 
 This plan implements server-side PDF compression using Ghostscript to optimize file sizes for storage and AI processing, with a graceful fallback if the tool is missing.
 
-## Phase 1: Environment & Discovery
+## Phase 1: Environment & Discovery [checkpoint: d923661]
 - [x] Task: Verify Ghostscript presence in development environment and document installation command for Termux. dd2fc62
 - [x] Task: Research and define the exact Ghostscript command-line arguments for `/ebook` preset and file output handling. dd2fc62
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Environment & Discovery' (Protocol in workflow.md) dd2fc62
