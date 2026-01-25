@@ -7,7 +7,7 @@ This plan implements server-side PDF compression using Ghostscript to optimize f
 - [x] Task: Research and define the exact Ghostscript command-line arguments for `/ebook` preset and file output handling. dd2fc62
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Environment & Discovery' (Protocol in workflow.md) dd2fc62
 
-## Phase 2: Core Service Implementation
+## Phase 2: Core Service Implementation [checkpoint: 61892d9]
 - [x] Task: Create `app/services/pdf_service.py` with a `compress_pdf` function. d20f92e
 - [x] Task: Write unit tests for `pdf_service.py`. d20f92e
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Core Service Implementation' (Protocol in workflow.md) d20f92e
