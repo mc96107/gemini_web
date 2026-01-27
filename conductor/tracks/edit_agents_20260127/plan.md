@@ -2,7 +2,7 @@
 
 This plan outlines the steps to implement a hierarchical agent management system within the Admin UI, using `AGENT.md` files with YAML frontmatter.
 
-## Phase 1: Foundation & Backend Setup
+## Phase 1: Foundation & Backend Setup [checkpoint: ba7ed45]
 Setup the directory structure, configuration, and core service for managing AGENT.md files.
 
 - [x] Task: Define AGENT_BASE_DIR in `app/core/config.py` (pointing to a configurable path, defaulting to a directory like `data/agents`). cbba867
@@ -13,8 +13,8 @@ Setup the directory structure, configuration, and core service for managing AGEN
     - Save/Update an `AGENT.md` (serializing frontmatter and body).
     - Delete an agent folder.
     5a4bf17
-- [ ] Task: Write unit tests for `agent_manager.py` (mocking filesystem).
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Foundation & Backend Setup' (Protocol in workflow.md)
+- [x] Task: Write unit tests for `agent_manager.py` (mocking filesystem). 5a4bf17
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Foundation & Backend Setup' (Protocol in workflow.md) ba7ed45
 
 ## Phase 2: API & Admin Router Integration
 Expose the agent management functionality through FastAPI endpoints.
