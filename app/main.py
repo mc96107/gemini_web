@@ -22,6 +22,7 @@ from app.services.auth_service import AuthService
 from app.services.llm_service import GeminiAgent
 from app.services.conversion_service import FileConversionService
 from app.services.pdf_service import PDFService
+from app.services.agent_manager import AgentManager
 from app.routers import auth, chat, admin
 
 from contextlib import asynccontextmanager
@@ -95,6 +96,8 @@ auth_service = AuthService(config.RP_ID, config.RP_NAME, config.ORIGIN)
 agent = GeminiAgent()
 conversion_service = FileConversionService()
 pdf_service = PDFService()
+agent_manager = AgentManager()
+agent_manager.initialize_defaults()
 
 # App State
 app.state.user_manager = user_manager
@@ -102,6 +105,7 @@ app.state.auth_service = auth_service
 app.state.agent = agent
 app.state.conversion_service = conversion_service
 app.state.pdf_service = pdf_service
+app.state.agent_manager = agent_manager
 app.state.render = render
 app.state.UPLOAD_DIR = UPLOAD_DIR
 

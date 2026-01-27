@@ -4,6 +4,7 @@ from typing import Optional
 
 from app.core import config
 from app.services.pattern_sync_service import PatternSyncService
+from app.models.agent import AgentModel
 
 router = APIRouter()
 
@@ -95,3 +96,47 @@ async def adm_upd(request: Request, username: str = Form(...), new_password: str
     user_manager = request.app.state.user_manager
     if user_manager.get_role(user) == "admin": user_manager.update_password(username, new_password)
     return RedirectResponse("/admin", status_code=303)
+
+# Agent Management Routes
+
+@router.get("/admin/agents")
+async def list_agents(request: Request, user=Depends(get_user)):
+    user_manager = request.app.state.user_manager
+    if user_manager.get_role(user) != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
+    agent_manager = request.app.state.agent_manager
+    agents = agent_manager.list_agents()
+    return agents
+
+@router.get("/admin/agents/{category}/{name}")
+async def get_agent_details(request: Request, category: str, name: str, user=Depends(get_user)):
+    user_manager = request.app.state.user_manager
+    if user_manager.get_role(user) != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
+    agent_manager = request.app.state.agent_manager
+    agent = agent_manager.get_agent(category, name)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    return agent
+
+@router.post("/admin/agents")
+async def save_agent(request: Request, agent_data: AgentModel, user=Depends(get_user)):
+    user_manager = request.app.state.user_manager
+    if user_manager.get_role(user) != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
+    agent_manager = request.app.state.agent_manager
+    success = agent_manager.save_agent(agent_data)
+    return {"success": success}
+
+@router.delete("/admin/agents/{category}/{name}")
+async def delete_agent(request: Request, category: str, name: str, user=Depends(get_user)):
+    user_manager = request.app.state.user_manager
+    if user_manager.get_role(user) != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
+    agent_manager = request.app.state.agent_manager
+    success = agent_manager.delete_agent(category, name)
+    return {"success": success}

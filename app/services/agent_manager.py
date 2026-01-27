@@ -98,3 +98,17 @@ class AgentManager:
                 print(f"Error deleting agent {category}/{folder_name}: {e}")
                 return False
         return False
+
+    def initialize_defaults(self):
+        """Initializes default agents if they don't exist."""
+        # functions/fabric/AGENT.md
+        fabric_path = self._get_agent_path("functions", "fabric")
+        if not os.path.exists(fabric_path):
+            fabric_agent = AgentModel(
+                name="Fabric Agent",
+                description="Bridge to Fabric patterns and prompts.",
+                category="functions",
+                folder_name="fabric",
+                prompt="You are a Fabric orchestrator. You can use any of the available patterns to process input."
+            )
+            self.save_agent(fabric_agent)
