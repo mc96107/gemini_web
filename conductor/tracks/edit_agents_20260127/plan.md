@@ -7,11 +7,12 @@ Setup the directory structure, configuration, and core service for managing AGEN
 
 - [x] Task: Define AGENT_BASE_DIR in `app/core/config.py` (pointing to a configurable path, defaulting to a directory like `data/agents`). cbba867
 - [x] Task: Create `app/models/agent.py` to define the `AgentModel` schema (Metadata + Content). 2c7cfc5
-- [ ] Task: Implement `app/services/agent_manager.py` with methods to:
+- [x] Task: Implement `app/services/agent_manager.py` with methods to:
     - List all agents (recursively scanning directories).
     - Read an `AGENT.md` (parsing YAML frontmatter and body).
     - Save/Update an `AGENT.md` (serializing frontmatter and body).
     - Delete an agent folder.
+    5a4bf17
 - [ ] Task: Write unit tests for `agent_manager.py` (mocking filesystem).
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: Foundation & Backend Setup' (Protocol in workflow.md)
 
