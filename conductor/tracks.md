@@ -6,6 +6,9 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ## Active Tracks
 
+- [~] **Track: Edit agents from admin webui**
+*Link: [./tracks/edit_agents_20260127/](./tracks/edit_agents_20260127/)*
+
 ---
 
 ---

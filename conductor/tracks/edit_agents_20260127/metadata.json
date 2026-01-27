@@ -1,0 +1,8 @@
+{
+  "track_id": "edit_agents_20260127",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-27T07:31:00Z",
+  "updated_at": "2026-01-27T07:31:00Z",
+  "description": "Edit agents from admin webui with hierarchical AGENT.md storage and YAML frontmatter."
+}

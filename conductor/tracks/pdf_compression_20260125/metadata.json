@@ -1,8 +1,0 @@
-{
-  "track_id": "pdf_compression_20260125",
-  "type": "feature",
-  "status": "new",
-  "created_at": "2026-01-25T11:11:00Z",
-  "updated_at": "2026-01-25T11:11:00Z",
-  "description": "compress pdfs on upload"
-}
