@@ -19,13 +19,14 @@ Setup the directory structure, configuration, and core service for managing AGEN
 ## Phase 2: API & Admin Router Integration
 Expose the agent management functionality through FastAPI endpoints.
 
-- [ ] Task: Add new routes to `app/routers/admin.py`:
+- [x] Task: Add new routes to `app/routers/admin.py`:
     - `GET /admin/agents`: Returns JSON list of all agents and categories.
     - `GET /admin/agents/{category}/{name}`: Returns agent details.
     - `POST /admin/agents`: Create or update an agent.
     - `DELETE /admin/agents/{category}/{name}`: Delete an agent.
-- [ ] Task: Implement a helper to initialize the default `functions/fabric/AGENT.md` if it doesn't exist.
-- [ ] Task: Write integration tests for the new admin API endpoints.
+    da2a103
+- [x] Task: Implement a helper to initialize the default `functions/fabric/AGENT.md` if it doesn't exist. da2a103
+- [x] Task: Write integration tests for the new admin API endpoints. da2a103
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: API & Admin Router Integration' (Protocol in workflow.md)
 
 ## Phase 3: Admin Web UI Implementation
