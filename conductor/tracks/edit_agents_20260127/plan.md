@@ -16,7 +16,7 @@ Setup the directory structure, configuration, and core service for managing AGEN
 - [x] Task: Write unit tests for `agent_manager.py` (mocking filesystem). 5a4bf17
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Foundation & Backend Setup' (Protocol in workflow.md) ba7ed45
 
-## Phase 2: API & Admin Router Integration
+## Phase 2: API & Admin Router Integration [checkpoint: 4cb8147]
 Expose the agent management functionality through FastAPI endpoints.
 
 - [x] Task: Add new routes to `app/routers/admin.py`:
@@ -27,7 +27,7 @@ Expose the agent management functionality through FastAPI endpoints.
     da2a103
 - [x] Task: Implement a helper to initialize the default `functions/fabric/AGENT.md` if it doesn't exist. da2a103
 - [x] Task: Write integration tests for the new admin API endpoints. da2a103
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: API & Admin Router Integration' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2: API & Admin Router Integration' (Protocol in workflow.md) 4cb8147
 
 ## Phase 3: Admin Web UI Implementation
 Build the frontend interface for managing agents within the existing admin template.
