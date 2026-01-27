@@ -32,9 +32,9 @@ Expose the agent management functionality through FastAPI endpoints.
 ## Phase 3: Admin Web UI Implementation
 Build the frontend interface for managing agents within the existing admin template.
 
-- [ ] Task: Update `app/templates/admin.html` (or create a partial) to include an "Agents" management section.
-- [ ] Task: Implement the "Flat List with Filtering" UI using JavaScript in `admin.html`.
-- [ ] Task: Create a modal or dedicated view for the Agent Editor (Name, Description, and a textarea for the System Prompt).
-- [ ] Task: Add client-side validation for category and folder names (sanitization).
-- [ ] Task: Verify the UI responsiveness and category filtering on mobile.
+- [x] Task: Update `app/templates/admin.html` (or create a partial) to include an "Agents" management section. e76ca1b
+- [x] Task: Implement the "Flat List with Filtering" UI using JavaScript in `admin.html`. e76ca1b
+- [x] Task: Create a modal or dedicated view for the Agent Editor (Name, Description, and a textarea for the System Prompt). e76ca1b
+- [x] Task: Add client-side validation for category and folder names (sanitization). e76ca1b
+- [x] Task: Verify the UI responsiveness and category filtering on mobile. e76ca1b
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: Admin Web UI Implementation' (Protocol in workflow.md)
