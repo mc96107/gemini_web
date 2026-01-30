@@ -131,6 +131,9 @@
         <hr class="border-secondary my-5">
 
         <h2 class="mb-4">Agent Management</h2>
+        
+        <div id="orchestration-warnings" class="mb-3"></div>
+
         <div class="row">
             <div class="col-md-12">
                 <div class="card shadow-sm">
@@ -151,6 +154,7 @@
                                 <thead>
                                     <tr>
                                         <th>Category</th>
+                                        <th>Enabled</th>
                                         <th>Name</th>
                                         <th>Folder</th>
                                         <th>Description</th>
@@ -254,6 +258,7 @@
                 allAgents = await res.json();
                 updateCategoryFilter();
                 renderAgents();
+                validateOrchestration();
             } catch (e) { console.error('Error fetching agents:', e); }
         }
 
@@ -280,8 +285,20 @@
 
             filtered.forEach(agent => {
                 const tr = document.createElement('tr');
+                const isEnabled = agent.parent !== null && agent.parent !== undefined;
+                const isRoot = agent.category === 'root';
+                
                 tr.innerHTML = `
                     <td><span class="badge bg-secondary">${agent.category}</span></td>
+                    <td>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" 
+                                id="agentEnabled_${agent.category}_${agent.folder_name}" 
+                                ${isEnabled ? 'checked' : ''}
+                                ${isRoot ? 'disabled' : ''}
+                                onchange="toggleAgentEnabled('${agent.category}', '${agent.folder_name}', this.checked)">
+                        </div>
+                    </td>
                     <td><strong>${agent.name}</strong></td>
                     <td><code>${agent.folder_name}</code></td>
                     <td class="small text-muted">${agent.description || ''}</td>
@@ -292,6 +309,53 @@
                 `;
                 tbody.appendChild(tr);
             });
+        }
+
+        async function toggleAgentEnabled(category, name, enabled) {
+            try {
+                const res = await fetch(`/admin/agents/${category}/${name}/toggle-enabled`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    validateOrchestration();
+                } else {
+                    alert('Error toggling agent status');
+                    document.getElementById(`agentEnabled_${category}_${name}`).checked = !enabled;
+                }
+            } catch (e) {
+                console.error(e);
+                alert('Error');
+                document.getElementById(`agentEnabled_${category}_${name}`).checked = !enabled;
+            }
+        }
+
+        async function validateOrchestration() {
+            try {
+                const res = await fetch('/admin/agents/validate');
+                const data = await res.json();
+                const container = document.getElementById('orchestration-warnings');
+                container.innerHTML = '';
+                
+                if (data.warnings && data.warnings.length > 0) {
+                    const alert = document.createElement('div');
+                    alert.className = 'alert alert-warning border-warning bg-dark-subtle py-2 mb-0';
+                    alert.innerHTML = `
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-exclamation-triangle-fill me-2 text-warning"></i>
+                            <div>
+                                <h6 class="alert-heading mb-1 small fw-bold">Orchestration Warnings</h6>
+                                <ul class="mb-0 small ps-3">
+                                    ${data.warnings.map(w => `<li>${w}</li>`).join('')}
+                                </ul>
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(alert);
+                }
+            } catch (e) { console.error('Validation error:', e); }
         }
 
         function showAgentEditor(agent = null) {

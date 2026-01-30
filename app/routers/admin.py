@@ -140,3 +140,26 @@ async def delete_agent(request: Request, category: str, name: str, user=Depends(
     agent_manager = request.app.state.agent_manager
     success = agent_manager.delete_agent(category, name)
     return {"success": success}
+
+@router.post("/admin/agents/{category}/{name}/toggle-enabled")
+async def toggle_agent_enabled(request: Request, category: str, name: str, user=Depends(get_user)):
+    user_manager = request.app.state.user_manager
+    if user_manager.get_role(user) != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
+    data = await request.json()
+    enabled = data.get("enabled", False)
+    
+    agent_manager = request.app.state.agent_manager
+    success = agent_manager.set_agent_enabled(category, name, enabled)
+    return {"success": success}
+
+@router.get("/admin/agents/validate")
+async def validate_orchestration(request: Request, user=Depends(get_user)):
+    user_manager = request.app.state.user_manager
+    if user_manager.get_role(user) != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
+    agent_manager = request.app.state.agent_manager
+    warnings = agent_manager.validate_orchestration()
+    return {"warnings": warnings}
