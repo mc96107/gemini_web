@@ -27,7 +27,7 @@ Implement the backend logic for managing the root orchestrator and the linking p
 - [x] Task: Write integration tests for the enabling/disabling logic and orchestration validation. [237bbd9]
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Orchestrator Management & Linking Logic' (Protocol in workflow.md) [895ec27]
 
-## Phase 3: Admin UI Enhancements
+## Phase 3: Admin UI Enhancements [checkpoint: 4c8ff02]
 Update the Admin Web UI to expose orchestration controls and validation feedback.
 
 - [x] Task: Add an "Enabled" toggle (switch) to each row in the Agent Management table in `app/templates/admin.html`. [6eee3d4]
@@ -37,4 +37,4 @@ Update the Admin Web UI to expose orchestration controls and validation feedback
 - [x] Task: Implement JavaScript logic to handle the toggle and refresh the UI state. [6eee3d4]
 - [x] Task: Add a UI warning banner or icon if `validate_orchestration` returns errors/warnings. [6eee3d4]
 - [x] Task: Verify mobile responsiveness for the new toggle. [6eee3d4]
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Admin UI Enhancements' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 3: Admin UI Enhancements' (Protocol in workflow.md) [4c8ff02]
