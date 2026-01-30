@@ -9,7 +9,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 - [x] **Track: Edit agents from admin webui**
 *Link: [./tracks/edit_agents_20260127/](./tracks/edit_agents_20260127/)*
 
-- [~] **Track: Agent Orchestration and Linking**
+- [x] **Track: Agent Orchestration and Linking**
 *Link: [./tracks/agent_orchestration_20260127/](./tracks/agent_orchestration_20260127/)*
 
 ---
