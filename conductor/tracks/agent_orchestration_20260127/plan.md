@@ -2,7 +2,7 @@
 
 This plan outlines the steps to implement a central orchestration system using a root `AGENT.md` file and hierarchical sub-agents linked via Wiki-link style YAML frontmatter.
 
-## Phase 1: Model & Serialization Updates
+## Phase 1: Model & Serialization Updates [checkpoint: 3063857]
 Update the Agent model to handle orchestration-specific fields and Wiki-link style paths.
 
 - [x] Task: Update `app/models/agent.py`'s `AgentModel` to include:
@@ -12,7 +12,7 @@ Update the Agent model to handle orchestration-specific fields and Wiki-link sty
     - `used_by`: List[str] (paths in `[[ ]]`) [a397f28]
 - [x] Task: Enhance `from_markdown` and `to_markdown` in `AgentModel` to parse and serialize Wiki-links (`[[path]]`) specifically for these fields. [a397f28]
 - [x] Task: Add unit tests for Wiki-link parsing and orchestration field serialization. [a397f28]
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Model & Serialization Updates' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Model & Serialization Updates' (Protocol in workflow.md) [3063857]
 
 ## Phase 2: Orchestrator Management & Linking Logic
 Implement the backend logic for managing the root orchestrator and the linking process.
