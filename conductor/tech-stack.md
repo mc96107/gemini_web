@@ -2,6 +2,7 @@
 
 ## Backend
 * **Language:** Python 3
+* **Orchestration Metadata:** Wiki-link style YAML frontmatter (`[[path/to/agent.md]]`) for hierarchical agent linking and tracking.
 * **Framework:** FastAPI - A modern, fast (high-performance) web framework for building APIs with Python 3.7+ based on standard Python type hints.
 * **Streaming:** Server-Sent Events (SSE) via FastAPI `StreamingResponse`.
 * **Server:** Uvicorn - An ASGI web server implementation for Python.
