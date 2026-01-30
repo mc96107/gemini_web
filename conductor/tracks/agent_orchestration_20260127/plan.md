@@ -30,11 +30,11 @@ Implement the backend logic for managing the root orchestrator and the linking p
 ## Phase 3: Admin UI Enhancements
 Update the Admin Web UI to expose orchestration controls and validation feedback.
 
-- [ ] Task: Add an "Enabled" toggle (switch) to each row in the Agent Management table in `app/templates/admin.html`.
-- [ ] Task: Create new API endpoints in `app/routers/admin.py`:
+- [x] Task: Add an "Enabled" toggle (switch) to each row in the Agent Management table in `app/templates/admin.html`. [6eee3d4]
+- [x] Task: Create new API endpoints in `app/routers/admin.py`:
     - `POST /admin/agents/{category}/{name}/toggle-enabled`: Calls the toggle logic.
-    - `GET /admin/agents/validate`: Returns orchestration validation results (warnings).
-- [ ] Task: Implement JavaScript logic to handle the toggle and refresh the UI state.
-- [ ] Task: Add a UI warning banner or icon if `validate_orchestration` returns errors/warnings.
-- [ ] Task: Verify mobile responsiveness for the new toggle.
+    - `GET /admin/agents/validate`: Returns orchestration validation results (warnings). [6eee3d4]
+- [x] Task: Implement JavaScript logic to handle the toggle and refresh the UI state. [6eee3d4]
+- [x] Task: Add a UI warning banner or icon if `validate_orchestration` returns errors/warnings. [6eee3d4]
+- [x] Task: Verify mobile responsiveness for the new toggle. [6eee3d4]
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: Admin UI Enhancements' (Protocol in workflow.md)
