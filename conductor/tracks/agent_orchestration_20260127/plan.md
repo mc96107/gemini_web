@@ -17,14 +17,14 @@ Update the Agent model to handle orchestration-specific fields and Wiki-link sty
 ## Phase 2: Orchestrator Management & Linking Logic
 Implement the backend logic for managing the root orchestrator and the linking process.
 
-- [ ] Task: Update `AgentManager` to handle the root `AGENT.md` file (which sits at project root, outside the `data/agents` directory).
-- [ ] Task: Implement `AgentManager.initialize_root_orchestrator()` to create a default root `AGENT.md` if it doesn't exist.
-- [ ] Task: Implement `AgentManager.set_agent_enabled(category, folder_name, enabled: bool)`:
+- [x] Task: Update `AgentManager` to handle the root `AGENT.md` file (which sits at project root, outside the `data/agents` directory). [237bbd9]
+- [x] Task: Implement `AgentManager.initialize_root_orchestrator()` to create a default root `AGENT.md` if it doesn't exist. [237bbd9]
+- [x] Task: Implement `AgentManager.set_agent_enabled(category, folder_name, enabled: bool)`:
     - If `True`: Add sub-agent path to root `children`, set sub-agent `parent` to `[[AGENT.md]]`, and update `used_by`.
-    - If `False`: Remove sub-agent path from root `children`, clear sub-agent `parent`, and update `used_by`.
-- [ ] Task: Implement `AgentManager.validate_orchestration()`:
-    - Check if all agents in the root's `children` list are actually referenced by name or path within the root's prompt string.
-- [ ] Task: Write integration tests for the enabling/disabling logic and orchestration validation.
+    - If `False`: Remove sub-agent path from root `children`, clear sub-agent `parent`, and update `used_by`. [237bbd9]
+- [x] Task: Implement `AgentManager.validate_orchestration()`:
+    - Check if all agents in the root's `children` list are actually referenced by name or path within the root's prompt string. [237bbd9]
+- [x] Task: Write integration tests for the enabling/disabling logic and orchestration validation. [237bbd9]
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Orchestrator Management & Linking Logic' (Protocol in workflow.md)
 
 ## Phase 3: Admin UI Enhancements
