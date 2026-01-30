@@ -14,7 +14,7 @@ Update the Agent model to handle orchestration-specific fields and Wiki-link sty
 - [x] Task: Add unit tests for Wiki-link parsing and orchestration field serialization. [a397f28]
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Model & Serialization Updates' (Protocol in workflow.md) [3063857]
 
-## Phase 2: Orchestrator Management & Linking Logic
+## Phase 2: Orchestrator Management & Linking Logic [checkpoint: 895ec27]
 Implement the backend logic for managing the root orchestrator and the linking process.
 
 - [x] Task: Update `AgentManager` to handle the root `AGENT.md` file (which sits at project root, outside the `data/agents` directory). [237bbd9]
@@ -25,7 +25,7 @@ Implement the backend logic for managing the root orchestrator and the linking p
 - [x] Task: Implement `AgentManager.validate_orchestration()`:
     - Check if all agents in the root's `children` list are actually referenced by name or path within the root's prompt string. [237bbd9]
 - [x] Task: Write integration tests for the enabling/disabling logic and orchestration validation. [237bbd9]
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Orchestrator Management & Linking Logic' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Orchestrator Management & Linking Logic' (Protocol in workflow.md) [895ec27]
 
 ## Phase 3: Admin UI Enhancements
 Update the Admin Web UI to expose orchestration controls and validation feedback.
