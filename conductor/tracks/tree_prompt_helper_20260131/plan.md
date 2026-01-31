@@ -41,9 +41,15 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 4: Frontend UI - Dynamic Inputs & Interaction' (Protocol in workflow.md) feb0bd9
 
 ## Phase 5: Refinement, Persistence & Polish
-- [ ] Task: Implement the "Review & Save" flow.
-    - [ ] Final review modal for the synthesized prompt.
-    - [ ] Success notification upon saving to `prompts/`.
-- [ ] Task: Add mobile-specific optimizations (responsive tree view, touch targets).
-- [ ] Task: Final end-to-end testing and code coverage verification.
+
+- [x] Task: Implement the "Review & Save" flow. 8d74a6a
+
+    - [x] Final review modal for the synthesized prompt.
+
+    - [x] Success notification upon saving to `prompts/`.
+
+- [x] Task: Add mobile-specific optimizations (responsive tree view, touch targets). 8d74a6a
+
+- [x] Task: Final end-to-end testing and code coverage verification. 8d74a6a
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 5: Refinement, Persistence & Polish' (Protocol in workflow.md)
