@@ -13,7 +13,7 @@
 ## Phase 2: Agent Logic & API Endpoints
 - [x] Task: Implement specialized LLM prompt logic for the Tree Helper. 1453c0b
     - [ ] Logic to enforce structured output (e.g., JSON containing the question and suggested options).
-- [ ] Task: Create `app/routers/prompt_helper.py` and register it in `app/main.py`.
+- [x] Task: Create `app/routers/prompt_helper.py` and register it in `app/main.py`. 7591c80
     - [ ] `GET /api/prompt-helper/session`: Get current tree state.
     - [ ] `POST /api/prompt-helper/start`: Initialize a new guided session.
     - [ ] `POST /api/prompt-helper/answer`: Submit answer and get next question.
