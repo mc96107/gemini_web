@@ -17,6 +17,7 @@ The Gemini Termux Agent is designed for:
 
 ## Key Features
 * **Interactive Web Chat:** A responsive chat interface featuring conversation history and dynamic UI updates.
+* **Tree Prompt Helper:** A guided, interactive tool for building complex prompts. It visualizes the prompt's evolution as a collapsible tree structure, allowing users to rewind to previous decision points and explore different branching paths.
 * **Drive Mode (Voice-Only Loop):** A hands-free conversation mode that uses voice recognition and text-to-speech to enable a continuous, eyes-free interaction loop.
 * **Mobile Swipe Gestures:** Intuitive swipe-to-open gestures for accessing chat history and session actions on mobile devices.
 * **Chat Renaming:** Manually rename chat sessions to easily identify and organize different conversations.
