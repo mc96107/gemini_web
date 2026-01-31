@@ -10,7 +10,7 @@
     - [ ] Logic for adding nodes, rewinding, and synthesizing the final prompt from gathered facts.
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Backend Infrastructure & State Management' (Protocol in workflow.md) 2fcd1d9
 
-## Phase 2: Agent Logic & API Endpoints
+## Phase 2: Agent Logic & API Endpoints [checkpoint: 31c4ec9]
 - [x] Task: Implement specialized LLM prompt logic for the Tree Helper. 1453c0b
     - [ ] Logic to enforce structured output (e.g., JSON containing the question and suggested options).
 - [x] Task: Create `app/routers/prompt_helper.py` and register it in `app/main.py`. 7591c80
@@ -19,7 +19,7 @@
     - [ ] `POST /api/prompt-helper/answer`: Submit answer and get next question.
     - [ ] `POST /api/prompt-helper/rewind`: Rewind session to a specific node.
     - [ ] `POST /api/prompt-helper/save`: Synthesize and save final prompt to `prompts/`.
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Agent Logic & API Endpoints' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Agent Logic & API Endpoints' (Protocol in workflow.md) 31c4ec9
 
 ## Phase 3: Frontend UI - Tree Visualization & Integration
 - [ ] Task: Create `static/tree_helper.js`.
