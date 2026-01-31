@@ -1,6 +1,6 @@
 # Implementation Plan: Tree Prompt Helper (Visual)
 
-## Phase 1: Backend Infrastructure & State Management
+## Phase 1: Backend Infrastructure & State Management [checkpoint: 2fcd1d9]
 - [x] Task: Create `prompts/` directory for finalized prompts. 24ee13c
     - [ ] Add `prompts/` to `.gitignore`.
 - [x] Task: Define `PromptTreeSession` Pydantic model in a new service file. 6504ec8
@@ -8,7 +8,7 @@
     - [ ] `current_node_id`: Track current position in the tree.
 - [x] Task: Implement `TreePromptService` in `app/services/tree_prompt_service.py`. d4d542f
     - [ ] Logic for adding nodes, rewinding, and synthesizing the final prompt from gathered facts.
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Backend Infrastructure & State Management' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Backend Infrastructure & State Management' (Protocol in workflow.md) 2fcd1d9
 
 ## Phase 2: Agent Logic & API Endpoints
 - [ ] Task: Implement specialized LLM prompt logic for the Tree Helper.
