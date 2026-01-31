@@ -12,27 +12,67 @@ document.addEventListener('DOMContentLoaded', () => {
     const resetBtnMobile = document.getElementById('reset-btn-mobile');
 
     window.addEventListener('tree-helper-question', (e) => {
-        const { question, options, nodeId, isComplete } = e.detail;
+        const { question, options, allowMultiple, nodeId, isComplete } = e.detail;
         
         // Append question as a bot message
         appendMessage('bot', question);
 
         if (options && options.length > 0) {
             const optionsDiv = document.createElement('div');
-            optionsDiv.className = 'd-flex flex-wrap gap-2 mt-2';
-            options.forEach(opt => {
-                const btn = document.createElement('button');
-                btn.className = 'btn btn-outline-primary btn-sm';
-                btn.innerText = opt;
-                btn.onclick = () => {
-                    appendMessage('user', opt);
+            optionsDiv.className = 'mt-2';
+            
+            if (allowMultiple) {
+                const selected = new Set();
+                const container = document.createElement('div');
+                container.className = 'd-flex flex-wrap gap-2 mb-2';
+                
+                options.forEach(opt => {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn btn-outline-primary btn-sm';
+                    btn.innerText = opt;
+                    btn.onclick = () => {
+                        if (selected.has(opt)) {
+                            selected.delete(opt);
+                            btn.classList.remove('active');
+                        } else {
+                            selected.add(opt);
+                            btn.classList.add('active');
+                        }
+                    };
+                    container.appendChild(btn);
+                });
+                
+                const submitBtn = document.createElement('button');
+                submitBtn.className = 'btn btn-primary btn-sm';
+                submitBtn.innerHTML = '<i class="bi bi-check-lg"></i> Submit';
+                submitBtn.onclick = () => {
+                    if (selected.size === 0) return;
+                    const answer = Array.from(selected).join(', ');
+                    appendMessage('user', answer);
                     if (window.promptTreeView) {
-                        window.promptTreeView.submitAnswer(nodeId, opt);
+                        window.promptTreeView.submitAnswer(nodeId, answer);
                     }
                     optionsDiv.remove();
                 };
-                optionsDiv.appendChild(btn);
-            });
+                
+                optionsDiv.appendChild(container);
+                optionsDiv.appendChild(submitBtn);
+            } else {
+                optionsDiv.className = 'd-flex flex-wrap gap-2 mt-2';
+                options.forEach(opt => {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn btn-outline-primary btn-sm';
+                    btn.innerText = opt;
+                    btn.onclick = () => {
+                        appendMessage('user', opt);
+                        if (window.promptTreeView) {
+                            window.promptTreeView.submitAnswer(nodeId, opt);
+                        }
+                        optionsDiv.remove();
+                    };
+                    optionsDiv.appendChild(btn);
+                });
+            }
             chatContainer.appendChild(optionsDiv);
             chatContainer.scrollTop = chatContainer.scrollHeight;
         }
@@ -1344,24 +1384,164 @@ document.addEventListener('DOMContentLoaded', () => {
             patternsList.innerHTML = '<div class="text-center p-3 text-muted">No patterns found.</div>';
             return;
         }
-        patternsList.innerHTML = patterns.map(p => `
-            <button type="button" class="list-group-item list-group-item-action bg-dark text-light border-secondary pattern-item" data-pattern="${p.name}">
-                <div class="d-flex w-100 justify-content-between">
-                    <h6 class="mb-1"><i class="bi bi-magic"></i> ${p.name}</h6>
-                </div>
-                <small class="text-muted">${p.description || ''}</small>
-            </button>
-        `).join('');
 
-        // Add click listeners to items
+        // Sort: User prompts first, then system patterns
+        patterns.sort((a, b) => {
+            if (a.type === 'user' && b.type !== 'user') return -1;
+            if (a.type !== 'user' && b.type === 'user') return 1;
+            return a.name.localeCompare(b.name);
+        });
+
+        patternsList.innerHTML = patterns.map(p => {
+            if (p.type === 'user') {
+                return `
+                <div class="list-group-item bg-dark text-light border-secondary d-flex justify-content-between align-items-center">
+                    <div class="flex-grow-1 cursor-pointer user-prompt-item" data-name="${p.name}">
+                        <div class="d-flex align-items-center">
+                            <h6 class="mb-1 text-info"><i class="bi bi-file-text me-2"></i>${p.name}</h6>
+                        </div>
+                        <small class="text-muted">${p.description}</small>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-warning edit-prompt-btn" data-name="${p.name}" title="Edit"><i class="bi bi-pencil"></i></button>
+                        <button class="btn btn-sm btn-outline-danger delete-prompt-btn" data-name="${p.name}" title="Delete"><i class="bi bi-trash"></i></button>
+                    </div>
+                </div>`;
+            } else {
+                return `
+                <button type="button" class="list-group-item list-group-item-action bg-dark text-light border-secondary pattern-item" data-pattern="${p.name}">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h6 class="mb-1"><i class="bi bi-magic me-2"></i>${p.name}</h6>
+                    </div>
+                    <small class="text-muted">${p.description || ''}</small>
+                </button>`;
+            }
+        }).join('');
+
+        // System Pattern Click
         document.querySelectorAll('.pattern-item').forEach(item => {
             item.addEventListener('click', () => {
                 const pattern = item.dataset.pattern;
                 messageInput.value = `/p ${pattern} ${messageInput.value}`;
                 bootstrap.Modal.getInstance(patternsModal).hide();
                 messageInput.focus();
-                // Trigger auto-resize
                 messageInput.dispatchEvent(new Event('input'));
+            });
+        });
+
+        // User Prompt Click (Load)
+        document.querySelectorAll('.user-prompt-item').forEach(item => {
+            item.addEventListener('click', async () => {
+                const name = item.dataset.name;
+                // Fetch content? Or just assume it was loaded?
+                // The list endpoint didn't return content. We need to fetch or just execute.
+                // Actually, prompts are files. We can't just "/p name" them unless the backend supports it.
+                // The backend "apply_pattern" reads from PATTERNS dict. It doesn't read files yet.
+                // BUT, the request was "list prompts... option to edit or delete".
+                // If I click it, maybe I want to RUN it?
+                // For now, let's load it into the input as text so the user can send it.
+                try {
+                    // We need an endpoint to get the content. 
+                    // We can reuse the `get_pats` if we included content, or add a simple get endpoint.
+                    // Or, we can use `read_file` via tool? No, frontend.
+                    // Let's assume for now clicking puts `/p name` and we update backend to handle file prompts.
+                    // WAIT, I updated `get_pats` but didn't update `apply_pattern`.
+                    // Let's implement client-side fetch for content to populate input.
+                    // I'll add a quick fetch logic here.
+                    const res = await fetch(`/api/prompt-helper/prompts/${name}`); // Need this endpoint? No, we have PUT/DELETE.
+                    // We don't have GET content endpoint in prompt_helper.
+                    // I will add GET /api/prompt-helper/prompts/{filename} to the router next.
+                } catch (e) {}
+            });
+        });
+        
+        // Delete Prompt
+        document.querySelectorAll('.delete-prompt-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                if (confirm(`Delete prompt "${btn.dataset.name}"?`)) {
+                    try {
+                        const res = await fetch(`/api/prompt-helper/prompts/${btn.dataset.name}`, { method: 'DELETE' });
+                        if (res.ok) {
+                            allPatterns = allPatterns.filter(p => p.name !== btn.dataset.name);
+                            renderPatterns(allPatterns);
+                        } else {
+                            alert('Failed to delete prompt.');
+                        }
+                    } catch (err) {
+                        console.error(err);
+                    }
+                }
+            });
+        });
+
+        // Edit Prompt (Open Modal)
+        document.querySelectorAll('.edit-prompt-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const name = btn.dataset.name;
+                const modalEl = document.getElementById('editPromptModal');
+                const editModal = new bootstrap.Modal(modalEl);
+                
+                try {
+                    const res = await fetch(`/api/prompt-helper/prompts/${name}`);
+                    const data = await res.json();
+                    if (data.content) {
+                        document.getElementById('edit-prompt-filename').value = name;
+                        document.getElementById('edit-prompt-content').value = data.content;
+                        editModal.show();
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert('Failed to load prompt content.');
+                }
+            });
+        });
+
+        // Handle Prompt Save
+        const savePromptBtn = document.getElementById('btn-save-prompt-edit');
+        if (savePromptBtn) {
+            savePromptBtn.onclick = async () => {
+                const filename = document.getElementById('edit-prompt-filename').value;
+                const content = document.getElementById('edit-prompt-content').value;
+                const formData = new FormData();
+                formData.append('content', content);
+
+                try {
+                    const res = await fetch(`/api/prompt-helper/prompts/${filename}`, {
+                        method: 'PUT',
+                        body: formData
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        showToast('Prompt updated successfully!');
+                        bootstrap.Modal.getInstance(document.getElementById('editPromptModal')).hide();
+                    } else {
+                        alert('Failed to update prompt.');
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert('Error saving prompt.');
+                }
+            };
+        }
+        
+        // User Prompt Item Click (Load content into chat input)
+        document.querySelectorAll('.user-prompt-item').forEach(item => {
+            item.addEventListener('click', async () => {
+                const name = item.dataset.name;
+                try {
+                    const res = await fetch(`/api/prompt-helper/prompts/${name}`);
+                    const data = await res.json();
+                    if (data.content) {
+                        messageInput.value = data.content;
+                        bootstrap.Modal.getInstance(patternsModal).hide();
+                        messageInput.focus();
+                        messageInput.dispatchEvent(new Event('input'));
+                    }
+                } catch (err) {
+                    console.error(err);
+                }
             });
         });
     }

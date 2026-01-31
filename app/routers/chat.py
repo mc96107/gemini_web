@@ -190,13 +190,34 @@ async def get_pats(request: Request):
     import re
     expl = PATTERNS.get("__explanations__", "")
     res = []
+    
+    # Custom Prompts
+    prompts_dir = "prompts"
+    if os.path.exists(prompts_dir):
+        for filename in os.listdir(prompts_dir):
+            if filename.endswith(".md") or filename.endswith(".txt"):
+                res.append({
+                    "name": filename,
+                    "description": "User generated prompt",
+                    "type": "user"
+                })
+
     for line in expl.splitlines():
         m = re.match(r"^\d+\.\s+\*\*(?P<name>.*?)\*\*: (?P<description>.*)", line.strip())
-        if m: res.append(m.groupdict())
+        if m: 
+            item = m.groupdict()
+            item["type"] = "system"
+            res.append(item)
         elif "suggest_pattern" in line:
             m = re.search(r"\*\*(?P<name>suggest_pattern)\*\*, (?P<description>.*)", line)
-            if m: res.append(m.groupdict())
-    if not res: res = [{"name": k, "description": ""} for k in agent.list_patterns()]
+            if m: 
+                item = m.groupdict()
+                item["type"] = "system"
+                res.append(item)
+    
+    if not res: 
+        res = [{"name": k, "description": "", "type": "system"} for k in agent.list_patterns()]
+        
     return res
 
 @router.post("/chat")

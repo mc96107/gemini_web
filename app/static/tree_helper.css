@@ -1,0 +1,29 @@
+.cursor-pointer {
+    cursor: pointer;
+}
+
+#tree-helper-container {
+    position: fixed;
+    top: 70px;
+    bottom: auto;
+    right: 20px;
+    width: 350px;
+    z-index: 3000;
+    display: none;
+}
+
+@media (max-width: 768px) {
+    #tree-helper-container {
+        width: 94%;
+        left: 3%;
+        right: 3%;
+        top: 60px;
+        bottom: auto;
+        max-height: 40vh; /* Prevent covering too much on mobile */
+        overflow-y: auto;
+    }
+}
+
+.tree-node-active {
+    border-left: 3px solid var(--bs-primary);
+}

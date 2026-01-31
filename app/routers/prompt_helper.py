@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from app.core import config
 
-router = APIRouter(prefix="/api/prompt-helper")
+router = APIRouter()
 
 async def get_user(request: Request):
     user = request.session.get("user")
@@ -31,7 +31,21 @@ async def start_session(request: Request, user=Depends(get_user)):
     tree_service = request.app.state.tree_prompt_service
     llm_service = request.app.state.agent
     
-    session_id = tree_service.create_session()
+    # Get active chat context if available
+    chat_context = None
+    try:
+        if user in llm_service.user_data:
+            active_uuid = llm_service.user_data[user].get("active_session")
+            if active_uuid:
+                # Fetch last 10 messages from active session
+                msg_data = await llm_service.get_session_messages(active_uuid, limit=10)
+                messages = msg_data.get("messages", [])
+                if messages:
+                    chat_context = "\n".join([f"{m['role'].upper()}: {m['content']}" for m in messages])
+    except Exception as e:
+        print(f"Error fetching chat context: {e}")
+
+    session_id = tree_service.create_session(context=chat_context)
     request.session["prompt_tree_session_id"] = session_id
     
     # Generate the first question
@@ -40,7 +54,8 @@ async def start_session(request: Request, user=Depends(get_user)):
     node_id = tree_service.add_question(
         session_id, 
         next_q["question"], 
-        options=next_q.get("options", [])
+        options=next_q.get("options", []),
+        allow_multiple=next_q.get("allow_multiple", False)
     )
     
     return {
@@ -61,6 +76,22 @@ async def answer_question(request: Request, node_id: str = Form(...), answer: st
     
     tree_service.answer_question(session_id, node_id, answer)
     
+    # Check if we were already in a 'complete' state (waiting for user to agree to synth)
+    # If the user says 'yes' to the completion question, we don't need a next question.
+    if answer.lower() in ["yes", "y", "sure", "ok", "proceed", "show me"]:
+        # We can just return success and let the frontend show the Save button
+        # which is rendered based on node.answer being present.
+        return {
+            "success": True,
+            "next_question": {
+                "question": "I have gathered enough information. Click 'Save Final Prompt' to see the result.",
+                "options": [],
+                "reasoning": "User agreed to finalize.",
+                "is_complete": True
+            },
+            "node_id": None
+        }
+
     # Generate the next question
     next_q = await tree_service.generate_next_question(session_id, llm_service)
     
@@ -69,7 +100,8 @@ async def answer_question(request: Request, node_id: str = Form(...), answer: st
         new_node_id = tree_service.add_question(
             session_id, 
             next_q["question"], 
-            options=next_q.get("options", [])
+            options=next_q.get("options", []),
+            allow_multiple=next_q.get("allow_multiple", False)
         )
     
     return {
@@ -77,6 +109,18 @@ async def answer_question(request: Request, node_id: str = Form(...), answer: st
         "next_question": next_q,
         "node_id": new_node_id
     }
+
+@router.post("/edit")
+async def edit_answer(request: Request, node_id: str = Form(...), answer: str = Form(...), user=Depends(get_user)):
+    tree_service = request.app.state.tree_prompt_service
+    session_id = request.session.get("prompt_tree_session_id")
+    
+    if not session_id:
+        raise HTTPException(400, "No active session")
+    
+    tree_service.answer_question(session_id, node_id, answer)
+    
+    return {"success": True}
 
 @router.post("/rewind")
 async def rewind_session(request: Request, node_id: str = Form(...), user=Depends(get_user)):
@@ -94,12 +138,13 @@ async def rewind_session(request: Request, node_id: str = Form(...), user=Depend
 @router.post("/save")
 async def save_prompt(request: Request, title: str = Form(...), user=Depends(get_user)):
     tree_service = request.app.state.tree_prompt_service
+    llm_service = request.app.state.agent
     session_id = request.session.get("prompt_tree_session_id")
     
     if not session_id:
         raise HTTPException(400, "No active session")
     
-    prompt_text = tree_service.synthesize_prompt(session_id)
+    prompt_text = await tree_service.synthesize_prompt(session_id, llm_service)
     
     # Save to prompts/ directory
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -111,3 +156,51 @@ async def save_prompt(request: Request, title: str = Form(...), user=Depends(get
         f.write(prompt_text)
     
     return {"success": True, "filename": filename, "prompt": prompt_text}
+
+@router.get("/prompts/{filename}")
+async def get_prompt_content(filename: str, user=Depends(get_user)):
+    if ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(400, "Invalid filename")
+        
+    filepath = os.path.join("prompts", filename)
+    if os.path.exists(filepath):
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                content = f.read()
+            return {"success": True, "content": content}
+        except Exception as e:
+            raise HTTPException(500, f"Failed to read file: {e}")
+    else:
+        raise HTTPException(404, "Prompt not found")
+
+@router.delete("/prompts/{filename}")
+async def delete_prompt(filename: str, request: Request, user=Depends(get_user)):
+    # Security check: filename should be simple to avoid path traversal
+    if ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(400, "Invalid filename")
+    
+    filepath = os.path.join("prompts", filename)
+    if os.path.exists(filepath):
+        try:
+            os.remove(filepath)
+            return {"success": True}
+        except Exception as e:
+            raise HTTPException(500, f"Failed to delete file: {e}")
+    else:
+        raise HTTPException(404, "Prompt not found")
+
+@router.put("/prompts/{filename}")
+async def update_prompt(filename: str, request: Request, content: str = Form(...), user=Depends(get_user)):
+    if ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(400, "Invalid filename")
+        
+    filepath = os.path.join("prompts", filename)
+    if os.path.exists(filepath):
+        try:
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(content)
+            return {"success": True}
+        except Exception as e:
+            raise HTTPException(500, f"Failed to update file: {e}")
+    else:
+        raise HTTPException(404, "Prompt not found")

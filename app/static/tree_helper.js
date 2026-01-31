@@ -22,10 +22,11 @@ class PromptTreeView {
                 this.sessionId = data.session.id;
                 this.nodes = data.session.nodes;
                 this.currentNodeId = data.session.current_node_id;
-                this.render();
             }
+            this.render();
         } catch (error) {
             console.error('Error initializing PromptTreeView:', error);
+            this.render();
         }
     }
 
@@ -45,11 +46,16 @@ class PromptTreeView {
     }
 
     async refreshSession() {
-        const response = await fetch('/api/prompt-helper/session');
-        const data = await response.json();
-        if (data.session) {
-            this.nodes = data.session.nodes;
-            this.currentNodeId = data.session.current_node_id;
+        try {
+            const response = await fetch('/api/prompt-helper/session');
+            const data = await response.json();
+            if (data.session) {
+                this.nodes = data.session.nodes;
+                this.currentNodeId = data.session.current_node_id;
+            }
+            this.render();
+        } catch (error) {
+            console.error('Error refreshing session:', error);
             this.render();
         }
     }
@@ -77,11 +83,31 @@ class PromptTreeView {
         }
     }
 
+    async editAnswer(nodeId, newAnswer) {
+        const formData = new FormData();
+        formData.append('node_id', nodeId);
+        formData.append('answer', newAnswer);
+
+        try {
+            const response = await fetch('/api/prompt-helper/edit', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            if (data.success) {
+                await this.refreshSession();
+            }
+        } catch (error) {
+            console.error('Error editing answer:', error);
+        }
+    }
+
     dispatchQuestion(questionData, nodeId) {
         const event = new CustomEvent('tree-helper-question', {
             detail: {
                 question: questionData.question,
                 options: questionData.options,
+                allowMultiple: questionData.allow_multiple,
                 nodeId: nodeId,
                 isComplete: questionData.is_complete
             }
@@ -151,10 +177,30 @@ class PromptTreeView {
         cardHeader.className = 'card-header bg-dark text-info d-flex justify-content-between align-items-center border-bottom border-secondary';
         cardHeader.innerHTML = '<span class="fw-bold"><i class="bi bi-diagram-3 me-2"></i>Prompt Helper</span>';
         
+        const headerActions = document.createElement('div');
+        headerActions.className = 'd-flex gap-2';
+
+        if (this.sessionId) {
+            const newBtn = document.createElement('button');
+            newBtn.className = 'btn btn-sm btn-outline-info p-0 px-1';
+            newBtn.innerHTML = '<i class="bi bi-plus-lg" title="Start Over"></i>';
+            newBtn.onclick = (e) => {
+                e.stopPropagation();
+                if (confirm('Start a fresh guided session? Current progress will be lost.')) {
+                    this.sessionId = null;
+                    this.nodes = [];
+                    this.render();
+                }
+            };
+            headerActions.appendChild(newBtn);
+        }
+
         const closeBtn = document.createElement('button');
         closeBtn.className = 'btn-close btn-close-white';
         closeBtn.onclick = () => this.container.style.display = 'none';
-        cardHeader.appendChild(closeBtn);
+        
+        headerActions.appendChild(closeBtn);
+        cardHeader.appendChild(headerActions);
         
         const cardBody = document.createElement('div');
         cardBody.className = 'card-body p-0 bg-black';
@@ -176,8 +222,25 @@ class PromptTreeView {
             questionText.className = 'small fw-bold text-info';
             questionText.innerText = node.question;
             
+            const actions = document.createElement('div');
+            actions.className = 'd-flex gap-2';
+
+            if (node.answer) {
+                const editIcon = document.createElement('i');
+                editIcon.className = 'bi bi-pencil text-muted cursor-pointer hover-info';
+                editIcon.title = "Edit answer";
+                editIcon.onclick = (e) => {
+                    e.stopPropagation();
+                    const newAns = prompt('Update your answer:', node.answer);
+                    if (newAns !== null && newAns !== node.answer) {
+                        this.editAnswer(node.id, newAns);
+                    }
+                };
+                actions.appendChild(editIcon);
+            }
+
             const rewindIcon = document.createElement('i');
-            rewindIcon.className = 'bi bi-arrow-counterclockwise text-muted cursor-pointer hover-info ms-2';
+            rewindIcon.className = 'bi bi-arrow-counterclockwise text-muted cursor-pointer hover-info';
             rewindIcon.title = "Rewind to here";
             rewindIcon.onclick = (e) => {
                 e.stopPropagation();
@@ -185,9 +248,10 @@ class PromptTreeView {
                     this.rewindTo(node.id);
                 }
             };
+            actions.appendChild(rewindIcon);
 
             content.appendChild(questionText);
-            content.appendChild(rewindIcon);
+            content.appendChild(actions);
             
             const answerText = document.createElement('div');
             answerText.className = 'mt-1 small text-secondary italic';
@@ -228,11 +292,6 @@ class PromptTreeView {
                  cardBody.appendChild(footer);
             }
         }
-
-        treeCard.appendChild(cardHeader);
-        treeCard.appendChild(cardBody);
-        this.container.appendChild(treeCard);
-    }
 
         treeCard.appendChild(cardHeader);
         treeCard.appendChild(cardBody);

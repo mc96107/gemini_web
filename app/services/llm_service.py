@@ -193,7 +193,26 @@ class GeminiAgent:
         return sorted([k for k in PATTERNS.keys() if k != "__explanations__"])
 
     async def apply_pattern(self, user_id: str, pattern_name: str, input_text: str, model: Optional[str] = None, file_paths: Optional[List[str]] = None) -> str:
+        # Check if it's a custom prompt file
+        prompts_dir = os.path.join(self.working_dir, "prompts")
+        if os.path.exists(prompts_dir):
+            # Try exact match first
+            custom_path = os.path.join(prompts_dir, pattern_name)
+            if os.path.exists(custom_path):
+                try:
+                    with open(custom_path, "r", encoding="utf-8") as f:
+                        system = f.read()
+                    return await self.generate_response(user_id, f"{system}\n\nUSER INPUT:\n{input_text}", model=model, file_paths=file_paths)
+                except Exception as e:
+                    return f"Error reading custom prompt '{pattern_name}': {str(e)}"
+
+        # Fallback to system patterns
         system = PATTERNS.get(pattern_name)
+        if not system: 
+            # Try removing colon if present (common issue)
+            clean_name = pattern_name.rstrip(":")
+            system = PATTERNS.get(clean_name)
+            
         if not system: return f"Error: Pattern '{pattern_name}' not found."
         return await self.generate_response(user_id, f"{system}\n\nUSER INPUT:\n{input_text}", model=model, file_paths=file_paths)
 

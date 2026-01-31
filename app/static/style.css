@@ -169,25 +169,127 @@ textarea#message-input:focus {
     color: #888;
 }
 /* Mobile Safe Area Fixes */
-html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
-.container-fluid { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
-@supports (height: 100dvh) {
-    .container-fluid { height: 100dvh; }
+html, body { 
+    height: 100%; 
+    margin: 0; 
+    padding: 0; 
+    overflow: hidden; 
+    overscroll-behavior: none; 
+    background-color: var(--chat-bg);
+}
+.container-fluid { 
+    height: 100vh; 
+    height: 100dvh; 
+    display: flex; 
+    flex-direction: column; 
+    overflow: hidden; 
+}
+
+header {
+    flex-shrink: 0;
+    z-index: 100;
 }
 
 #chat-container { 
-    flex: 1 1 0%;
-    min-height: 0;
+    flex: 1;
     overflow-y: auto;
     background-color: var(--chat-bg);
-    padding-bottom: 2rem;
-    touch-action: pan-y;
+    padding-bottom: 1rem;
+    -webkit-overflow-scrolling: touch;
 }
 
 footer {
     flex-shrink: 0;
-    padding-bottom: calc(1rem + env(safe-area-inset-bottom)) !important;
+    width: 100%;
+    background-color: #000;
+    border-top: 1px solid var(--border-color);
+    z-index: 100;
+    padding: 0.5rem 0.75rem !important;
 }
+
+@media (max-width: 768px) {
+    #chat-container {
+        padding-bottom: 6rem !important; /* Space for the fixed footer */
+    }
+    footer {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        padding: 0.25rem 0.5rem !important;
+        padding-bottom: calc(0.25rem + env(safe-area-inset-bottom)) !important;
+    }
+    footer .text-center {
+        display: none;
+    }
+    textarea#message-input {
+        padding: 0.4rem 0.8rem;
+        min-height: 36px;
+        font-size: 0.9rem;
+        border-radius: 1rem !important;
+    }
+}
+
+@media (max-width: 768px) {
+
+    #chat-container {
+
+        padding-bottom: 6rem !important; /* Reduced since footer is smaller */
+
+    }
+
+    footer {
+
+        position: fixed;
+
+        bottom: 0;
+
+        left: 0;
+
+        width: 100%;
+
+        padding: 0.25rem 0.5rem !important;
+
+        padding-bottom: calc(0.25rem + env(safe-area-inset-bottom)) !important;
+
+    }
+
+    footer .text-center {
+
+        display: none; /* Hide model label on mobile to save space */
+
+    }
+
+    textarea#message-input {
+
+        padding: 0.4rem 0.8rem;
+
+        min-height: 36px;
+
+        font-size: 0.9rem;
+
+        border-radius: 1rem !important;
+
+    }
+
+    #send-btn, #stop-btn {
+
+        width: 36px !important;
+
+        height: 36px !important;
+
+        padding: 0 !important;
+
+        display: flex;
+
+        align-items: center;
+
+        justify-content: center;
+
+    }
+
+}
+
 /* Action Buttons in Messages */
 .message { 
     position: relative; 

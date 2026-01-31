@@ -13,3 +13,4 @@ class PromptTreeSession(BaseModel):
     id: str
     nodes: List[TreeNode] = []
     current_node_id: Optional[str] = None
+    context: Optional[str] = None
