@@ -131,6 +131,29 @@ async def save_agent(request: Request, agent_data: AgentModel, user=Depends(get_
     success = agent_manager.save_agent(agent_data)
     return {"success": success}
 
+@router.get("/admin/agents/root")
+async def get_root_agent(request: Request, user=Depends(get_user)):
+    user_manager = request.app.state.user_manager
+    if user_manager.get_role(user) != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
+    agent_manager = request.app.state.agent_manager
+    agent = agent_manager.get_root_orchestrator()
+    if not agent:
+        agent_manager.initialize_root_orchestrator()
+        agent = agent_manager.get_root_orchestrator()
+    return agent
+
+@router.post("/admin/agents/root")
+async def save_root_agent(request: Request, agent_data: AgentModel, user=Depends(get_user)):
+    user_manager = request.app.state.user_manager
+    if user_manager.get_role(user) != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
+    agent_manager = request.app.state.agent_manager
+    success = agent_manager.save_root_orchestrator(agent_data)
+    return {"success": success}
+
 @router.delete("/admin/agents/{category}/{name}")
 async def delete_agent(request: Request, category: str, name: str, user=Depends(get_user)):
     user_manager = request.app.state.user_manager

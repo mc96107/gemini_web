@@ -16,15 +16,8 @@ def temp_agent_dir():
 
 def test_initialize_root_orchestrator(temp_agent_dir):
     with patch('app.core.config.AGENT_BASE_DIR', os.path.join(temp_agent_dir, "data", "agents")):
-        # We need to mock os.getcwd() or the part of AgentManager that uses it
-        # Actually AgentManager uses config.AGENT_BASE_DIR. 
-        # But root AGENT.md is at project root.
         project_root = temp_agent_dir
-        
-        # We need AgentManager to know about project root. 
-        # Let's assume we'll add a project_root attribute or similar.
         manager = AgentManager()
-        # For testing, let's explicitly set project_root if we add it
         manager.project_root = project_root
         
         manager.initialize_root_orchestrator()
@@ -47,7 +40,7 @@ def test_set_agent_enabled(temp_agent_dir):
         # Create a dummy agent
         agent = AgentModel(
             name="Child Agent",
-            description="Child",
+            description="Child Description",
             category="test",
             folder_name="child",
             prompt="I am a child"
@@ -61,7 +54,11 @@ def test_set_agent_enabled(temp_agent_dir):
         # Check root AGENT.md
         root = manager.get_root_orchestrator()
         expected_path = "data/agents/test/child/AGENT.md"
-        assert expected_path in root.children
+        child_paths = [c.path for c in root.children]
+        assert expected_path in child_paths
+        
+        # Check description preservation
+        assert root.children[0].description == "Child Description"
         
         # Check child AGENT.md
         child = manager.get_agent("test", "child")
@@ -73,7 +70,8 @@ def test_set_agent_enabled(temp_agent_dir):
         
         # Check root again
         root = manager.get_root_orchestrator()
-        assert expected_path not in root.children
+        child_paths = [c.path for c in root.children]
+        assert expected_path not in child_paths
         
         # Check child again
         child = manager.get_agent("test", "child")

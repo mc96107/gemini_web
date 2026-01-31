@@ -144,6 +144,9 @@
                                 <select id="categoryFilter" class="form-select form-select-sm bg-dark text-light border-secondary" style="width: auto;" onchange="renderAgents()">
                                     <option value="all">All Categories</option>
                                 </select>
+                                <button class="btn btn-sm btn-outline-info" onclick="editRootAgent()">
+                                    <i class="bi bi-gear-fill me-1"></i> Root Orchestrator
+                                </button>
                                 <button class="btn btn-sm btn-primary" onclick="showAgentEditor()">
                                     <i class="bi bi-plus-lg me-1"></i> New Agent
                                 </button>
@@ -382,6 +385,14 @@
             } catch (e) { console.error(e); alert('Error fetching agent details'); }
         }
 
+        async function editRootAgent() {
+            try {
+                const res = await fetch('/admin/agents/root');
+                const agent = await res.json();
+                showAgentEditor(agent);
+            } catch (e) { console.error(e); alert('Error fetching root agent'); }
+        }
+
         async function saveAgent() {
             const agentData = {
                 category: document.getElementById('agentCategory').value.trim(),
@@ -396,8 +407,10 @@
                 return;
             }
 
+            const url = agentData.category === 'root' ? '/admin/agents/root' : '/admin/agents';
+
             try {
-                const res = await fetch('/admin/agents', {
+                const res = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(agentData)

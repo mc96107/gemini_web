@@ -1,40 +1,55 @@
 import re
-from typing import List, Optional
+from typing import List, Optional, Dict, Union
 from pydantic import BaseModel
 
+class AgentLink(BaseModel):
+    path: str
+    description: Optional[str] = None
+
 class AgentModel(BaseModel):
+    id: Optional[str] = None
     name: str
     description: str
     category: str
     folder_name: str
     prompt: str
     type: str = "FunctionAgent"
-    children: List[str] = []
+    children: List[AgentLink] = []
+    uses: List[AgentLink] = []
+    projects: List[AgentLink] = []
     parent: Optional[str] = None
     used_by: List[str] = []
 
     def to_markdown(self) -> str:
         """Serializes the agent to AGENT.md format with YAML frontmatter."""
-        lines = [
-            "---",
-            f"name: {self.name}",
-            f"description: {self.description}",
-            f"type: {self.type}"
-        ]
+        lines = ["---"]
+        if self.id:
+            lines.append(f"id: {self.id}")
+        lines.append(f"name: {self.name}")
+        lines.append(f"description: {self.description}")
+        lines.append(f"type: {self.type}")
         
-        if self.children:
-            # Format: [[child1], [child2]]
-            children_str = ", ".join([f"[{child}]" for child in self.children])
-            lines.append(f"children: [{children_str}]")
-            
+        def add_link_list(key, items: List[AgentLink]):
+            if items:
+                lines.append(f"{key}:")
+                for item in items:
+                    line = f"  - [[{item.path}]]"
+                    if item.description:
+                        line += f" # {item.description}"
+                    lines.append(line)
+        
+        add_link_list("children", self.children)
+        add_link_list("uses", self.uses)
+        add_link_list("projects", self.projects)
+        
         if self.parent:
             lines.append(f"parent: [[{self.parent}]]")
             
         if self.used_by:
-            # Format: [[user1], [user2]]
-            used_by_str = ", ".join([f"[{user}]" for user in self.used_by])
-            lines.append(f"used_by: [{used_by_str}]")
-            
+            lines.append("used_by:")
+            for ub in self.used_by:
+                lines.append(f"  - [[{ub}]]")
+        
         lines.append("---")
         lines.append(self.prompt)
         
@@ -43,16 +58,10 @@ class AgentModel(BaseModel):
     @classmethod
     def from_markdown(cls, content: str, category: str, folder_name: str) -> "AgentModel":
         """Parses an AGENT.md content into an AgentModel."""
-        # Simple regex to extract YAML frontmatter
-        # Matches:
-        # ---
-        # key: value
-        # ---
-        # content
-        pattern = r"^---\s*\n(.*?)\n---\s*\n(.*)$"
-        match = re.search(pattern, content, re.DOTALL | re.MULTILINE)
+        # Split by frontmatter delimiters
+        parts = content.split("---")
         
-        if not match:
+        if len(parts) < 3:
             # Fallback if no frontmatter
             return cls(
                 name=folder_name,
@@ -62,44 +71,56 @@ class AgentModel(BaseModel):
                 prompt=content.strip()
             )
         
-        frontmatter_raw = match.group(1)
-        prompt = match.group(2).strip()
+        frontmatter_raw = parts[1].strip()
+        prompt = "---".join(parts[2:]).strip()
         
+        # Robust parsing for multi-line YAML-ish fields
         metadata = {}
+        current_key = None
         for line in frontmatter_raw.splitlines():
-            if ":" in line:
-                key, value = line.split(":", 1)
-                metadata[key.strip()] = value.strip()
+            stripped = line.strip()
+            if not stripped: continue
+            
+            # Key: Value or Key: (start of list)
+            if ":" in line and not stripped.startswith("-"):
+                if ":" in stripped:
+                    key, value = stripped.split(":", 1)
+                    current_key = key.strip()
+                    metadata[current_key] = value.strip()
+                else:
+                    current_key = stripped.replace(":", "").strip()
+                    metadata[current_key] = ""
+            # Continued list item or indented block
+            elif current_key:
+                metadata[current_key] += "\n" + line # Keep indentation for lists
         
-        # Helper to extract [[path]] from string
-        # Matches [path] inside the string. 
-        # For [[path]], it matches [path] (inner).
-        # For [[path1], [path2]], it matches [path1] and [path2].
-        def extract_paths(value_str: str) -> List[str]:
-            return re.findall(r"\[([^\[\]]+)\]", value_str)
+        def parse_links(value_str: str) -> List[AgentLink]:
+            links = []
+            for line in value_str.splitlines():
+                # Extract [[path]]
+                path_match = re.search(r"\[\[(.*?)\]\]", line)
+                if path_match:
+                    path = path_match.group(1)
+                    # Extract description after #
+                    comment_match = re.search(r"#\s*(.*)", line)
+                    description = comment_match.group(1).strip() if comment_match else None
+                    links.append(AgentLink(path=path, description=description))
+            return links
 
-        children = []
-        if "children" in metadata:
-            children = extract_paths(metadata["children"])
-            
-        used_by = []
-        if "used_by" in metadata:
-            used_by = extract_paths(metadata["used_by"])
-            
-        parent = None
-        if "parent" in metadata:
-            paths = extract_paths(metadata["parent"])
-            if paths:
-                parent = paths[0]
-        
+        def extract_simple_paths(value_str: str) -> List[str]:
+            return [l.path for l in parse_links(value_str)]
+
         return cls(
+            id=metadata.get("id"),
             name=metadata.get("name", folder_name),
             description=metadata.get("description", ""),
             category=category,
             folder_name=folder_name,
             prompt=prompt,
             type=metadata.get("type", "FunctionAgent"),
-            children=children,
-            parent=parent,
-            used_by=used_by
+            children=parse_links(metadata.get("children", "")),
+            uses=parse_links(metadata.get("uses", "")),
+            projects=parse_links(metadata.get("projects", "")),
+            parent=extract_simple_paths(metadata.get("parent", ""))[0] if extract_simple_paths(metadata.get("parent", "")) else None,
+            used_by=extract_simple_paths(metadata.get("used_by", ""))
         )

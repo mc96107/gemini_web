@@ -62,6 +62,8 @@ def recombine():
     sync_service_code = strip_local_imports(get_file_content('app/services/pattern_sync_service.py'))
     conversion_service_code = clean_config_ref(strip_local_imports(get_file_content('app/services/conversion_service.py')))
     pdf_service_code = clean_config_ref(strip_local_imports(get_file_content('app/services/pdf_service.py')))
+    agent_model_code = strip_local_imports(get_file_content('app/models/agent.py'))
+    agent_manager_code = clean_config_ref(strip_local_imports(get_file_content('app/services/agent_manager.py')))
     
     auth_router_code = clean_config_ref(strip_local_imports(get_file_content('app/routers/auth.py')))
     # Update auth_router setup to re-init auth_service
@@ -80,6 +82,7 @@ def recombine():
     # Headers
     combined.append("import json, os, mimetypes, hashlib, asyncio, re, secrets, shutil, uvicorn, bcrypt, subprocess, sys, base64, httpx, pypandoc, pandas as pd")
     combined.append("from typing import Dict, Optional, List, Tuple, Any")
+    combined.append("from pydantic import BaseModel")
     combined.append("from fastapi import FastAPI, Request, Form, UploadFile, File, HTTPException, Depends, APIRouter")
     combined.append("from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response, FileResponse")
     combined.append("from fastapi.staticfiles import StaticFiles")
@@ -106,6 +109,11 @@ def recombine():
     combined.append(f"STATIC = {json.dumps(static, indent=4)}")
     combined.append("\n")
 
+    # Models
+    combined.append("# --- MODELS ---")
+    combined.append(agent_model_code)
+    combined.append("\n")
+
     # Services
     combined.append("# --- SERVICES ---")
     combined.append(user_manager_code)
@@ -119,6 +127,8 @@ def recombine():
     combined.append(conversion_service_code)
     combined.append("\n")
     combined.append(pdf_service_code)
+    combined.append("\n")
+    combined.append(agent_manager_code)
     combined.append("\n")
 
     # Routers
