@@ -368,24 +368,6 @@ footer {
     cursor: pointer;
 }
 
-#tree-helper-container {
-    position: fixed;
-    bottom: 80px;
-    right: 20px;
-    width: 350px;
-    z-index: 1050;
-    display: none;
-}
-
-@media (max-width: 768px) {
-    #tree-helper-container {
-        width: 90%;
-        left: 5%;
-        right: 5%;
-        bottom: 70px;
-    }
-}
-
 .tree-node-active {
     border-left: 3px solid var(--bs-primary);
 }
