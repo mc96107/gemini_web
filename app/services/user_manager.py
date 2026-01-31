@@ -77,6 +77,13 @@ class UserManager:
     def get_role(self, username: str) -> Optional[str]:
         return self.users.get(username, {}).get("role")
 
+    def update_role(self, username: str, new_role: str) -> bool:
+        if username not in self.users: return False
+        if new_role not in ["user", "admin"]: return False
+        self.users[username]["role"] = new_role
+        self._save_users()
+        return True
+
     def add_passkey(self, username: str, cred_id, pub_key, sign_count: int = 0) -> bool:
         if username not in self.users: return False
         if isinstance(cred_id, bytes): cred_id = bytes_to_base64url(cred_id)

@@ -289,6 +289,14 @@
             </div>
             <div id="wallet-link-status" class="mt-2 small"></div>
         </div>
+        <hr class="border-secondary">
+        <div class="mb-3">
+            <h6><i class="bi bi-sliders"></i> Preferences</h6>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="setting-show-mic">
+                <label class="form-check-label" for="setting-show-mic">Show Drive Mode (Mic)</label>
+            </div>
+        </div>
       </div>
     </div>
   </div>
@@ -742,6 +750,10 @@
     window.INITIAL_MESSAGES = {{ initial_messages | tojson }};
     window.TOTAL_MESSAGES = {{ total_messages }};
     window.ACTIVE_SESSION_UUID = "{{ active_session.uuid if active_session else '' }}";
+    window.USER_SETTINGS = {{ user_settings | tojson }};
+
+    // Mobile Height Fix
+
 </script>
 <script src="/static/script.js?v={{ range(1, 999999) | random }}"></script>
 <script src="/static/tree_helper.js?v={{ range(1, 999999) | random }}"></script>

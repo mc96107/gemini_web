@@ -243,9 +243,39 @@ document.addEventListener('DOMContentLoaded', () => {
     const driveModeBtn = document.getElementById('drive-mode-btn');
     const driveMode = new DriveModeManager();
 
-    if (driveMode.isSupported() && driveModeBtn) {
-        driveModeBtn.classList.remove('d-none');
+    const showMicSetting = document.getElementById('setting-show-mic');
+    if (showMicSetting && window.USER_SETTINGS) {
+        showMicSetting.checked = window.USER_SETTINGS.show_mic !== false;
+        
+        showMicSetting.onchange = async () => {
+            const enabled = showMicSetting.checked;
+            try {
+                const response = await fetch('/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ show_mic: enabled })
+                });
+                if (response.ok) {
+                    window.USER_SETTINGS.show_mic = enabled;
+                    updateDriveModeVisibility();
+                }
+            } catch (err) {
+                console.error('Error saving setting:', err);
+            }
+        };
     }
+
+    function updateDriveModeVisibility() {
+        if (!driveModeBtn) return;
+        const isEnabled = window.USER_SETTINGS && window.USER_SETTINGS.show_mic !== false;
+        if (driveMode.isSupported() && isEnabled) {
+            driveModeBtn.classList.remove('d-none');
+        } else {
+            driveModeBtn.classList.add('d-none');
+        }
+    }
+
+    updateDriveModeVisibility();
 
     driveModeBtn?.addEventListener('click', () => {
         if (!driveMode.isActive) {

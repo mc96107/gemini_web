@@ -42,6 +42,8 @@ async def index(request: Request, user=Depends(get_user)):
         if len(initial_messages) == 20:
             has_more = True
     
+    user_settings = agent.get_user_settings(user)
+
     return request.app.state.render(
         "index.html", 
         request=request, 
@@ -50,8 +52,23 @@ async def index(request: Request, user=Depends(get_user)):
         initial_messages=initial_messages,
         active_session=active_session,
         has_more=has_more,
-        total_messages=total_messages
+        total_messages=total_messages,
+        user_settings=user_settings
     )
+
+@router.get("/settings")
+async def get_settings(request: Request, user=Depends(get_user)):
+    agent = request.app.state.agent
+    if not user: raise HTTPException(401)
+    return agent.get_user_settings(user)
+
+@router.post("/settings")
+async def update_settings(request: Request, user=Depends(get_user)):
+    agent = request.app.state.agent
+    if not user: raise HTTPException(401)
+    data = await request.json()
+    agent.update_user_settings(user, data)
+    return {"success": True}
 
 @router.get("/sessions")
 async def get_sess(request: Request, limit: Optional[int] = None, offset: int = 0, tags: Optional[str] = None, user=Depends(get_user)):

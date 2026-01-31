@@ -91,6 +91,14 @@ async def adm_tog_pat(request: Request, username: str = Form(...), disabled: str
         return {"success": True}
     return {"success": False}
 
+@router.post("/admin/user/toggle-role")
+async def adm_tog_role(request: Request, username: str = Form(...), role: str = Form(...), user=Depends(get_user)):
+    user_manager = request.app.state.user_manager
+    if user_manager.get_role(user) == "admin":
+        if user_manager.update_role(username, role):
+            return {"success": True}
+    return {"success": False}
+
 @router.post("/admin/user/update-password")
 async def adm_upd(request: Request, username: str = Form(...), new_password: str = Form(...), user=Depends(get_user)):
     user_manager = request.app.state.user_manager

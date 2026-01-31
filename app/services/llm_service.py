@@ -121,12 +121,26 @@ class GeminiAgent:
                         if "pending_tools" not in data[uid]: data[uid]["pending_tools"] = []
                         if "pinned_sessions" not in data[uid]: data[uid]["pinned_sessions"] = []
                         if "session_metadata" not in data[uid]: data[uid]["session_metadata"] = {}
+                        if "settings" not in data[uid]: data[uid]["settings"] = {"show_mic": True}
                     return data
             except: return {}
         return {}
 
     def _save_user_data(self):
         with open(self.session_file, "w") as f: json.dump(self.user_data, f, indent=2)
+
+    def get_user_settings(self, user_id: str) -> Dict:
+        if user_id not in self.user_data: return {"show_mic": True}
+        return self.user_data[user_id].get("settings", {"show_mic": True})
+
+    def update_user_settings(self, user_id: str, settings: Dict):
+        if user_id not in self.user_data:
+            self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": [], "pinned_sessions": [], "session_metadata": {}, "settings": settings}
+        else:
+            if "settings" not in self.user_data[user_id]:
+                self.user_data[user_id]["settings"] = {}
+            self.user_data[user_id]["settings"].update(settings)
+        self._save_user_data()
 
     async def _create_subprocess(self, args, **kwargs):
         try:
