@@ -33,11 +33,11 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 3: Frontend UI - Tree Visualization & Integration' (Protocol in workflow.md) 18f7a48
 
 ## Phase 4: Frontend UI - Dynamic Inputs & Interaction
-- [ ] Task: Enhance input rendering logic to handle dynamic fields.
-    - [ ] Render buttons when `suggested_options` are present.
-    - [ ] Render standard text input otherwise.
-- [ ] Task: Wire up tree node clicks to trigger the rewind API.
-- [ ] Task: Implement real-time synchronization between chat messages and the tree view.
+- [x] Task: Enhance input rendering logic to handle dynamic fields. dab7d34
+    - [x] Render buttons when `suggested_options` are present.
+    - [x] Render standard text input otherwise.
+- [x] Task: Wire up tree node clicks to trigger the rewind API. dab7d34
+- [x] Task: Implement real-time synchronization between chat messages and the tree view. dab7d34
 - [ ] Task: Conductor - User Manual Verification 'Phase 4: Frontend UI - Dynamic Inputs & Interaction' (Protocol in workflow.md)
 
 ## Phase 5: Refinement, Persistence & Polish
