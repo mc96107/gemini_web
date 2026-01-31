@@ -6,7 +6,7 @@
 - [x] Task: Define `PromptTreeSession` Pydantic model in a new service file. 6504ec8
     - [ ] `nodes`: List of question/answer objects with hierarchical links.
     - [ ] `current_node_id`: Track current position in the tree.
-- [ ] Task: Implement `TreePromptService` in `app/services/tree_prompt_service.py`.
+- [x] Task: Implement `TreePromptService` in `app/services/tree_prompt_service.py`. d4d542f
     - [ ] Logic for adding nodes, rewinding, and synthesizing the final prompt from gathered facts.
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: Backend Infrastructure & State Management' (Protocol in workflow.md)
 
