@@ -11,6 +11,11 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
+- [x] **Track: tree prompt helper - visual**
+*Link: [./tracks/tree_prompt_helper_20260131/](./tracks/tree_prompt_helper_20260131/)*
+
+---
+
 ---
 
 ## Completed Tracks
