@@ -25,9 +25,9 @@
 - [x] Task: Create `static/tree_helper.js`. c6fedf8
     - [ ] Implement a `PromptTreeView` class using vanilla JS and CSS.
     - [ ] Use a collapsible nested list structure for the tree representation.
-- [ ] Task: Update `static/style.css`.
+- [x] Task: Update `static/style.css`. c6fedf8
     - [ ] Add styles for tree nodes, active path, and "rewind" interaction states.
-- [ ] Task: Update `templates/index.html`.
+- [x] Task: Update `templates/index.html`. c6fedf8
     - [ ] Add container for the tree view (sidebar or toggleable panel).
     - [ ] Add "Prompt Helper" mode toggle in the main interface.
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: Frontend UI - Tree Visualization & Integration' (Protocol in workflow.md)
