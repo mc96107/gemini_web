@@ -40,7 +40,7 @@
 - [x] Task: Implement real-time synchronization between chat messages and the tree view. dab7d34
 - [x] Task: Conductor - User Manual Verification 'Phase 4: Frontend UI - Dynamic Inputs & Interaction' (Protocol in workflow.md) feb0bd9
 
-## Phase 5: Refinement, Persistence & Polish
+## Phase 5: Refinement, Persistence & Polish [checkpoint: 26f25ba]
 
 - [x] Task: Implement the "Review & Save" flow. 8d74a6a
 
@@ -52,4 +52,4 @@
 
 - [x] Task: Final end-to-end testing and code coverage verification. 8d74a6a
 
-- [ ] Task: Conductor - User Manual Verification 'Phase 5: Refinement, Persistence & Polish' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 5: Refinement, Persistence & Polish' (Protocol in workflow.md) 26f25ba
