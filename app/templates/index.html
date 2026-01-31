@@ -131,6 +131,8 @@
       </div>
     </div>
 
+    <div id="tree-helper-container"></div>
+
     <!-- Chat Area -->
     <div id="chat-container" class="flex-grow-1 overflow-auto p-3 position-relative">
         <div id="drag-drop-overlay" class="d-none position-absolute top-0 start-0 w-100 h-100 d-flex flex-column align-items-center justify-content-center bg-dark bg-opacity-75" style="z-index: 1000; pointer-events: none;">
@@ -714,6 +716,31 @@
     window.ACTIVE_SESSION_UUID = "{{ active_session.uuid if active_session else '' }}";
 </script>
 <script src="/static/script.js?v={{ range(1, 999999) | random }}"></script>
+<script src="/static/tree_helper.js?v={{ range(1, 999999) | random }}"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const treeView = new PromptTreeView('tree-helper-container');
+        treeView.init();
+
+        const toggleBtn = document.getElementById('tree-view-btn');
+        const toggleBtnMobile = document.getElementById('tree-view-btn-mobile');
+        const container = document.getElementById('tree-helper-container');
+
+        const toggleTree = () => {
+            if (container.style.display === 'none' || container.style.display === '') {
+                container.style.display = 'block';
+                treeView.refreshSession();
+            } else {
+                container.style.display = 'none';
+            }
+        };
+
+        if (toggleBtn) toggleBtn.onclick = toggleTree;
+        if (toggleBtnMobile) toggleBtnMobile.onclick = toggleTree;
+        
+        window.promptTreeView = treeView;
+    });
+</script>
 <script>
     /*
     if ('serviceWorker' in navigator) {
