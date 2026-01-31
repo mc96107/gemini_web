@@ -6,10 +6,14 @@ A mobile-first, secure web interface for interacting with Google's Gemini AI, sp
 
 *   **Modular Architecture:** Cleanly separated backend (FastAPI), frontend (Jinja2/Bootstrap), and service layers.
 *   **Multi-Modal Chat:** Support for text and file attachments.
+*   **Tree Prompt Helper:** A context-aware, guided system to help you build professional and effective system prompts through interactive Q&A.
 *   **Conversation Branching:** Edit previous questions to fork conversations and explore different paths seamlessly.
 *   **Tree View Visualization:** Visualize and navigate your conversation branches as a structured tree.
+*   **Custom Prompt Management:** Save, edit, and delete your own synthesized prompts directly within the UI. Custom prompts are integrated into the Patterns modal for easy reuse.
 *   **Advanced Chat Management:** Organize your history with tags, pinning, and custom chat titles.
-*   **Mobile-First UX:** Optimized for Termux with intuitive swipe gestures (swipe left for history, right for actions).
+*   **User Role Management:** Admins can manage users and toggle roles (user/admin) directly from the dashboard.
+*   **Per-User Preferences:** Customize your experience, such as showing or hiding the Drive Mode (Mic) icon.
+*   **Mobile-First UX:** Optimized for Termux with 100dvh support and intuitive swipe gestures (swipe left for history, right for actions).
 *   **Advanced Authentication:** Login via Passkeys (WebAuthn), Ethereum Wallet signatures, or traditional passwords.
 *   **Progressive Web App (PWA):** Install the agent directly to your home screen for an app-like experience.
 *   **Pattern-Based Prompting:** Leverage specialized prompts for consistent, high-quality AI responses.
@@ -90,9 +94,13 @@ The application is optimized for Termux on Android.
 1.  **Initial Setup**: On your first run, visit `http://localhost:8000/setup` to create the admin user and configure your `GOOGLE_API_KEY`.
 2.  **Login**: Use the credentials created during setup. You can later add Passkeys or Link an Ethereum Wallet for faster login.
 3.  **Chatting**: Simply type your message in the chat box. Use the "Patterns" button to select specialized AI personas.
-4.  **Branching & Editing**: Click the edit icon next to any of your previous questions to fork the conversation from that point and explore a new path.
-5.  **History & Organization**: Access previous conversations via the sidebar. Use the "Tags" button to categorize chats and the "Tree" button to visualize conversation branches.
-6.  **Mobile Navigation**: Swipe from the left edge to open your chat history, or from the right edge to access chat actions.
+4.  **Tree Prompt Helper**: Click the "Prompt Helper" button in the actions menu to start a guided session. The helper will use your recent chat context to ask relevant questions. Once finished, you can synthesize and save a custom system prompt.
+5.  **Custom Prompts**: Access your saved prompts at the top of the "Patterns" list. Click a prompt to load it, or use the icons to edit or delete the file.
+6.  **Branching & Editing**: Click the edit icon next to any of your previous questions to fork the conversation from that point and explore a new path.
+7.  **History & Organization**: Access previous conversations via the sidebar. Use the "Tags" button to categorize chats and the "Tree" button to visualize conversation branches.
+8.  **User Management & Admin**: Admins can visit `/admin` to add/remove users and change user roles by clicking on the role badge in the user list.
+9.  **Preferences**: Open the "Security" modal (shield icon) to toggle general preferences, like showing/hiding the microphone icon.
+10. **Mobile Navigation**: Swipe from the left edge to open your chat history, or from the right edge to access chat actions.
 7.  **PWA**: For the best experience, use the "Add to Home Screen" option in your mobile browser to install it as a Progressive Web App.
 
 ## Building for Release
