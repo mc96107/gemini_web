@@ -11,7 +11,7 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Backend Infrastructure & State Management' (Protocol in workflow.md) 2fcd1d9
 
 ## Phase 2: Agent Logic & API Endpoints
-- [ ] Task: Implement specialized LLM prompt logic for the Tree Helper.
+- [x] Task: Implement specialized LLM prompt logic for the Tree Helper. 1453c0b
     - [ ] Logic to enforce structured output (e.g., JSON containing the question and suggested options).
 - [ ] Task: Create `app/routers/prompt_helper.py` and register it in `app/main.py`.
     - [ ] `GET /api/prompt-helper/session`: Get current tree state.
