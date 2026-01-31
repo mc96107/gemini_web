@@ -11,6 +11,50 @@ document.addEventListener('DOMContentLoaded', () => {
     const resetBtn = document.getElementById('reset-btn');
     const resetBtnMobile = document.getElementById('reset-btn-mobile');
 
+    window.addEventListener('tree-helper-question', (e) => {
+        const { question, options, nodeId, isComplete } = e.detail;
+        
+        // Append question as a bot message
+        appendMessage('bot', question);
+
+        if (options && options.length > 0) {
+            const optionsDiv = document.createElement('div');
+            optionsDiv.className = 'd-flex flex-wrap gap-2 mt-2';
+            options.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.className = 'btn btn-outline-primary btn-sm';
+                btn.innerText = opt;
+                btn.onclick = () => {
+                    appendMessage('user', opt);
+                    if (window.promptTreeView) {
+                        window.promptTreeView.submitAnswer(nodeId, opt);
+                    }
+                    optionsDiv.remove();
+                };
+                optionsDiv.appendChild(btn);
+            });
+            chatContainer.appendChild(optionsDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+    });
+
+    window.addEventListener('tree-helper-rewind', (e) => {
+        // When rewinding, we might want to clear the chat messages related to the tree
+        // For simplicity, let's just show a notification or clear the bottom of chat
+        appendMessage('bot', '[System: Session rewound to previous node.]');
+    });
+
+    window.addEventListener('tree-helper-save', (e) => {
+        const { filename, prompt } = e.detail;
+        appendMessage('bot', `Prompt saved to **${filename}**:\n\n\`\`\`markdown\n${prompt}\n\`\`\``);
+        // Clear session from tree view to allow starting over
+        if (window.promptTreeView) {
+            window.promptTreeView.sessionId = null;
+            window.promptTreeView.nodes = [];
+            window.promptTreeView.render();
+        }
+    });
+
     async function handleReset() {
         if (confirm('Are you sure you want to clear the conversation history?')) {
             try {
@@ -1392,6 +1436,20 @@ document.addEventListener('DOMContentLoaded', () => {
         
         appendMessage('user', message + attachmentText, null, firstFile, userMsgIndex);
         window.TOTAL_MESSAGES = userMsgIndex + 1;
+
+        // --- Tree Helper Integration ---
+        if (window.promptTreeView && window.promptTreeView.sessionId) {
+            // Check if there's an active node waiting for answer
+            const activeNode = window.promptTreeView.nodes.find(n => n.id === window.promptTreeView.currentNodeId && !n.answer);
+            if (activeNode) {
+                window.promptTreeView.submitAnswer(activeNode.id, message);
+                messageInput.value = '';
+                messageInput.style.height = '';
+                attachments.clear();
+                return; // Stop standard chat flow
+            }
+        }
+        // ------------------------------
         
         // Clear inputs immediately
         messageInput.value = '';

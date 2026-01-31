@@ -36,8 +36,8 @@ class PromptTreeView {
             if (data.success) {
                 this.sessionId = data.session_id;
                 this.currentNodeId = data.node_id;
-                // Fetch updated session to get full node list
                 await this.refreshSession();
+                this.dispatchQuestion(data.next_question, data.node_id);
             }
         } catch (error) {
             console.error('Error starting new session:', error);
@@ -67,11 +67,26 @@ class PromptTreeView {
             const data = await response.json();
             if (data.success) {
                 await this.refreshSession();
+                if (data.next_question) {
+                    this.dispatchQuestion(data.next_question, data.node_id);
+                }
                 if (this.onAnswerCallback) this.onAnswerCallback(data);
             }
         } catch (error) {
             console.error('Error submitting answer:', error);
         }
+    }
+
+    dispatchQuestion(questionData, nodeId) {
+        const event = new CustomEvent('tree-helper-question', {
+            detail: {
+                question: questionData.question,
+                options: questionData.options,
+                nodeId: nodeId,
+                isComplete: questionData.is_complete
+            }
+        });
+        window.dispatchEvent(event);
     }
 
     async rewindTo(nodeId) {
@@ -86,6 +101,16 @@ class PromptTreeView {
             const data = await response.json();
             if (data.success) {
                 await this.refreshSession();
+                
+                // Trigger event for UI to clear subsequent messages
+                window.dispatchEvent(new CustomEvent('tree-helper-rewind', { detail: { nodeId } }));
+                
+                // Get the now-unanswered question to re-ask
+                const node = this.nodes.find(n => n.id === nodeId);
+                if (node) {
+                    this.dispatchQuestion(node, nodeId);
+                }
+
                 if (this.onRewindCallback) this.onRewindCallback(data);
             }
         } catch (error) {
@@ -103,8 +128,9 @@ class PromptTreeView {
                 body: formData
             });
             const data = await response.json();
-            if (data.success && this.onSaveCallback) {
-                this.onSaveCallback(data);
+            if (data.success) {
+                window.dispatchEvent(new CustomEvent('tree-helper-save', { detail: data }));
+                if (this.onSaveCallback) this.onSaveCallback(data);
             }
             return data;
         } catch (error) {
