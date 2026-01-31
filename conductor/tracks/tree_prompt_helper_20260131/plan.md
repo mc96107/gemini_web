@@ -3,7 +3,7 @@
 ## Phase 1: Backend Infrastructure & State Management
 - [x] Task: Create `prompts/` directory for finalized prompts. 24ee13c
     - [ ] Add `prompts/` to `.gitignore`.
-- [ ] Task: Define `PromptTreeSession` Pydantic model in a new service file.
+- [x] Task: Define `PromptTreeSession` Pydantic model in a new service file. 6504ec8
     - [ ] `nodes`: List of question/answer objects with hierarchical links.
     - [ ] `current_node_id`: Track current position in the tree.
 - [ ] Task: Implement `TreePromptService` in `app/services/tree_prompt_service.py`.
