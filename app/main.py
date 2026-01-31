@@ -23,7 +23,8 @@ from app.services.llm_service import GeminiAgent
 from app.services.conversion_service import FileConversionService
 from app.services.pdf_service import PDFService
 from app.services.agent_manager import AgentManager
-from app.routers import auth, chat, admin
+from app.services.tree_prompt_service import TreePromptService
+from app.routers import auth, chat, admin, prompt_helper
 
 from contextlib import asynccontextmanager
 
@@ -98,6 +99,7 @@ conversion_service = FileConversionService()
 pdf_service = PDFService()
 agent_manager = AgentManager()
 agent_manager.initialize_defaults()
+tree_prompt_service = TreePromptService()
 
 # App State
 app.state.user_manager = user_manager
@@ -106,6 +108,7 @@ app.state.agent = agent
 app.state.conversion_service = conversion_service
 app.state.pdf_service = pdf_service
 app.state.agent_manager = agent_manager
+app.state.tree_prompt_service = tree_prompt_service
 app.state.render = render
 app.state.UPLOAD_DIR = UPLOAD_DIR
 
@@ -130,6 +133,7 @@ async def serve_upload(filename: str):
 app.include_router(auth.router)
 app.include_router(chat.router)
 app.include_router(admin.router)
+app.include_router(prompt_helper.router)
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
