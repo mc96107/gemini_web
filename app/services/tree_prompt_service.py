@@ -1,4 +1,6 @@
 import uuid
+import re
+import json
 from typing import List, Optional, Dict
 from app.models.prompt_tree import TreeNode, PromptTreeSession
 
@@ -73,3 +75,63 @@ class TreePromptService:
                 lines.append("")
         
         return "\n".join(lines).strip()
+
+    async def generate_next_question(self, session_id: str, llm_service) -> Optional[Dict]:
+        """
+        Uses LLM to analyze the current tree and generate the next logical question.
+        Returns a dict with 'question' and 'options' (if any).
+        """
+        session = self.get_session(session_id)
+        if not session:
+            raise ValueError("Session not found")
+
+        # Build context from existing nodes
+        context = []
+        for node in session.nodes:
+            if node.answer:
+                context.append(f"Question: {node.question}\nAnswer: {node.answer}")
+        
+        context_str = "\n\n".join(context) if context else "No questions answered yet. This is the start of the session."
+
+        system_prompt = """
+        You are an expert prompt engineer. Your goal is to help the user build a high-quality, effective prompt through a guided interaction.
+        Based on the information gathered so far, your task is to ask the NEXT logical question to further refine the prompt.
+        
+        Output your response EXCLUSIVELY in JSON format with the following keys:
+        - "question": The question to ask the user.
+        - "options": A list of suggested short answers (buttons), or an empty list [] if it's an open-ended question.
+        - "reasoning": A brief explanation of why you are asking this question.
+        - "is_complete": Boolean, true if you have enough information to synthesize the final prompt.
+
+        Guidelines:
+        - Keep questions concise and focused.
+        - Provide 2-4 options when possible to make it easier for the user.
+        - If 'is_complete' is true, set 'question' to "I have gathered enough information. Would you like to review the synthesized prompt?"
+        """
+
+        prompt = f"### GATHERED INFORMATION:\n{context_str}\n\n### TASK:\nGenerate the next question to help build a great prompt."
+        
+        # We need a user_id for the llm_service. We'll assume a system user or pass it.
+        # For this implementation, we'll assume llm_service is an instance of GeminiAgent
+        response_text = await llm_service.generate_response("system_tree_helper", f"{system_prompt}\n\n{prompt}")
+        
+        try:
+            # Basic JSON extraction in case there's markdown wrapping
+            json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
+            if json_match:
+                data = json.loads(json_match.group(0))
+                return data
+            else:
+                return {
+                    "question": "Could you provide more details about your goals for this prompt?",
+                    "options": [],
+                    "reasoning": "Failed to parse LLM response as JSON.",
+                    "is_complete": False
+                }
+        except Exception:
+            return {
+                "question": "Could you provide more details about your goals for this prompt?",
+                "options": [],
+                "reasoning": "Exception while parsing LLM response.",
+                "is_complete": False
+            }
