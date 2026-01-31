@@ -28,6 +28,7 @@ users.json
 user_sessions.json
 adm.txt
 tmp/
+prompts/
 
 # MCP Web Inspector
 .mcp-web-inspector/
