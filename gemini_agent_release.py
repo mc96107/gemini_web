@@ -639,6 +639,11 @@ class GeminiAgent:
         self.user_data = self._load_user_data()
         self.yolo_mode = False
         self.active_tasks: Dict[str, asyncio.Task] = {}
+        
+        # Ensure prompts directory exists
+        prompts_dir = os.path.join(self.working_dir, "prompts")
+        if not os.path.exists(prompts_dir):
+            os.makedirs(prompts_dir, exist_ok=True)
 
     def _load_user_data(self) -> Dict:
         if os.path.exists(self.session_file):
@@ -3140,10 +3145,11 @@ async def save_prompt(request: Request, title: str = Form(...), user=Depends(get
     prompt_text = await tree_service.synthesize_prompt(session_id, llm_service)
     
     # Save to prompts/ directory
+    prompts_dir = os.path.join(llm_service.working_dir, "prompts")
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     safe_title = "".join([c if c.isalnum() else "_" for c in title])
     filename = f"prompt_{timestamp}_{safe_title}.md"
-    filepath = os.path.join("prompts", filename)
+    filepath = os.path.join(prompts_dir, filename)
     
     with open(filepath, "w", encoding="utf-8") as f:
         f.write(prompt_text)
@@ -3151,11 +3157,12 @@ async def save_prompt(request: Request, title: str = Form(...), user=Depends(get
     return {"success": True, "filename": filename, "prompt": prompt_text}
 
 @prompt_helper_router.get("/prompts/{filename}")
-async def get_prompt_content(filename: str, user=Depends(get_user)):
+async def get_prompt_content(filename: str, request: Request, user=Depends(get_user)):
+    llm_service = request.app.state.agent
     if ".." in filename or "/" in filename or "\\" in filename:
         raise HTTPException(400, "Invalid filename")
         
-    filepath = os.path.join("prompts", filename)
+    filepath = os.path.join(llm_service.working_dir, "prompts", filename)
     if os.path.exists(filepath):
         try:
             with open(filepath, "r", encoding="utf-8") as f:
@@ -3168,11 +3175,12 @@ async def get_prompt_content(filename: str, user=Depends(get_user)):
 
 @prompt_helper_router.delete("/prompts/{filename}")
 async def delete_prompt(filename: str, request: Request, user=Depends(get_user)):
+    llm_service = request.app.state.agent
     # Security check: filename should be simple to avoid path traversal
     if ".." in filename or "/" in filename or "\\" in filename:
         raise HTTPException(400, "Invalid filename")
     
-    filepath = os.path.join("prompts", filename)
+    filepath = os.path.join(llm_service.working_dir, "prompts", filename)
     if os.path.exists(filepath):
         try:
             os.remove(filepath)
@@ -3184,10 +3192,11 @@ async def delete_prompt(filename: str, request: Request, user=Depends(get_user))
 
 @prompt_helper_router.put("/prompts/{filename}")
 async def update_prompt(filename: str, request: Request, content: str = Form(...), user=Depends(get_user)):
+    llm_service = request.app.state.agent
     if ".." in filename or "/" in filename or "\\" in filename:
         raise HTTPException(400, "Invalid filename")
         
-    filepath = os.path.join("prompts", filename)
+    filepath = os.path.join(llm_service.working_dir, "prompts", filename)
     if os.path.exists(filepath):
         try:
             with open(filepath, "w", encoding="utf-8") as f:

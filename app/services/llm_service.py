@@ -104,6 +104,11 @@ class GeminiAgent:
         self.user_data = self._load_user_data()
         self.yolo_mode = False
         self.active_tasks: Dict[str, asyncio.Task] = {}
+        
+        # Ensure prompts directory exists
+        prompts_dir = os.path.join(self.working_dir, "prompts")
+        if not os.path.exists(prompts_dir):
+            os.makedirs(prompts_dir, exist_ok=True)
 
     def _load_user_data(self) -> Dict:
         if os.path.exists(self.session_file):
