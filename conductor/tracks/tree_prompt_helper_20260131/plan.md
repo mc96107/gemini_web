@@ -22,7 +22,7 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Agent Logic & API Endpoints' (Protocol in workflow.md) 31c4ec9
 
 ## Phase 3: Frontend UI - Tree Visualization & Integration
-- [ ] Task: Create `static/tree_helper.js`.
+- [x] Task: Create `static/tree_helper.js`. c6fedf8
     - [ ] Implement a `PromptTreeView` class using vanilla JS and CSS.
     - [ ] Use a collapsible nested list structure for the tree representation.
 - [ ] Task: Update `static/style.css`.
