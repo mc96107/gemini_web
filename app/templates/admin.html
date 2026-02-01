@@ -119,13 +119,22 @@
                             <div class="d-flex justify-content-between align-items-center mb-1">
                                 <label class="form-label small text-muted mb-0">Prompt Helper Instructions</label>
                                 <button class="btn btn-link btn-sm text-warning p-0" style="text-decoration: none; font-size: 0.7rem;" onclick="resetPromptHelperInstructions()">
-                                    <i class="bi bi-arrow-counterclockwise"></i> Reset to Default
+                                    <i class="bi bi-arrow-counterclockwise"></i> Reset
                                 </button>
                             </div>
-                            <textarea id="prompt-helper-instructions" class="form-control form-control-sm bg-dark text-light border-secondary" rows="5"></textarea>
+                            <textarea id="prompt-helper-instructions" class="form-control form-control-sm bg-dark text-light border-secondary" rows="4"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label small text-muted mb-0">Interactive Mode Instructions</label>
+                                <button class="btn btn-link btn-sm text-warning p-0" style="text-decoration: none; font-size: 0.7rem;" onclick="resetInteractiveModeInstructions()">
+                                    <i class="bi bi-arrow-counterclockwise"></i> Reset
+                                </button>
+                            </div>
+                            <textarea id="interactive-mode-instructions" class="form-control form-control-sm bg-dark text-light border-secondary" rows="4"></textarea>
                         </div>
                         <button class="btn btn-primary btn-sm w-100" onclick="saveGlobalSettings()">
-                            Save Settings
+                            Save All Settings
                         </button>
                         <div id="settings-status" class="small mt-2"></div>
                     </div>
@@ -302,12 +311,16 @@
                 if (data.prompt_helper_instructions) {
                     document.getElementById('prompt-helper-instructions').value = data.prompt_helper_instructions;
                 }
+                if (data.interactive_mode_instructions) {
+                    document.getElementById('interactive-mode-instructions').value = data.interactive_mode_instructions;
+                }
             } catch (e) { console.error('Error fetching settings:', e); }
         }
 
         async function saveGlobalSettings() {
             const status = document.getElementById('settings-status');
-            const instructions = document.getElementById('prompt-helper-instructions').value;
+            const helperInstructions = document.getElementById('prompt-helper-instructions').value;
+            const interactiveInstructions = document.getElementById('interactive-mode-instructions').value;
             
             status.textContent = 'Saving...';
             status.className = 'small mt-2 text-info';
@@ -316,7 +329,10 @@
                 const res = await fetch('/admin/settings', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ prompt_helper_instructions: instructions })
+                    body: JSON.stringify({ 
+                        prompt_helper_instructions: helperInstructions,
+                        interactive_mode_instructions: interactiveInstructions
+                    })
                 });
                 const data = await res.json();
                 if (data.success) {
@@ -354,6 +370,18 @@ Guidelines:
 - If 'is_complete' is true, set 'question' to "I have gathered enough information to build your prompt. Would you like to review it now?" and provide options ["Yes", "Not yet, I want to add more"].`;
             
             document.getElementById('prompt-helper-instructions').value = defaultInstructions;
+        }
+
+        function resetInteractiveModeInstructions() {
+            const defaultInstructions = `You can ask interactive multiple-choice or open-ended questions to the user in their preferred language (e.g., Greek).
+To trigger a question card, include a JSON block in your response using this format:
+{"type": "question", "question": "Your question text here", "options": ["Option 1", "Option 2"], "allow_multiple": false}
+- The 'question' and 'options' values should match the language of the conversation.
+- If 'allow_multiple' is true, users can select several options.
+- If 'options' is empty [], it is an open-ended question.
+The user's response will be sent back to you as a normal message.`;
+            
+            document.getElementById('interactive-mode-instructions').value = defaultInstructions;
         }
 
         function updateCategoryFilter() {
