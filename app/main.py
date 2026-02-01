@@ -133,7 +133,7 @@ async def serve_upload(filename: str):
 app.include_router(auth.router)
 app.include_router(chat.router)
 app.include_router(admin.router)
-app.include_router(prompt_helper.router)
+app.include_router(prompt_helper.router, prefix="/api/prompt-helper")
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():

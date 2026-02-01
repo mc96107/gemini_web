@@ -37,7 +37,7 @@ Connect the Prompt Helper to the new customizable instructions.
 - [x] Task: Modify `app/services/tree_prompt_service.py` to use the global "Prompt Helper Instructions" from settings. a14937a
 - [x] Task: Add a "Reset to Default" button for the helper instructions in the Admin UI. a14937a
 - [x] Task: Verify that the Prompt Helper respects the new instructions during a guided session. a14937a
-- [ ] Task: Conductor - User Manual Verification 'Phase 4: Prompt Helper Customization' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 4: Prompt Helper Customization' (Protocol in workflow.md) 841b483
 
 ## Phase 5: Verification & Polishing
 Final testing and UI/UX refinements.
