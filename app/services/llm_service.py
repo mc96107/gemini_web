@@ -362,6 +362,7 @@ class GeminiAgent:
                 stderr_task = asyncio.create_task(capture_stderr(proc.stderr))
 
                 log_debug("Starting to read stdout")
+                current_message_content = ""
                 while True:
                     line = await proc.stdout.readline()
                     if not line:
@@ -374,6 +375,24 @@ class GeminiAgent:
                     try:
                         data = json.loads(line_str)
                         
+                        # Handle interactive questioning protocol
+                        if data.get("type") == "message" and data.get("role") == "assistant":
+                            content = data.get("content", "")
+                            current_message_content += content
+                            
+                            # Look for JSON question block: {"type": "question", ...}
+                            # We search for it in the accumulated content to handle fragmentation
+                            question_match = re.search(r"\{\s*\"type\"\s*:\s*\"question\".*?\}", current_message_content, re.DOTALL)
+                            if question_match:
+                                try:
+                                    question_data = json.loads(question_match.group(0))
+                                    # Yield the question as a separate chunk
+                                    yield question_data
+                                    # Remove the question JSON from the content to avoid double-processing
+                                    current_message_content = current_message_content.replace(question_match.group(0), "")
+                                except:
+                                    pass
+
                         # Truncate large tool outputs
                         if data.get("type") == "tool_result" and "output" in data:
                             output = data["output"]
