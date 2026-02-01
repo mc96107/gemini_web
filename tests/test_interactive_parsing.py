@@ -183,6 +183,104 @@ async def test_non_question_json_transparency(tmp_path):
     async for chunk in agent.generate_response_stream(user_id, "Hello"):
         events.append(chunk)
     
-    message_content = "".join([e["content"] for e in events if e["type"] == "message"])
-    assert "Here is some code:" in message_content
-    assert code_json in message_content
+        message_content = "".join([e["content"] for e in events if e["type"] == "message"])
+    
+        assert "Here is some code:" in message_content
+    
+        assert code_json in message_content
+    
+    
+    
+    @pytest.mark.asyncio
+    
+    async def test_greek_language_support(tmp_path):
+    
+        agent = GeminiAgent(working_dir=str(tmp_path))
+    
+        user_id = "test_user"
+    
+        
+    
+        from unittest.mock import AsyncMock
+    
+        agent._create_subprocess = AsyncMock()
+    
+        mock_proc = AsyncMock()
+    
+        mock_proc.stdin = AsyncMock()
+    
+        mock_proc.stdout = AsyncMock()
+    
+        mock_proc.stderr = AsyncMock()
+    
+        mock_proc.wait = AsyncMock(return_value=0)
+    
+        mock_proc.stderr.readline = AsyncMock(return_value=b"")
+    
+        agent._create_subprocess.return_value = mock_proc
+    
+    
+    
+        # Question in Greek
+    
+        # "Ποιο είναι το αγαπημένο σας χρώμα;" (What is your favorite color?)
+    
+        question_json = {
+    
+            "type": "question", 
+    
+            "question": "Ποιο είναι το αγαπημένο σας χρώμα;", 
+    
+            "options": ["Κόκκινο", "Μπλε", "Πράσινο"], 
+    
+            "allow_multiple": False
+    
+        }
+    
+        
+    
+        chunks = [
+    
+            json.dumps({"type": "message", "role": "assistant", "content": "Ορίστε μια ερώτηση: "}).encode(),
+    
+            json.dumps({"type": "message", "role": "assistant", "content": json.dumps(question_json)}).encode(),
+    
+        ]
+    
+        
+    
+        queue = asyncio.Queue()
+    
+        for c in chunks: queue.put_nowait(c)
+    
+        queue.put_nowait(b"")
+    
+        mock_proc.stdout.readline = queue.get
+    
+    
+    
+        events = []
+    
+        async for chunk in agent.generate_response_stream(user_id, "Γεια σου"):
+    
+            events.append(chunk)
+    
+        
+    
+        questions = [e for e in events if e["type"] == "question"]
+    
+        assert len(questions) == 1
+    
+        assert questions[0]["question"] == "Ποιο είναι το αγαπημένο σας χρώμα;"
+    
+        assert "Μπλε" in questions[0]["options"]
+    
+        
+    
+        message_content = "".join([e["content"] for e in events if e["type"] == "message"])
+    
+        assert "Ορίστε μια ερώτηση:" in message_content
+    
+        assert "type" not in message_content # Ensure JSON didn't leak
+    
+    

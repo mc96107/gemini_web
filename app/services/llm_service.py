@@ -291,9 +291,10 @@ class GeminiAgent:
         if settings.get("interactive_mode", True):
             interactive_instruction = (
                 "\n\n[SYSTEM INSTRUCTION: INTERACTIVE QUESTIONING ENABLED]\n"
-                "You can ask interactive multiple-choice or open-ended questions to the user.\n"
+                "You can ask interactive multiple-choice or open-ended questions to the user in their preferred language (e.g., Greek).\n"
                 "To trigger a question card, include a JSON block in your response using this format:\n"
                 "{\"type\": \"question\", \"question\": \"Your question text here\", \"options\": [\"Option 1\", \"Option 2\"], \"allow_multiple\": false}\n"
+                "- The 'question' and 'options' values should match the language of the conversation.\n"
                 "- If 'allow_multiple' is true, users can select several options.\n"
                 "- If 'options' is empty [], it is an open-ended question.\n"
                 "The user's response will be sent back to you as a normal message."
