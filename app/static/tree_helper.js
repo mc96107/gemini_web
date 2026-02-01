@@ -187,9 +187,7 @@ class PromptTreeView {
             newBtn.onclick = (e) => {
                 e.stopPropagation();
                 if (confirm('Start a fresh guided session? Current progress will be lost.')) {
-                    this.sessionId = null;
-                    this.nodes = [];
-                    this.render();
+                    this.startNewSession();
                 }
             };
             headerActions.appendChild(newBtn);

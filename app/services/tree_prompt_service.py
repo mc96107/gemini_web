@@ -74,8 +74,10 @@ class TreePromptService:
             raise ValueError("Session not found")
         
         facts = []
+        # We don't necessarily want the raw background context in the final prompt, 
+        # but it informs the requirements.
         if session.context:
-            facts.append(f"Background Context:\n{session.context}")
+            facts.append(f"Background Context (for information only, do not include verbatim unless requested):\n{session.context}")
             
         for node in session.nodes:
             if node.answer:
@@ -93,12 +95,18 @@ class TreePromptService:
         - Specific Constraints and Guidelines.
         - Preferred Output Format.
         
-        Output ONLY the synthesized prompt text. Do not include any meta-commentary, explanations, or labels like "Synthesized Prompt:".
+        CRITICAL: Output ONLY the synthesized prompt text. 
+        - DO NOT include any meta-commentary, introductions ("Here is your prompt"), or explanations.
+        - DO NOT include any labels like "Synthesized Prompt:" or "System Prompt:".
+        - DO NOT repeat the requirements or the context provided to you.
+        - ONLY output the content that should be in the system message of the new agent.
         """
 
-        prompt = f"### GATHERED REQUIREMENTS:\n{facts_str}\n\n### TASK:\nSynthesize the final system prompt."
+        prompt = f"### GATHERED REQUIREMENTS AND CONTEXT:\n{facts_str}\n\n### TASK:\nSynthesize the final system prompt based on these requirements."
         
-        response = await llm_service.generate_response("system_tree_helper_synth", f"{system_prompt}\n\n{prompt}")
+        # Use a unique session ID and ensure we don't resume any previous context to keep the output clean
+        llm_user_id = f"synth_{session_id}"
+        response = await llm_service.generate_response(llm_user_id, f"{system_prompt}\n\n{prompt}", resume_session=None)
         return response.strip()
 
     async def generate_next_question(self, session_id: str, llm_service) -> Optional[Dict]:

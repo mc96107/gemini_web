@@ -759,16 +759,24 @@
 <script src="/static/tree_helper.js?v={{ range(1, 999999) | random }}"></script>
 <script>
         const treeView = new PromptTreeView('tree-helper-container');
-        treeView.init();
+        let treeInitialized = false;
 
         const promptHelperBtn = document.getElementById('prompt-helper-btn');
         const promptHelperBtnMobile = document.getElementById('prompt-helper-btn-mobile');
         const container = document.getElementById('tree-helper-container');
 
-        const togglePromptHelper = () => {
+        // Force initial hidden state
+        if (container) container.style.display = 'none';
+
+        const togglePromptHelper = async () => {
             if (container.style.display === 'none' || container.style.display === '') {
                 container.style.display = 'block';
-                treeView.refreshSession();
+                if (!treeInitialized) {
+                    await treeView.init();
+                    treeInitialized = true;
+                } else {
+                    await treeView.refreshSession();
+                }
             } else {
                 container.style.display = 'none';
             }
