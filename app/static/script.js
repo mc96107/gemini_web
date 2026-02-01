@@ -1767,6 +1767,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             const data = JSON.parse(dataStr);
                             if (data.type === 'message' && data.role === 'assistant') {
                                 fullText += data.content;
+                            } else if (data.type === 'question') {
+                                // Render question card
+                                renderQuestionCard(data);
                             } else if (data.type === 'model_switch') {
                                 // Update hidden input for subsequent requests
                                 if (modelInput) modelInput.value = data.new_model;
@@ -1858,6 +1861,95 @@ document.addEventListener('DOMContentLoaded', () => {
         chatContainer.appendChild(messageDiv);
         chatContainer.scrollTop = chatContainer.scrollHeight;
         return messageDiv;
+    }
+
+    function renderQuestionCard(data) {
+        const { question, options, allow_multiple } = data;
+        
+        const card = document.createElement('div');
+        card.className = 'question-card';
+        
+        const qText = document.createElement('div');
+        qText.className = 'question-text';
+        qText.innerText = question;
+        card.appendChild(qText);
+        
+        const optContainer = document.createElement('div');
+        optContainer.className = 'options-container';
+        
+        if (!options || options.length === 0) {
+            // Open-ended question
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'form-control bg-dark text-light border-secondary mb-2';
+            input.placeholder = 'Type your answer...';
+            card.appendChild(input);
+            
+            const submit = document.createElement('button');
+            submit.className = 'btn btn-primary btn-sm w-100';
+            submit.innerText = 'Submit';
+            submit.onclick = () => {
+                const val = input.value.trim();
+                if (val) {
+                    submitAnswer(val);
+                    card.remove();
+                }
+            };
+            card.appendChild(submit);
+            
+            // Allow Enter key
+            input.onkeydown = (e) => {
+                if (e.key === 'Enter') submit.click();
+            };
+        } else {
+            // Multiple choice
+            const selected = new Set();
+            
+            options.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.className = 'option-btn';
+                btn.innerText = opt;
+                btn.onclick = () => {
+                    if (allow_multiple) {
+                        if (selected.has(opt)) {
+                            selected.delete(opt);
+                            btn.classList.remove('active');
+                        } else {
+                            selected.add(opt);
+                            btn.classList.add('active');
+                        }
+                    } else {
+                        submitAnswer(opt);
+                        card.remove();
+                    }
+                };
+                optContainer.appendChild(btn);
+            });
+            
+            card.appendChild(optContainer);
+            
+            if (allow_multiple) {
+                const submit = document.createElement('button');
+                submit.className = 'btn btn-primary btn-sm submit-btn';
+                submit.innerText = 'Submit Selection';
+                submit.onclick = () => {
+                    if (selected.size > 0) {
+                        submitAnswer(Array.from(selected).join(', '));
+                        card.remove();
+                    }
+                };
+                card.appendChild(submit);
+            }
+        }
+        
+        chatContainer.appendChild(card);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    async function submitAnswer(text) {
+        // Send answer as a normal user message
+        messageInput.value = text;
+        chatForm.dispatchEvent(new Event('submit'));
     }
 
     function updateStreamingMessage(messageDiv, text, toolLogs, isFinal = false) {

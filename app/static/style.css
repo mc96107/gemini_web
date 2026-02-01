@@ -505,6 +505,70 @@ footer {
 }
 
 
+/* Question Cards */
+.question-card {
+    background-color: #1e1e1e;
+    border: 1px solid var(--message-user-bg);
+    border-radius: 1rem;
+    padding: 1rem;
+    margin-bottom: 1.2rem;
+    max-width: 85%;
+    align-self: flex-start;
+    margin-right: auto;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from { opacity: 0; transform: translateX(-20px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+.question-text {
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: #fff;
+}
+
+.options-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.option-btn {
+    background-color: #2d2d2d;
+    color: #e0e0e0;
+    border: 1px solid #444;
+    border-radius: 0.5rem;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.9rem;
+}
+
+.option-btn:hover {
+    background-color: #3d3d3d;
+    border-color: var(--message-user-bg);
+}
+
+.option-btn.active {
+    background-color: var(--message-user-bg);
+    color: #fff;
+    border-color: #fff;
+}
+
+.question-card .submit-btn {
+    margin-top: 1rem;
+    width: 100%;
+}
+
+@media (max-width: 768px) {
+    .question-card {
+        max-width: 95%;
+    }
+}
+
 /* Drive Mode Pulse Animation */
 .pulse-animation {
     animation: pulse-info 1.5s infinite;
