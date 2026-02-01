@@ -12,6 +12,9 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ## Completed Tracks
 
+- [x] **Track: Enhanced Interactive Questioning and Prompt Customization**
+*Link: [./tracks/interactive_chat_prompt_custom_20260201/](./tracks/interactive_chat_prompt_custom_20260201/)*
+
 - [x] **Track: Edit agents from admin webui**
 *Link: [./archive/edit_agents_20260127/](./archive/edit_agents_20260127/)*
 
