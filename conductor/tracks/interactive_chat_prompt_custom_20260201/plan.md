@@ -15,8 +15,8 @@ Implement the foundational storage and Admin UI for the new settings.
 ## Phase 2: Backend Protocol Implementation
 Enhance the backend to support the JSON questioning protocol and per-user toggles.
 
-- [ ] Task: Add `interactive_mode` boolean to user settings in `AgentModel` and `user_sessions.json`.
-- [ ] Task: Implement a system prompt injector that adds the "Interactive Questioning" instructions to the session if the user has it enabled.
+- [x] Task: Add `interactive_mode` boolean to user settings in `AgentModel` and `user_sessions.json`. 7cb342d
+- [~] Task: Implement a system prompt injector that adds the "Interactive Questioning" instructions to the session if the user has it enabled.
 - [ ] Task: Update `app/services/llm_service.py` to detect and parse the `{"type": "question", ...}` JSON block in the stream.
 - [ ] Task: Ensure the parsed question data is correctly wrapped in the SSE stream sent to the frontend.
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Backend Protocol Implementation' (Protocol in workflow.md)
