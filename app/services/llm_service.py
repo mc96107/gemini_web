@@ -126,7 +126,7 @@ class GeminiAgent:
                         if "pending_tools" not in data[uid]: data[uid]["pending_tools"] = []
                         if "pinned_sessions" not in data[uid]: data[uid]["pinned_sessions"] = []
                         if "session_metadata" not in data[uid]: data[uid]["session_metadata"] = {}
-                        if "settings" not in data[uid]: data[uid]["settings"] = {"show_mic": True}
+                        if "settings" not in data[uid]: data[uid]["settings"] = {"show_mic": True, "interactive_mode": True}
                     return data
             except: return {}
         return {}
@@ -135,16 +135,17 @@ class GeminiAgent:
         with open(self.session_file, "w") as f: json.dump(self.user_data, f, indent=2)
 
     def get_user_settings(self, user_id: str) -> Dict:
-        if user_id not in self.user_data: return {"show_mic": True}
-        return self.user_data[user_id].get("settings", {"show_mic": True})
+        if user_id not in self.user_data: return {"show_mic": True, "interactive_mode": True}
+        return self.user_data[user_id].get("settings", {"show_mic": True, "interactive_mode": True})
 
     def update_user_settings(self, user_id: str, settings: Dict):
         if user_id not in self.user_data:
-            self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": [], "pinned_sessions": [], "session_metadata": {}, "settings": settings}
-        else:
-            if "settings" not in self.user_data[user_id]:
-                self.user_data[user_id]["settings"] = {}
-            self.user_data[user_id]["settings"].update(settings)
+            self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": [], "pinned_sessions": [], "session_metadata": {}, "settings": {"show_mic": True, "interactive_mode": True}}
+        
+        if "settings" not in self.user_data[user_id]:
+            self.user_data[user_id]["settings"] = {"show_mic": True, "interactive_mode": True}
+            
+        self.user_data[user_id]["settings"].update(settings)
         self._save_user_data()
 
     async def _create_subprocess(self, args, **kwargs):
