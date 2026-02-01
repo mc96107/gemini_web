@@ -16,8 +16,35 @@ SESSION_SECRET = os.getenv("SESSION_SECRET", secrets.token_hex(32))
 # Application Configuration
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", os.path.join(os.getcwd(), "tmp", "user_attachments"))
 AGENT_BASE_DIR = os.getenv("AGENT_BASE_DIR", os.path.join(os.getcwd(), "data", "agents"))
+SETTINGS_FILE = os.path.join(os.getcwd(), "data", "settings.json")
 MODEL_NAME = os.getenv("MODEL_NAME", "gemini-3-pro-preview")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "NONE").upper()
+
+import json
+import logging
+
+def get_all_global_settings():
+    if os.path.exists(SETTINGS_FILE):
+        try:
+            with open(SETTINGS_FILE, "r") as f:
+                return json.load(f)
+        except Exception as e:
+            logging.error(f"Error loading settings: {e}")
+    return {}
+
+def get_global_setting(key: str, default=None):
+    settings = get_all_global_settings()
+    return settings.get(key, default)
+
+def update_global_setting(key: str, value: str):
+    settings = get_all_global_settings()
+    settings[key] = value
+    try:
+        os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
+        with open(SETTINGS_FILE, "w") as f:
+            json.dump(settings, f, indent=4)
+    except Exception as e:
+        logging.error(f"Error saving settings: {e}")
 
 def update_env(key: str, value: str):
     env_path = os.path.join(os.getcwd(), ".env")
