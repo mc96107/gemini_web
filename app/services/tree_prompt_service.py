@@ -3,6 +3,7 @@ import re
 import json
 from typing import List, Optional, Dict
 from app.models.prompt_tree import TreeNode, PromptTreeSession
+from app.core import config
 
 class TreePromptService:
     def __init__(self):
@@ -130,7 +131,7 @@ class TreePromptService:
         
         context_str = "\n\n".join(context) if context else "No questions answered yet. This is the start of the session."
 
-        system_prompt = """
+        default_instructions = """
         You are an expert prompt engineer. Your goal is to help the user build a high-quality, effective prompt through a guided interaction.
         Based on the information gathered so far, your task is to ask the NEXT logical question to further refine the prompt.
         
@@ -150,6 +151,8 @@ class TreePromptService:
         - DO NOT loop indefinitely. If you have a clear idea of the role, goal, and constraints, set 'is_complete' to true.
         - If 'is_complete' is true, set 'question' to "I have gathered enough information to build your prompt. Would you like to review it now?" and provide options ["Yes", "Not yet, I want to add more"].
         """
+        
+        system_prompt = config.get_global_setting("prompt_helper_instructions", default_instructions)
 
         prompt = f"### GATHERED INFORMATION:\n{context_str}\n\n### TASK:\nGenerate the next question to help build a great prompt."
         
