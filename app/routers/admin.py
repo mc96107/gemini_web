@@ -113,6 +113,8 @@ async def adm_tog_pat(request: Request, username: str = Form(...), disabled: str
 async def adm_tog_role(request: Request, username: str = Form(...), role: str = Form(...), user=Depends(get_user)):
     user_manager = request.app.state.user_manager
     if user_manager.get_role(user) == "admin":
+        if username == "admin" and role == "user":
+            return {"success": False, "error": "Cannot demote primary admin."}
         if user_manager.update_role(username, role):
             return {"success": True}
     return {"success": False}
