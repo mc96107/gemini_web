@@ -363,6 +363,9 @@ class GeminiAgent:
 
                 log_debug("Starting to read stdout")
                 current_message_content = ""
+                json_buffer = ""
+                in_json_block = False
+
                 while True:
                     line = await proc.stdout.readline()
                     if not line:
@@ -378,20 +381,51 @@ class GeminiAgent:
                         # Handle interactive questioning protocol
                         if data.get("type") == "message" and data.get("role") == "assistant":
                             content = data.get("content", "")
+                            
+                            # Add to global buffer for full detection
                             current_message_content += content
                             
-                            # Look for JSON question block: {"type": "question", ...}
-                            # We search for it in the accumulated content to handle fragmentation
+                            # Logic to hide JSON from the stream as it comes
+                            # We'll use a local buffer for the current 'message' sequence
+                            cleaned_content = ""
+                            for char in content:
+                                if char == '{' and not in_json_block:
+                                    # Potential start of JSON
+                                    in_json_block = True
+                                    json_buffer = char
+                                elif in_json_block:
+                                    json_buffer += char
+                                    if char == '}':
+                                        # Potential end of JSON
+                                        # Check if it's a question
+                                        if '"type": "question"' in json_buffer or '"type":"question"' in json_buffer:
+                                            # It's a question, we already yield it via global buffer logic
+                                            # but we need to ensure we don't add it to cleaned_content
+                                            in_json_block = False
+                                            json_buffer = ""
+                                        else:
+                                            # Not a question, release the buffer
+                                            cleaned_content += json_buffer
+                                            in_json_block = False
+                                            json_buffer = ""
+                                else:
+                                    cleaned_content += char
+                            
+                            data["content"] = cleaned_content
+
+                            # Global buffer handles full detection and yielding
                             question_match = re.search(r"\{\s*\"type\"\s*:\s*\"question\".*?\}", current_message_content, re.DOTALL)
                             if question_match:
                                 try:
-                                    question_data = json.loads(question_match.group(0))
-                                    # Yield the question as a separate chunk
+                                    full_match_text = question_match.group(0)
+                                    question_data = json.loads(full_match_text)
                                     yield question_data
-                                    # Remove the question JSON from the content to avoid double-processing
-                                    current_message_content = current_message_content.replace(question_match.group(0), "")
-                                except:
-                                    pass
+                                    current_message_content = current_message_content.replace(full_match_text, "")
+                                except: pass
+                            
+                            # If we have nothing to show yet (still buffering JSON), don't yield this chunk's message
+                            if not data["content"] and in_json_block:
+                                continue
 
                         # Truncate large tool outputs
                         if data.get("type") == "tool_result" and "output" in data:
