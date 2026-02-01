@@ -40,7 +40,7 @@ Connect the Prompt Helper to the new customizable instructions.
 ## Phase 5: Verification & Polishing
 Final testing and UI/UX refinements.
 
-- [ ] Task: Write integration tests for the interactive questioning flow.
-- [ ] Task: Perform end-to-end testing of the Admin customization.
+- [x] Task: Write integration tests for the interactive questioning flow. ca5cc1e
+- [~] Task: Perform end-to-end testing of the Admin customization.
 - [ ] Task: Refine the "Question Card" aesthetic to ensure it feels native to the terminal-inspired theme.
 - [ ] Task: Conductor - User Manual Verification 'Phase 5: Verification & Polishing' (Protocol in workflow.md)
