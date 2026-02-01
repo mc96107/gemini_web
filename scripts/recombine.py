@@ -209,7 +209,9 @@ async def manifest():
     main_clean = main_clean.replace('app.include_router(auth.router)', 'app.include_router(auth_router)')
     main_clean = main_clean.replace('app.include_router(chat.router)', 'app.include_router(chat_router)')
     main_clean = main_clean.replace('app.include_router(admin.router)', 'app.include_router(admin_router)')
-    main_clean = main_clean.replace('app.include_router(prompt_helper.router)', 'app.include_router(prompt_helper_router, prefix="/api/prompt-helper")')
+    
+    # Robust replacement for prompt_helper which might already have a prefix in the source
+    main_clean = re.sub(r'app\.include_router\(prompt_helper\.router.*?\)', 'app.include_router(prompt_helper_router, prefix="/api/prompt-helper")', main_clean)
     
     # Prepare all our custom routes
     custom_logic = "\n" + static_handler + "\n"
