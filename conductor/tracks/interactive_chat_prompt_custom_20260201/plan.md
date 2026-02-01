@@ -49,6 +49,7 @@ Final testing and UI/UX refinements.
 Allow administrators to customize the system instructions used for interactive questioning in the main chat.
 
 - [x] Task: Add `interactive_mode_instructions` to `data/settings.json` and update Admin UI. e700960
-- [~] Task: Update `app/services/llm_service.py` to use the global "Interactive Mode Instructions" from settings.
-- [ ] Task: Update `tests/test_user_settings.py` to verify customization of main chat interactive behavior.
+- [x] Task: Update `app/services/llm_service.py` to use the global "Interactive Mode Instructions" from settings. 42039f6
+- [x] Task: Update `tests/test_user_settings.py` to verify customization of main chat interactive behavior. 42039f6
+
 
