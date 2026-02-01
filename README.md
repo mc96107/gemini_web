@@ -5,14 +5,16 @@ A mobile-first, secure web interface for interacting with Google's Gemini AI, sp
 ## Features
 
 *   **Modular Architecture:** Cleanly separated backend (FastAPI), frontend (Jinja2/Bootstrap), and service layers.
+*   **Structured Interactive Questioning:** The AI can ask multiple-choice or open-ended questions using "Question Cards" directly in the main chat, providing a more structured way to gather your requirements.
 *   **Multi-Modal Chat:** Support for text and file attachments.
 *   **Tree Prompt Helper:** A context-aware, guided system to help you build professional and effective system prompts through interactive Q&A.
+*   **Global Interaction Customization:** Admins can globally customize the system instructions for both the Prompt Helper and the main chat's Interactive Mode via the Admin Dashboard.
 *   **Conversation Branching:** Edit previous questions to fork conversations and explore different paths seamlessly.
 *   **Tree View Visualization:** Visualize and navigate your conversation branches as a structured tree.
 *   **Custom Prompt Management:** Save, edit, and delete your own synthesized prompts directly within the UI. Custom prompts are integrated into the Patterns modal for easy reuse.
 *   **Advanced Chat Management:** Organize your history with tags, pinning, and custom chat titles.
 *   **User Role Management:** Admins can manage users and toggle roles (user/admin) directly from the dashboard.
-*   **Per-User Preferences:** Customize your experience, such as showing or hiding the Drive Mode (Mic) icon.
+*   **Per-User Preferences:** Customize your experience, such as toggling Interactive Mode or showing/hiding the Drive Mode (Mic) icon.
 *   **Mobile-First UX:** Optimized for Termux with 100dvh support and intuitive swipe gestures (swipe left for history, right for actions).
 *   **Advanced Authentication:** Login via Passkeys (WebAuthn), Ethereum Wallet signatures, or traditional passwords.
 *   **Progressive Web App (PWA):** Install the agent directly to your home screen for an app-like experience.
@@ -98,9 +100,10 @@ The application is optimized for Termux on Android.
 5.  **Custom Prompts**: Access your saved prompts at the top of the "Patterns" list. Click a prompt to load it, or use the icons to edit or delete the file.
 6.  **Branching & Editing**: Click the edit icon next to any of your previous questions to fork the conversation from that point and explore a new path.
 7.  **History & Organization**: Access previous conversations via the sidebar. Use the "Tags" button to categorize chats and the "Tree" button to visualize conversation branches.
-8.  **User Management & Admin**: Admins can visit `/admin` to add/remove users and change user roles by clicking on the role badge in the user list.
-9.  **Preferences**: Open the "Security" modal (shield icon) to toggle general preferences, like showing/hiding the microphone icon.
-10. **Mobile Navigation**: Swipe from the left edge to open your chat history, or from the right edge to access chat actions.
+8.  **User Management & Admin**: Admins can visit `/admin` to add/remove users and change user roles.
+9.  **Global Interaction Customization**: Administrators can globally tune the AI's persona and questioning behavior for both the Prompt Helper and the main chat by updating the System Instructions in the Admin Dashboard.
+10. **Preferences**: Open the "Security" modal (shield icon) to toggle general preferences, like enabling/disabling Interactive Mode or showing/hiding the microphone icon.
+11. **Mobile Navigation**: Swipe from the left edge to open your chat history, or from the right edge to access chat actions.
 7.  **PWA**: For the best experience, use the "Add to Home Screen" option in your mobile browser to install it as a Progressive Web App.
 
 ## Building for Release
