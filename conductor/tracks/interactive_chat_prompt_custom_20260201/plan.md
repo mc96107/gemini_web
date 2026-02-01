@@ -24,10 +24,10 @@ Enhance the backend to support the JSON questioning protocol and per-user toggle
 ## Phase 3: Frontend Interactive Components
 Create the UI components to render and interact with the questions.
 
-- [ ] Task: Implement the "Question Card" UI component in `app/static/script.js` and `app/static/style.css`.
-- [ ] Task: Handle multiple-choice (single and multi-select) interactions in the chat interface.
-- [ ] Task: Implement the submission logic that sends the user's choice back as a standard message.
-- [ ] Task: Add the "Interactive Mode" toggle to the User Security/Settings modal.
+- [x] Task: Implement the "Question Card" UI component in `app/static/script.js` and `app/static/style.css`. 398137d
+- [x] Task: Handle multiple-choice (single and multi-select) interactions in the chat interface. 398137d
+- [x] Task: Implement the submission logic that sends the user's choice back as a standard message. 398137d
+- [~] Task: Add the "Interactive Mode" toggle to the User Security/Settings modal.
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: Frontend Interactive Components' (Protocol in workflow.md)
 
 ## Phase 4: Prompt Helper Customization
