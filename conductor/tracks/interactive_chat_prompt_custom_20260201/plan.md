@@ -44,3 +44,11 @@ Final testing and UI/UX refinements.
 - [x] Task: Perform end-to-end testing of the Admin customization. 94ebe56
 - [x] Task: Refine the "Question Card" aesthetic to ensure it feels native to the terminal-inspired theme. 422e8bd
 - [x] Task: Conductor - User Manual Verification 'Phase 5: Verification & Polishing' (Protocol in workflow.md) 841b483
+
+## Phase 6: Customizable Interactive Mode Instructions
+Allow administrators to customize the system instructions used for interactive questioning in the main chat.
+
+- [x] Task: Add `interactive_mode_instructions` to `data/settings.json` and update Admin UI. e700960
+- [~] Task: Update `app/services/llm_service.py` to use the global "Interactive Mode Instructions" from settings.
+- [ ] Task: Update `tests/test_user_settings.py` to verify customization of main chat interactive behavior.
+
