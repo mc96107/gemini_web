@@ -78,3 +78,42 @@ async def test_system_prompt_injection(tmp_path):
     written_data = b"".join([arg[0][0] for arg in mock_proc.stdin.write.call_args_list]).decode()
     assert "Provide standard text responses only" in written_data
     assert "Hello" in written_data
+
+@pytest.mark.asyncio
+async def test_interactive_instruction_customization(tmp_path):
+    agent = GeminiAgent(working_dir=str(tmp_path))
+    user_id = "test_user"
+    
+    # 1. Default
+    from unittest.mock import AsyncMock
+    agent._create_subprocess = AsyncMock()
+    mock_proc = AsyncMock()
+    mock_proc.stdin = AsyncMock()
+    mock_proc.stdout = AsyncMock()
+    mock_proc.stderr = AsyncMock()
+    mock_proc.wait = AsyncMock(return_value=0)
+    mock_proc.stdout.readline = AsyncMock(return_value=b"")
+    mock_proc.stderr.readline = AsyncMock(return_value=b"")
+    agent._create_subprocess.return_value = mock_proc
+
+    async for _ in agent.generate_response_stream(user_id, "Hello"):
+        pass
+    
+    written_data = b"".join([arg[0][0] for arg in mock_proc.stdin.write.call_args_list]).decode()
+    assert "You can ask interactive multiple-choice" in written_data
+
+    # 2. Customized
+    custom_instruction = "ASK ABOUT APPLES."
+    from app.core import config
+    config.update_global_setting("interactive_mode_instructions", custom_instruction)
+    
+    mock_proc.stdin.write.reset_mock()
+    async for _ in agent.generate_response_stream(user_id, "Hello"):
+        pass
+        
+    written_data = b"".join([arg[0][0] for arg in mock_proc.stdin.write.call_args_list]).decode()
+    assert custom_instruction in written_data
+    assert "[SYSTEM INSTRUCTION: INTERACTIVE QUESTIONING ENABLED]" in written_data
+    
+    # Cleanup
+    config.update_global_setting("interactive_mode_instructions", None)

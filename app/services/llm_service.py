@@ -289,8 +289,7 @@ class GeminiAgent:
         # System Prompt Injection for Interactive Mode
         settings = self.get_user_settings(user_id)
         if settings.get("interactive_mode", True):
-            interactive_instruction = (
-                "\n\n[SYSTEM INSTRUCTION: INTERACTIVE QUESTIONING ENABLED]\n"
+            default_interactive = (
                 "You can ask interactive multiple-choice or open-ended questions to the user in their preferred language (e.g., Greek).\n"
                 "To trigger a question card, include a JSON block in your response using this format:\n"
                 "{\"type\": \"question\", \"question\": \"Your question text here\", \"options\": [\"Option 1\", \"Option 2\"], \"allow_multiple\": false}\n"
@@ -299,7 +298,8 @@ class GeminiAgent:
                 "- If 'options' is empty [], it is an open-ended question.\n"
                 "The user's response will be sent back to you as a normal message."
             )
-            prompt = f"{interactive_instruction}\n\n{prompt}"
+            interactive_instruction = config.get_global_setting("interactive_mode_instructions", default_interactive)
+            prompt = f"\n\n[SYSTEM INSTRUCTION: INTERACTIVE QUESTIONING ENABLED]\n{interactive_instruction}\n\n{prompt}"
         else:
             # Subtle instruction to avoid JSON questioning without being overly rigid about identity.
             prompt = f"\n\n[SYSTEM INSTRUCTION: Provide standard text responses only. Do not use JSON formatting for questions.]\n\n{prompt}"
