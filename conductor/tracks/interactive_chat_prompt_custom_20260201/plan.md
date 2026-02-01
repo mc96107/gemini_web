@@ -37,10 +37,10 @@ Connect the Prompt Helper to the new customizable instructions.
 - [x] Task: Verify that the Prompt Helper respects the new instructions during a guided session. a14937a
 - [x] Task: Conductor - User Manual Verification 'Phase 4: Prompt Helper Customization' (Protocol in workflow.md) a129990
 
-## Phase 5: Verification & Polishing
+## Phase 5: Verification & Polishing [checkpoint: <PENDING>]
 Final testing and UI/UX refinements.
 
 - [x] Task: Write integration tests for the interactive questioning flow. ca5cc1e
 - [x] Task: Perform end-to-end testing of the Admin customization. 94ebe56
-- [~] Task: Refine the "Question Card" aesthetic to ensure it feels native to the terminal-inspired theme.
+- [x] Task: Refine the "Question Card" aesthetic to ensure it feels native to the terminal-inspired theme. 422e8bd
 - [ ] Task: Conductor - User Manual Verification 'Phase 5: Verification & Polishing' (Protocol in workflow.md)
