@@ -12,14 +12,14 @@ Implement the foundational storage and Admin UI for the new settings.
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Infrastructure & Admin Settings' (Protocol in workflow.md) f66db62
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: Infrastructure & Admin Settings' (Protocol in workflow.md)
 
-## Phase 2: Backend Protocol Implementation [checkpoint: <PENDING>]
+## Phase 2: Backend Protocol Implementation [checkpoint: 84e94a5]
 Enhance the backend to support the JSON questioning protocol and per-user toggles.
 
 - [x] Task: Add `interactive_mode` boolean to user settings in `AgentModel` and `user_sessions.json`. 7cb342d
 - [x] Task: Implement a system prompt injector that adds the "Interactive Questioning" instructions to the session if the user has it enabled. 08b0256
 - [x] Task: Update `app/services/llm_service.py` to detect and parse the `{"type": "question", ...}` JSON block in the stream. 22d0504
 - [x] Task: Ensure the parsed question data is correctly wrapped in the SSE stream sent to the frontend. 8442eba
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Backend Protocol Implementation' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Backend Protocol Implementation' (Protocol in workflow.md) b2b2196
 
 ## Phase 3: Frontend Interactive Components
 Create the UI components to render and interact with the questions.
