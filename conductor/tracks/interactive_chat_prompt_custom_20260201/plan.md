@@ -10,7 +10,6 @@ Implement the foundational storage and Admin UI for the new settings.
 - [x] Task: Add "Prompt Helper Instructions" text area to the Admin Dashboard (`app/templates/admin.html`). 8ee5f11
 - [x] Task: Implement backend routes in `app/routers/admin.py` to get and save these global settings. 8ee5f11
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Infrastructure & Admin Settings' (Protocol in workflow.md) f66db62
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Infrastructure & Admin Settings' (Protocol in workflow.md)
 
 ## Phase 2: Backend Protocol Implementation [checkpoint: 84e94a5]
 Enhance the backend to support the JSON questioning protocol and per-user toggles.
@@ -29,15 +28,14 @@ Create the UI components to render and interact with the questions.
 - [x] Task: Implement the submission logic that sends the user's choice back as a standard message. 398137d
 - [x] Task: Add the "Interactive Mode" toggle to the User Security/Settings modal. 685825a
 - [x] Task: Conductor - User Manual Verification 'Phase 3: Frontend Interactive Components' (Protocol in workflow.md) 841b483
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Frontend Interactive Components' (Protocol in workflow.md)
 
-## Phase 4: Prompt Helper Customization [checkpoint: <PENDING>]
+## Phase 4: Prompt Helper Customization [checkpoint: 76e1f14]
 Connect the Prompt Helper to the new customizable instructions.
 
 - [x] Task: Modify `app/services/tree_prompt_service.py` to use the global "Prompt Helper Instructions" from settings. a14937a
 - [x] Task: Add a "Reset to Default" button for the helper instructions in the Admin UI. a14937a
 - [x] Task: Verify that the Prompt Helper respects the new instructions during a guided session. a14937a
-- [x] Task: Conductor - User Manual Verification 'Phase 4: Prompt Helper Customization' (Protocol in workflow.md) 841b483
+- [x] Task: Conductor - User Manual Verification 'Phase 4: Prompt Helper Customization' (Protocol in workflow.md) a129990
 
 ## Phase 5: Verification & Polishing
 Final testing and UI/UX refinements.
