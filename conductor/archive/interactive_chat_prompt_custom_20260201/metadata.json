@@ -1,0 +1,8 @@
+{
+  "track_id": "interactive_chat_prompt_custom_20260201",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-02-01T17:31:00Z",
+  "updated_at": "2026-02-01T17:31:00Z",
+  "description": "Add the ability for AI in chat to ask questions to the user, including multiple choice like in prompt helper, but in main chat. Also allow customizable prompt for prompt helper."
+}
