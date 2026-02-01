@@ -2,14 +2,14 @@
 
 This track implements structured interactive questioning in the main chat and allows global customization of the Prompt Helper's system instructions.
 
-## Phase 1: Infrastructure & Admin Settings
+## Phase 1: Infrastructure & Admin Settings [checkpoint: 37b49c7]
 Implement the foundational storage and Admin UI for the new settings.
 
 - [x] Task: Create `data/settings.json` to store global configuration. 39d6d75
 - [x] Task: Update `app/core/config.py` to load and provide access to global settings. 39d6d75
 - [x] Task: Add "Prompt Helper Instructions" text area to the Admin Dashboard (`app/templates/admin.html`). 8ee5f11
 - [x] Task: Implement backend routes in `app/routers/admin.py` to get and save these global settings. 8ee5f11
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Infrastructure & Admin Settings' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Infrastructure & Admin Settings' (Protocol in workflow.md) f66db62
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: Infrastructure & Admin Settings' (Protocol in workflow.md)
 
 ## Phase 2: Backend Protocol Implementation
