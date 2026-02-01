@@ -274,6 +274,7 @@ document.addEventListener('DOMContentLoaded', () => {
             driveModeBtn.classList.add('d-none');
         }
     }
+    window.updateDriveModeVisibility = updateDriveModeVisibility;
 
     updateDriveModeVisibility();
 

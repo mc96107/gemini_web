@@ -292,9 +292,13 @@
         <hr class="border-secondary">
         <div class="mb-3">
             <h6><i class="bi bi-sliders"></i> Preferences</h6>
-            <div class="form-check form-switch">
+            <div class="form-check form-switch mb-2">
                 <input class="form-check-input" type="checkbox" role="switch" id="setting-show-mic">
                 <label class="form-check-label" for="setting-show-mic">Show Drive Mode (Mic)</label>
+            </div>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="setting-interactive-mode">
+                <label class="form-check-label" for="setting-interactive-mode">Interactive Mode (AI Questions)</label>
             </div>
         </div>
       </div>
@@ -593,6 +597,43 @@
                 dot.element.setAttribute('r', 8);
             });
             patternInputSec.value = '';
+        }
+
+        const showMicSetting = document.getElementById('setting-show-mic');
+        const interactiveModeSetting = document.getElementById('setting-interactive-mode');
+
+        if (showMicSetting && window.USER_SETTINGS) {
+            showMicSetting.checked = window.USER_SETTINGS.show_mic !== false;
+            
+            showMicSetting.onchange = async () => {
+                const enabled = showMicSetting.checked;
+                try {
+                    await fetch('/settings', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ show_mic: enabled })
+                    });
+                    window.USER_SETTINGS.show_mic = enabled;
+                    // Trigger visibility update if DriveModeManager is available
+                    if (window.updateDriveModeVisibility) window.updateDriveModeVisibility();
+                } catch (err) { console.error(err); }
+            };
+        }
+
+        if (interactiveModeSetting && window.USER_SETTINGS) {
+            interactiveModeSetting.checked = window.USER_SETTINGS.interactive_mode !== false;
+            
+            interactiveModeSetting.onchange = async () => {
+                const enabled = interactiveModeSetting.checked;
+                try {
+                    await fetch('/settings', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ interactive_mode: enabled })
+                    });
+                    window.USER_SETTINGS.interactive_mode = enabled;
+                } catch (err) { console.error(err); }
+            };
         }
 
         svgSec.addEventListener('mousedown', startDrawingSec);
