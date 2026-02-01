@@ -64,6 +64,24 @@ async def clear_all_tags(request: Request, user=Depends(get_user)):
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+@router.get("/admin/settings")
+async def get_settings(request: Request, user=Depends(get_user)):
+    user_manager = request.app.state.user_manager
+    if user_manager.get_role(user) != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return config.get_all_global_settings()
+
+@router.post("/admin/settings")
+async def update_settings(request: Request, user=Depends(get_user)):
+    user_manager = request.app.state.user_manager
+    if user_manager.get_role(user) != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
+    data = await request.json()
+    for key, value in data.items():
+        config.update_global_setting(key, value)
+    return {"success": True}
+
 @router.get("/admin", response_class=HTMLResponse)
 async def admin_db(request: Request, user=Depends(get_user)):
     user_manager = request.app.state.user_manager

@@ -114,6 +114,20 @@
 
                 <div class="card shadow-sm mb-4">
                     <div class="card-body">
+                        <h5 class="card-title">Global Settings</h5>
+                        <div class="mb-3">
+                            <label class="form-label small text-muted">Prompt Helper Instructions</label>
+                            <textarea id="prompt-helper-instructions" class="form-control form-control-sm bg-dark text-light border-secondary" rows="5"></textarea>
+                        </div>
+                        <button class="btn btn-primary btn-sm w-100" onclick="saveGlobalSettings()">
+                            Save Settings
+                        </button>
+                        <div id="settings-status" class="small mt-2"></div>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body">
                         <h5 class="card-title">Add User</h5>
                         <form action="/admin/user/add" method="post">
                             <div class="mb-3">
@@ -263,6 +277,7 @@
             const select = document.getElementById('log-level-select');
             if (select) select.value = logLevel;
             fetchAgents();
+            fetchGlobalSettings();
         });
 
         async function fetchAgents() {
@@ -273,6 +288,44 @@
                 renderAgents();
                 validateOrchestration();
             } catch (e) { console.error('Error fetching agents:', e); }
+        }
+
+        async function fetchGlobalSettings() {
+            try {
+                const res = await fetch('/admin/settings');
+                const data = await res.json();
+                if (data.prompt_helper_instructions) {
+                    document.getElementById('prompt-helper-instructions').value = data.prompt_helper_instructions;
+                }
+            } catch (e) { console.error('Error fetching settings:', e); }
+        }
+
+        async function saveGlobalSettings() {
+            const status = document.getElementById('settings-status');
+            const instructions = document.getElementById('prompt-helper-instructions').value;
+            
+            status.textContent = 'Saving...';
+            status.className = 'small mt-2 text-info';
+
+            try {
+                const res = await fetch('/admin/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt_helper_instructions: instructions })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    status.textContent = 'Settings saved successfully!';
+                    status.className = 'small mt-2 text-success';
+                    setTimeout(() => { status.textContent = ''; }, 3000);
+                } else {
+                    status.textContent = 'Error saving settings';
+                    status.className = 'small mt-2 text-danger';
+                }
+            } catch (e) {
+                status.textContent = 'Error: ' + e.message;
+                status.className = 'small mt-2 text-danger';
+            }
         }
 
         function updateCategoryFilter() {

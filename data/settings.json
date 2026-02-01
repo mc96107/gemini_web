@@ -1,3 +1,4 @@
 {
+    "prompt_helper_instructions": "New instructions for test",
     "test_setting": "hello_world"
 }
