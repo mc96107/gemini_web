@@ -286,6 +286,22 @@ class GeminiAgent:
 
         current_model = model or self.model_name
         
+        # System Prompt Injection for Interactive Mode
+        settings = self.get_user_settings(user_id)
+        if settings.get("interactive_mode", True):
+            interactive_instruction = (
+                "\n\n[SYSTEM INSTRUCTION: INTERACTIVE QUESTIONING ENABLED]\n"
+                "You can ask interactive multiple-choice or open-ended questions to the user.\n"
+                "To trigger a question card, include a JSON block in your response using this format:\n"
+                "{\"type\": \"question\", \"question\": \"Your question text here\", \"options\": [\"Option 1\", \"Option 2\"], \"allow_multiple\": false}\n"
+                "- If 'allow_multiple' is true, users can select several options.\n"
+                "- If 'options' is empty [], it is an open-ended question.\n"
+                "The user's response will be sent back to you as a normal message."
+            )
+            prompt = f"{interactive_instruction}\n\n{prompt}"
+        else:
+            prompt = f"\n\n[SYSTEM INSTRUCTION: INTERACTIVE MODE DISABLED. Use standard text only. Do not use JSON for questions.]\n\n{prompt}"
+
         attempt = 0
         max_attempts = 2
         
