@@ -21,14 +21,14 @@ Enhance the backend to support the JSON questioning protocol and per-user toggle
 - [x] Task: Ensure the parsed question data is correctly wrapped in the SSE stream sent to the frontend. 8442eba
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Backend Protocol Implementation' (Protocol in workflow.md) b2b2196
 
-## Phase 3: Frontend Interactive Components [checkpoint: <PENDING>]
+## Phase 3: Frontend Interactive Components [checkpoint: d7596df]
 Create the UI components to render and interact with the questions.
 
 - [x] Task: Implement the "Question Card" UI component in `app/static/script.js` and `app/static/style.css`. 398137d
 - [x] Task: Handle multiple-choice (single and multi-select) interactions in the chat interface. 398137d
 - [x] Task: Implement the submission logic that sends the user's choice back as a standard message. 398137d
 - [x] Task: Add the "Interactive Mode" toggle to the User Security/Settings modal. 685825a
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Frontend Interactive Components' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 3: Frontend Interactive Components' (Protocol in workflow.md) 841b483
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: Frontend Interactive Components' (Protocol in workflow.md)
 
 ## Phase 4: Prompt Helper Customization
