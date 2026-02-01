@@ -48,7 +48,7 @@ The Gemini Termux Agent is designed for:
 * **Per-Session Tool Security:** Granular control over Gemini CLI tools (e.g., file access, shell execution) on a per-session basis. All tools are disabled by default for maximum security, allowing users to selectively enable only the tools required for the current task.
 * **Pattern-Based Prompting:** A template system (Patterns) that allows users to leverage expert-crafted prompts for specific tasks like Agile story creation or insightful AI analysis.
 * **Admin Dashboard:** A dedicated interface for managing users, monitoring system status, and configuring agent behavior.
-* **Customizable Prompt Helper:** Administrators can globally customize the system instructions for the Prompt Helper via the Admin Dashboard to tailor its persona and guidance.
+* **Global Interaction Customization:** Administrators can globally customize the system instructions for both the Prompt Helper and the main chat's Interactive Mode via the Admin Dashboard, enabling fine-tuned control over the AI's persona and questioning behavior.
 * **Hierarchical Agent Management:** Specialized orchestration system where a central `AGENT.md` at the project root manages enabled sub-agents. Features an "Enabled" toggle in the Admin UI and automatic relationship tracking (parent/children/used_by) using Wiki-link style links in YAML frontmatter.
 
 ## User Experience & Visual Aesthetic
