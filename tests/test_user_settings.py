@@ -76,5 +76,5 @@ async def test_system_prompt_injection(tmp_path):
         pass
         
     written_data = b"".join([arg[0][0] for arg in mock_proc.stdin.write.call_args_list]).decode()
-    assert "[SYSTEM INSTRUCTION: INTERACTIVE MODE DISABLED" in written_data
+    assert "Provide standard text responses only" in written_data
     assert "Hello" in written_data

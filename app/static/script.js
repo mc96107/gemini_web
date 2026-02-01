@@ -1878,6 +1878,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const optContainer = document.createElement('div');
         optContainer.className = 'options-container';
         
+        const dismissCard = () => {
+            card.classList.add('removing');
+            setTimeout(() => card.remove(), 200);
+        };
+
         if (!options || options.length === 0) {
             // Open-ended question
             const input = document.createElement('input');
@@ -1893,7 +1898,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const val = input.value.trim();
                 if (val) {
                     submitAnswer(val);
-                    card.remove();
+                    dismissCard();
                 }
             };
             card.appendChild(submit);
@@ -1921,7 +1926,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     } else {
                         submitAnswer(opt);
-                        card.remove();
+                        dismissCard();
                     }
                 };
                 optContainer.appendChild(btn);
@@ -1936,7 +1941,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 submit.onclick = () => {
                     if (selected.size > 0) {
                         submitAnswer(Array.from(selected).join(', '));
-                        card.remove();
+                        dismissCard();
                     }
                 };
                 card.appendChild(submit);

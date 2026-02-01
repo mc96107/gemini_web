@@ -301,7 +301,8 @@ class GeminiAgent:
             )
             prompt = f"{interactive_instruction}\n\n{prompt}"
         else:
-            prompt = f"\n\n[SYSTEM INSTRUCTION: INTERACTIVE MODE DISABLED. Use standard text only. Do not use JSON for questions.]\n\n{prompt}"
+            # Subtle instruction to avoid JSON questioning without being overly rigid about identity.
+            prompt = f"\n\n[SYSTEM INSTRUCTION: Provide standard text responses only. Do not use JSON formatting for questions.]\n\n{prompt}"
 
         attempt = 0
         max_attempts = 2
