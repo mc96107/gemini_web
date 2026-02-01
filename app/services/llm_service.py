@@ -387,45 +387,77 @@ class GeminiAgent:
                             # Add to global buffer for full detection
                             current_message_content += content
                             
-                            # Logic to hide JSON from the stream as it comes
-                            # We'll use a local buffer for the current 'message' sequence
+                            # Logic to hide JSON and potential markdown backticks from the stream
                             cleaned_content = ""
                             for char in content:
-                                if char == '{' and not in_json_block:
-                                    # Potential start of JSON
+                                if (char == '{' or char == '`') and not in_json_block:
+                                    # Potential start of JSON or markdown block
                                     in_json_block = True
                                     json_buffer = char
                                 elif in_json_block:
                                     json_buffer += char
-                                    if char == '}':
-                                        # Potential end of JSON
-                                        # Check if it's a question
+                                    # We check for the end of a potential JSON block or markdown block
+                                    # If it ends with } or ` we might be at the end.
+                                    if char == '}' or char == '`':
+                                        # Let's see if we have a complete question JSON (potentially wrapped)
+                                        # We use a greedy check in the buffer
                                         if '"type": "question"' in json_buffer or '"type":"question"' in json_buffer:
-                                            # It's a question, we already yield it via global buffer logic
-                                            # but we need to ensure we don't add it to cleaned_content
-                                            in_json_block = False
-                                            json_buffer = ""
+                                            # We need to decide if this block is COMPLETE.
+                                            # If it's wrapped in backticks, we wait for the closing backticks.
+                                            # For now, if we see a valid JSON question, we consider it "absorbed"
+                                            # but we only clear the buffer if it's truly complete.
+                                            
+                                            # Simple heuristic: if it's a valid JSON, it's absorbed.
+                                            try:
+                                                # Try to extract JSON from the buffer (might have backticks)
+                                                inner_json_match = re.search(r"\{\s*\"type\"\s*:\s*\"question\".*?\}", json_buffer, re.DOTALL)
+                                                if inner_json_match:
+                                                    # Check if it's balanced (minimal check)
+                                                    json_text = inner_json_match.group(0)
+                                                    json.loads(json_text)
+                                                    
+                                                    # If it was wrapped in backticks, and we just saw a backtick, 
+                                                    # or it wasn't wrapped and we just saw }, then it's done.
+                                                    is_wrapped = json_buffer.startswith('```')
+                                                    if (is_wrapped and json_buffer.endswith('```')) or (not is_wrapped and json_buffer.endswith('}')):
+                                                        in_json_block = False
+                                                        json_buffer = ""
+                                            except:
+                                                pass # Not complete yet
                                         else:
-                                            # Not a question, release the buffer
-                                            cleaned_content += json_buffer
-                                            in_json_block = False
-                                            json_buffer = ""
+                                            # Not a question yet, or ever. 
+                                            # If the buffer is getting too large or we are sure it's not a question, release it.
+                                            # For now, if it ends with ` and doesn't look like our JSON, release it.
+                                            if char == '`':
+                                                if len(json_buffer) > 10 and not ('"type"' in json_buffer):
+                                                    cleaned_content += json_buffer
+                                                    in_json_block = False
+                                                    json_buffer = ""
+                                            elif char == '}' and not ('"type"' in json_buffer):
+                                                cleaned_content += json_buffer
+                                                in_json_block = False
+                                                json_buffer = ""
                                 else:
                                     cleaned_content += char
                             
                             data["content"] = cleaned_content
 
                             # Global buffer handles full detection and yielding
-                            question_match = re.search(r"\{\s*\"type\"\s*:\s*\"question\".*?\}", current_message_content, re.DOTALL)
+                            # We update the regex to optionally swallow surrounding backticks and newlines
+                            question_pattern = r"(?:```(?:json)?\s*)?\{\s*\"type\"\s*:\s*\"question\".*?\}(?:\s*```)?"
+                            question_match = re.search(question_pattern, current_message_content, re.DOTALL)
                             if question_match:
                                 try:
                                     full_match_text = question_match.group(0)
-                                    question_data = json.loads(full_match_text)
-                                    yield question_data
-                                    current_message_content = current_message_content.replace(full_match_text, "")
+                                    # Extract JUST the JSON part for parsing
+                                    json_only_match = re.search(r"\{\s*\"type\"\s*:\s*\"question\".*?\}", full_match_text, re.DOTALL)
+                                    if json_only_match:
+                                        question_data = json.loads(json_only_match.group(0))
+                                        yield question_data
+                                        current_message_content = current_message_content.replace(full_match_text, "")
                                 except: pass
                             
-                            # If we have nothing to show yet (still buffering JSON), don't yield this chunk's message
+                            # If we have nothing to show yet (still buffering JSON/markdown), don't yield this chunk's message
                             if not data["content"] and in_json_block:
                                 continue
 
