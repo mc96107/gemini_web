@@ -1,0 +1,8 @@
+{
+  "track_id": "fix_fork_branching_point",
+  "type": "bug_fix",
+  "status": "new",
+  "created_at": "2026-02-07T12:34:00Z",
+  "updated_at": "2026-02-07T12:34:00Z",
+  "description": "Fix the issue where forking a conversation happens at the wrong point due to message index mismatch."
+}

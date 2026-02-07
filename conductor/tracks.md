@@ -4,16 +4,10 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## Active Tracks
+## Completed Tracks
 
 - [x] **Track: Fix conversation branching point due to message index mismatch.**
-*Link: [./tracks/fix_fork_branching_point/](./tracks/fix_fork_branching_point/)*
-
----
-
----
-
-## Completed Tracks
+*Link: [./archive/fix_fork_branching_point_20260207/](./archive/fix_fork_branching_point_20260207/)*
 
 - [x] **Track: Enhanced Interactive Questioning and Prompt Customization**
 *Link: [./archive/interactive_chat_prompt_custom_20260201/](./archive/interactive_chat_prompt_custom_20260201/)*
