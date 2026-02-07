@@ -845,12 +845,18 @@ class GeminiAgent:
                 if limit is not None:
                     start = max(0, total - offset - limit); end = max(0, total - offset)
                     messages_to_process = all_messages[start:end]
-                else: messages_to_process = all_messages
+                else: 
+                    start = 0
+                    messages_to_process = all_messages
                 messages = []
-                for msg in messages_to_process:
+                for idx, msg in enumerate(messages_to_process):
                     content = msg.get("content", "")
                     if not content or content.strip() == "": continue
-                    messages.append({"role": "user" if msg.get("type") == "user" else "bot", "content": content})
+                    messages.append({
+                        "role": "user" if msg.get("type") == "user" else "bot", 
+                        "content": content,
+                        "raw_index": start + idx
+                    })
                 return {"messages": messages, "total": total}
         except Exception as e:
             print(f"Error loading session messages: {str(e)}")

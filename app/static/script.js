@@ -1084,7 +1084,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (messages.length > 0) {
                 if (offset === 0) {
                     messages.forEach((msg, idx) => {
-                        const msgDiv = createMessageDiv(msg.role, msg.content, null, null, idx);
+                        const index = (msg.raw_index !== undefined) ? msg.raw_index : idx;
+                        const msgDiv = createMessageDiv(msg.role, msg.content, null, null, index);
                         if (msgDiv) chatContainer.appendChild(msgDiv);
                     });
                     chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -1102,7 +1103,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const baseIndex = total - offset - messages.length;
 
                     messages.forEach((msg, idx) => {
-                        const msgDiv = createMessageDiv(msg.role, msg.content, null, null, baseIndex + idx); 
+                        const index = (msg.raw_index !== undefined) ? msg.raw_index : (baseIndex + idx);
+                        const msgDiv = createMessageDiv(msg.role, msg.content, null, null, index); 
                         if (msgDiv) {
                             chatContainer.insertBefore(msgDiv, originalFirstMessage);
                         }
