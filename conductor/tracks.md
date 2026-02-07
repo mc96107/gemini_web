@@ -6,6 +6,9 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ## Active Tracks
 
+- [x] **Track: Fix conversation branching point due to message index mismatch.**
+*Link: [./tracks/fix_fork_branching_point/](./tracks/fix_fork_branching_point/)*
+
 ---
 
 ---
@@ -21,4 +24,21 @@ This file tracks all major tracks for the project. Each track has its own detail
 - [x] **Track: tree prompt helper - visual**
 *Link: [./archive/tree_prompt_helper_20260131/](./archive/tree_prompt_helper_20260131/)*
 
+---\
 ---
+
+- [ ] **Track: Fix path traversal vulnerability in uploads route**
+
+*Link: [./tracks/fix_path_traversal_20260207/](./tracks/fix_path_traversal_20260207/)*
+
+
+
+---
+
+
+
+- [ ] **Track: When loading a chat, render correctly the questions from ai from previous Structured Interactive Questioning**
+
+*Link: [./tracks/fix_historical_question_rendering_20260207/](./tracks/fix_historical_question_rendering_20260207/)*
+
+\
