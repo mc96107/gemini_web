@@ -9,14 +9,14 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Verification & TDD Setup' (Protocol in workflow.md) [417b585]
 
 ## Phase 2: Implementation & Green Phase
-- [x] Task: Implement filename sanitization in the uploads route.
+- [x] Task: Implement filename sanitization in the uploads route. [2e3c4f2]
     - [x] Modify `@app.get("/uploads/{filename}")` in `app/main.py`.
     - [x] Import `pathlib`.
     - [x] Update `fpath` calculation to use `pathlib.Path(filename).name`.
-- [x] Task: Verify the fix with the test suite.
+- [x] Task: Verify the fix with the test suite. [2e3c4f2]
     - [x] Run `tests/test_path_traversal.py` and confirm all tests pass (Green Phase).
     - [x] Run existing `tests/test_uploads.py` to ensure no regressions.
-- [~] Task: Conductor - User Manual Verification 'Phase 2: Implementation & Green Phase' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Implementation & Green Phase' (Protocol in workflow.md) [2e3c4f2]
 
 ## Phase 3: Final Validation & Cleanup
 - [ ] Task: Execute full test suite and check coverage.
