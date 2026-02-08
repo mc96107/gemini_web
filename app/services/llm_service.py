@@ -103,7 +103,7 @@ class GeminiAgent:
         self.model_name = model
         self.working_dir = working_dir or os.getcwd()
         self.session_file = os.path.join(self.working_dir, "user_sessions.json")
-        self.gemini_cmd = shutil.which("gemini") or "gemini"
+        self.gemini_cmd = shutil.which(config.GEMINI_CMD) or config.GEMINI_CMD
         self.user_data = self._load_user_data()
         self.yolo_mode = False
         self.active_tasks: Dict[str, asyncio.Task] = {}

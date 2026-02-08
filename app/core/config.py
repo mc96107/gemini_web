@@ -19,6 +19,7 @@ AGENT_BASE_DIR = os.getenv("AGENT_BASE_DIR", os.path.join(os.getcwd(), "data", "
 SETTINGS_FILE = os.path.join(os.getcwd(), "data", "settings.json")
 MODEL_NAME = os.getenv("MODEL_NAME", "gemini-3-pro-preview")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "NONE").upper()
+GEMINI_CMD = os.getenv("GEMINI_CMD", "gemini")
 
 import json
 import logging

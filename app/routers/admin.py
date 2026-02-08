@@ -16,7 +16,7 @@ async def get_user(request: Request):
     return request.session.get("user")
 
 def run_gemini_mcp_command(args):
-    cmd = [shutil.which("gemini") or "gemini", "mcp"] + args
+    cmd = [shutil.which(config.GEMINI_CMD) or config.GEMINI_CMD, "mcp"] + args
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         return result.stdout
