@@ -1772,7 +1772,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                 fullText += data.content;
                             } else if (data.type === 'question') {
                                 // Render question card
-                                renderQuestionCard(data);
+                                const card = createQuestionCard(data);
+                                chatContainer.appendChild(card);
+                                chatContainer.scrollTop = chatContainer.scrollHeight;
                             } else if (data.type === 'model_switch') {
                                 // Update hidden input for subsequent requests
                                 if (modelInput) modelInput.value = data.new_model;
@@ -1866,7 +1868,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return messageDiv;
     }
 
-    function renderQuestionCard(data) {
+    function createQuestionCard(data) {
         const { question, options, allow_multiple } = data;
         
         const card = document.createElement('div');
@@ -1950,8 +1952,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
-        chatContainer.appendChild(card);
-        chatContainer.scrollTop = chatContainer.scrollHeight;
+        return card;
     }
 
     async function submitAnswer(text) {
@@ -2111,6 +2112,41 @@ document.addEventListener('DOMContentLoaded', () => {
         contentHtml += `<div class="message-content">${parsedText}</div>`;
 
         messageDiv.innerHTML = contentHtml;
+
+        // Detect and render Question Cards if present in text (Historical Rendering)
+        if (sender === 'bot') {
+            const questionPattern = /(?:```(?:json)?\s*)?\{\s*"type"\s*:\s*"question"[\s\S]*?\}(?:\s*```)?/g;
+            const matches = text.match(questionPattern);
+            if (matches) {
+                matches.forEach(match => {
+                    try {
+                        // Extract just the JSON part
+                        const jsonMatch = match.match(/\{[\s\S]*\}/);
+                        if (jsonMatch) {
+                            const questionData = JSON.parse(jsonMatch[0]);
+                            const card = createQuestionCard(questionData);
+                            messageDiv.appendChild(card);
+                            
+                            // Remove the raw JSON from the displayed text if it was successfully rendered
+                            const contentArea = messageDiv.querySelector('.message-content');
+                            if (contentArea) {
+                                // We replace the match in the innerHTML/innerText carefully.
+                                // Since marked might have wrapped it in <pre><code>, we might need a more robust way.
+                                // For now, let's try to remove the <pre><code> block if it contains this JSON.
+                                const preBlocks = contentArea.querySelectorAll('pre');
+                                preBlocks.forEach(pre => {
+                                    if (pre.innerText.includes('"type": "question"') && pre.innerText.includes(questionData.question)) {
+                                        pre.remove();
+                                    }
+                                });
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Error parsing historical question card:', e);
+                    }
+                });
+            }
+        }
         
         // Add Action Buttons
         const actionsDiv = document.createElement('div');
