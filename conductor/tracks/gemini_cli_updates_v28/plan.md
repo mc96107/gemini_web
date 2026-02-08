@@ -1,6 +1,6 @@
 # Implementation Plan: Gemini CLI v0.28+ Updates
 
-## Phase 1: Tool Renaming & Model Updates
+## Phase 1: Tool Renaming & Model Updates [checkpoint: cfa8e49]
 - [x] Rename `search_file_content` to `grep_search` in `app/templates/index.html`. 206fe5f
 - [x] Update `FALLBACK_MODELS` and model constants in `app/services/llm_service.py`. 206fe5f
 - [x] Update model selection list in `app/templates/index.html`. 7932628
