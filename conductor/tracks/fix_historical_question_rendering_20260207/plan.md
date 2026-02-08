@@ -10,7 +10,7 @@
 - [x] Task: Integrate the refactored question card creation into `createMessageDiv` so historical questions render as UI cards.
 - [x] Task: Ensure that reloaded question cards are correctly sized and styled within the chat history flow.
 
-## Phase 3: Verification
+## Phase 3: Verification [checkpoint: d83319a]
 - [x] Task: Run the reproduction test case to confirm the fix.
 - [x] Task: Manually verify by creating a chat with interactive questions, refreshing the page, and confirming they render as cards.
 - [x] Task: Verify that answered questions maintain a consistent state (e.g., still show the answer or remain functional) when reloaded.
