@@ -117,7 +117,7 @@ static_dir = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 # Uploads
-@app.get("/uploads/{filename}")
+@app.get("/uploads/{filename:path}")
 async def serve_upload(filename: str):
     fpath = os.path.join(UPLOAD_DIR, filename)
     if not os.path.exists(fpath):
