@@ -2,9 +2,11 @@
 
 ## Backend
 * **Language:** Python 3
-* **State Management:** Pydantic models for tracking complex session state (e.g., prompt building trees).
-* **Configuration:** Persistent global settings stored in `data/settings.json` for runtime application customization.
-* **Orchestration Metadata:** Wiki-link style YAML frontmatter (`[[path/to/agent.md]]`) for hierarchical agent linking and tracking.
+*   **State Management:** Pydantic models for tracking complex session state (e.g., prompt building trees).
+*   **Configuration:** Persistent global settings stored in `data/settings.json` for runtime application customization.
+*   **MCP Support:** Integrated management of Model Context Protocol (MCP) servers via the Gemini CLI.
+*   **Agent Skills:** Support for the `.agents/skills` lifecycle for specialized agent capabilities.
+*   **Orchestration Metadata:** Wiki-link style YAML frontmatter (`[[path/to/agent.md]]`) for hierarchical agent linking and tracking.
 * **Framework:** FastAPI - A modern, fast (high-performance) web framework for building APIs with Python 3.7+ based on standard Python type hints.
 * **Streaming:** Server-Sent Events (SSE) via FastAPI `StreamingResponse`.
 * **Server:** Uvicorn - An ASGI web server implementation for Python.

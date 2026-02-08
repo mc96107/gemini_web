@@ -27,6 +27,9 @@ The Gemini Termux Agent is designed for:
 *   **Automatic PDF Compression:** Automatically optimizes uploaded PDF files using Ghostscript to reduce file size while maintaining readability for the AI model.
 *   **Filename Sanitization:** Automatically sanitizes uploaded filenames to strict ASCII to ensure compatibility with downstream CLI tools and cross-platform environments.
 *   **Path Traversal Protection:** Implements strict sanitization for file retrieval routes, ensuring that only files within designated upload directories are accessible and preventing directory traversal attacks.
+*   **Plan Mode:** A specialized execution mode that uses the Gemini CLI's `--approval-mode plan` to provide a read-only preview of proposed actions before they are executed.
+*   **Integrated MCP Management:** A centralized dashboard for configuring and toggling Model Context Protocol (MCP) servers, allowing the AI to interact with local and remote services like SQL databases or web browsers.
+*   **Agent Skills:** A lifecycle for specialized agent capabilities (Skills) stored in `.agents/skills/`. Agents can be configured to use specific skills directly from the Admin UI.
 *   **Chat Export:** Export full conversation history as Markdown files for offline storage or sharing.
 * **Multi-File Attachments:** Users can attach and send multiple files (images, documents, etc.) in a single message.
 * **Automatic Document Conversion:** Automatically converts uploaded `.docx` and `.xlsx` files into Markdown format for better AI readability while excluding images to optimize token usage.
