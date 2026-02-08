@@ -6,6 +6,7 @@ import subprocess
 import json
 import re
 import shutil
+import os
 from app.core import config
 from app.services.pattern_sync_service import PatternSyncService
 from app.models.agent import AgentModel
@@ -97,6 +98,20 @@ async def toggle_mcp(request: Request, user=Depends(get_user)):
     cmd = "enable" if enabled else "disable"
     output = run_gemini_mcp_command([cmd, name])
     return {"success": "Error" not in output, "output": output}
+
+@router.get("/admin/skills")
+async def list_skills(request: Request, user=Depends(get_user)):
+    user_manager = request.app.state.user_manager
+    if user_manager.get_role(user) != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
+    skills_dir = os.path.join(os.getcwd(), ".agents", "skills")
+    skills = []
+    if os.path.exists(skills_dir):
+        for f in os.listdir(skills_dir):
+            if f.endswith(".md"):
+                skills.append(f[:-3]) # Remove .md
+    return skills
 
 @router.post("/admin/patterns/sync")
 async def sync_patterns(request: Request, user=Depends(get_user)):

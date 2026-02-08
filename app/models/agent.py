@@ -17,6 +17,7 @@ class AgentModel(BaseModel):
     children: List[AgentLink] = []
     uses: List[AgentLink] = []
     projects: List[AgentLink] = []
+    skills: List[str] = []
     parent: Optional[str] = None
     used_by: List[str] = []
 
@@ -28,6 +29,11 @@ class AgentModel(BaseModel):
         lines.append(f"name: {self.name}")
         lines.append(f"description: {self.description}")
         lines.append(f"type: {self.type}")
+        
+        if self.skills:
+            lines.append("skills:")
+            for skill in self.skills:
+                lines.append(f"  - {skill}")
         
         def add_link_list(key, items: List[AgentLink]):
             if items:
@@ -110,6 +116,14 @@ class AgentModel(BaseModel):
         def extract_simple_paths(value_str: str) -> List[str]:
             return [l.path for l in parse_links(value_str)]
 
+        def parse_simple_list(value_str: str) -> List[str]:
+            items = []
+            for line in value_str.splitlines():
+                stripped = line.strip()
+                if stripped.startswith("- "):
+                    items.append(stripped[2:].strip())
+            return items
+
         return cls(
             id=metadata.get("id"),
             name=metadata.get("name", folder_name),
@@ -121,6 +135,7 @@ class AgentModel(BaseModel):
             children=parse_links(metadata.get("children", "")),
             uses=parse_links(metadata.get("uses", "")),
             projects=parse_links(metadata.get("projects", "")),
+            skills=parse_simple_list(metadata.get("skills", "")),
             parent=extract_simple_paths(metadata.get("parent", ""))[0] if extract_simple_paths(metadata.get("parent", "")) else None,
             used_by=extract_simple_paths(metadata.get("used_by", ""))
         )

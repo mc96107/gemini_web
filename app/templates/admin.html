@@ -275,6 +275,12 @@
                             <label class="form-label">System Prompt (Markdown)</label>
                             <textarea id="agentPrompt" class="form-control bg-dark text-light border-secondary" rows="10" placeholder="Agent instructions..." required></textarea>
                         </div>
+                        <div class="mb-3">
+                            <label class="form-label">Associated Skills</label>
+                            <div id="skillsContainer" class="d-flex flex-wrap gap-2">
+                                <!-- Loaded via JS -->
+                            </div>
+                        </div>
                     </form>
                 </div>
                 <div class="modal-footer border-secondary">
@@ -328,6 +334,7 @@
         const agentModal = new bootstrap.Modal(document.getElementById('agentModal'));
         const mcpModal = new bootstrap.Modal(document.getElementById('mcpModal'));
         let allAgents = [];
+        let allSkills = [];
 
         document.addEventListener('DOMContentLoaded', () => {
             const logLevel = "{{ log_level }}";
@@ -335,8 +342,37 @@
             if (select) select.value = logLevel;
             fetchAgents();
             fetchMCP();
+            fetchSkills();
             fetchGlobalSettings();
         });
+
+        async function fetchSkills() {
+            try {
+                const res = await fetch('/admin/skills');
+                allSkills = await res.json();
+            } catch (err) { console.error('Error fetching skills:', err); }
+        }
+
+        function renderSkillsCheckboxes(selectedSkills = []) {
+            const container = document.getElementById('skillsContainer');
+            container.innerHTML = '';
+            
+            if (allSkills.length === 0) {
+                container.innerHTML = '<span class="text-muted small">No skills found in .agents/skills/</span>';
+                return;
+            }
+
+            allSkills.forEach(skill => {
+                const div = document.createElement('div');
+                div.className = 'form-check form-check-inline';
+                const checked = selectedSkills.includes(skill) ? 'checked' : '';
+                div.innerHTML = `
+                    <input class="form-check-input skill-checkbox" type="checkbox" value="${skill}" id="skill_${skill}" ${checked}>
+                    <label class="form-check-label small" for="skill_${skill}">${skill}</label>
+                `;
+                container.appendChild(div);
+            });
+        }
 
         async function fetchMCP() {
             try {
@@ -634,6 +670,8 @@ The user's response will be sent back to you as a normal message.`;
             document.getElementById('agentCategory').disabled = isEdit;
             document.getElementById('agentFolder').disabled = isEdit;
             
+            renderSkillsCheckboxes(agent ? (agent.skills || []) : []);
+            
             agentModal.show();
         }
 
@@ -654,12 +692,16 @@ The user's response will be sent back to you as a normal message.`;
         }
 
         async function saveAgent() {
+            const skillChecks = document.querySelectorAll('.skill-checkbox:checked');
+            const skills = Array.from(skillChecks).map(c => c.value);
+
             const agentData = {
                 category: document.getElementById('agentCategory').value.trim(),
                 folder_name: document.getElementById('agentFolder').value.trim(),
                 name: document.getElementById('agentName').value.trim(),
                 description: document.getElementById('agentDescription').value.trim(),
-                prompt: document.getElementById('agentPrompt').value.trim()
+                prompt: document.getElementById('agentPrompt').value.trim(),
+                skills: skills
             };
 
             if (!agentData.category || !agentData.folder_name || !agentData.name || !agentData.prompt) {
