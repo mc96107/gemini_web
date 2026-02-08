@@ -26,7 +26,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Gemini CLI v0.28+ Updates**
+- [~] **Track: Gemini CLI v0.28+ Updates**
 
 *Link: [./tracks/gemini_cli_updates_v28/](./tracks/gemini_cli_updates_v28/)*
 
