@@ -11,8 +11,8 @@
 - [x] Add UI indicators/modals for Plan Mode execution and review. ddb3c10
 
 ## Phase 3: Admin & MCP Support
-- [ ] Add MCP configuration section to `app/templates/admin.html`.
-- [ ] Implement backend routes in `app/routers/admin.py` for MCP management.
+- [x] Add MCP configuration section to `app/templates/admin.html`. 394369e
+- [x] Implement backend routes in `app/routers/admin.py` for MCP management. 394369e
 - [ ] Update `config.py` to handle MCP-related settings.
 
 ## Phase 4: Agent Skills Support
