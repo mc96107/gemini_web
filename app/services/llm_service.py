@@ -270,7 +270,7 @@ class GeminiAgent:
             global_log(f"Error in _get_latest_session_uuid: {str(e)}")
             return None
 
-    async def generate_response_stream(self, user_id: str, prompt: str, model: Optional[str] = None, file_paths: Optional[List[str]] = None, resume_session: Optional[str] = "AUTO") -> AsyncGenerator[Dict, None]:
+    async def generate_response_stream(self, user_id: str, prompt: str, model: Optional[str] = None, file_paths: Optional[List[str]] = None, resume_session: Optional[str] = "AUTO", plan_mode: bool = False) -> AsyncGenerator[Dict, None]:
         def log_debug(msg): global_log(f"[{user_id}] {msg}", level="DEBUG")
 
         if user_id not in self.user_data:
@@ -317,7 +317,12 @@ class GeminiAgent:
             
             args = [self.gemini_cmd, "--output-format", "stream-json"]
             args.extend(["--allowed-tools", ",".join(enabled_tools) if enabled_tools else "none"])
-            args.extend(["--approval-mode", "default"])
+            
+            if plan_mode:
+                args.extend(["--approval-mode", "plan"])
+            else:
+                args.extend(["--approval-mode", "default"])
+                
             if self.yolo_mode: args.append("--yolo")
             if session_uuid: args.extend(["--resume", session_uuid])
             if current_model: args.extend(["--model", current_model])

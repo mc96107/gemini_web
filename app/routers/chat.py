@@ -303,6 +303,7 @@ async def chat(request: Request, message: str = Form(...), file: Optional[list[U
     await agent.stop_chat(user)
 
     msg = message.strip()
+    plan_mode = False
     if msg.startswith("/"):
         parts = msg.split(maxsplit=2)
         cmd = parts[0].lower()
@@ -311,12 +312,18 @@ async def chat(request: Request, message: str = Form(...), file: Optional[list[U
             m_override = "gemini-3-pro-preview"
             if len(parts) > 1: return {"response": await agent.generate_response(user, parts[1] + (f" {parts[2]}" if len(parts) > 2 else ""), model=m_override, file_paths=file_paths)}
             return {"response": "Model set to Pro."}
+        if cmd == "/plan":
+            plan_mode = True
+            if len(parts) > 1:
+                message = parts[1] + (f" {parts[2]}" if len(parts) > 2 else "")
+            else:
+                return {"response": "Plan mode requires a prompt. Usage: /plan <your prompt>"}
         if cmd == "/p" or cmd == "/pattern":
             if len(parts) >= 2: return {"response": await agent.apply_pattern(user, parts[1], parts[2] if len(parts) > 2 else "", model=m_override, file_paths=file_paths)}
         if cmd == "/yolo":
             agent.yolo_mode = not agent.yolo_mode
             return {"response": f"YOLO Mode {'ENABLED' if agent.yolo_mode else 'DISABLED'}."}
-        if cmd == "/help": return {"response": "Commands: /reset, /pro, /p [pattern], /yolo, /help"}
+        if cmd == "/help": return {"response": "Commands: /reset, /pro, /plan, /p [pattern], /yolo, /help"}
     
     async def event_generator():
         def log_sse(msg, level="DEBUG"):
@@ -331,7 +338,7 @@ async def chat(request: Request, message: str = Form(...), file: Optional[list[U
 
         log_sse("Starting event_generator")
         try:
-            stream = agent.generate_response_stream(user, message, model=m_override, file_paths=file_paths)
+            stream = agent.generate_response_stream(user, message, model=m_override, file_paths=file_paths, plan_mode=plan_mode)
             it = stream.__aiter__()
             
             while True:
