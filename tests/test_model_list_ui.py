@@ -12,8 +12,8 @@ def test_stable_models_in_index():
     try:
         response = client.get("/")
         assert response.status_code == 200
-        # Check for stable Gemini 3 models
-        assert 'data-model="gemini-3-pro"' in response.text
-        assert 'data-model="gemini-3-flash"' in response.text
+        # Check for Gemini 3 models
+        assert 'data-model="gemini-3-pro-preview"' in response.text
+        assert 'value="gemini-3-pro-preview"' in response.text
     finally:
         del app.dependency_overrides[get_user]

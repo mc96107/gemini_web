@@ -13,14 +13,15 @@ from app.core.patterns import PATTERNS
 from app.core import config
 
 FALLBACK_MODELS = {
-    "gemini-3-pro": "gemini-3-flash",
-    "gemini-3": "gemini-3-flash",
+    "gemini-3-pro": "gemini-3-pro-preview",
+    "gemini-3-flash": "gemini-3-flash-preview",
+    "gemini-3": "gemini-3-flash-preview",
     "gemini-3-pro-preview": "gemini-3-flash-preview",
     "gemini-2.5-pro": "gemini-2.5-flash",
     "gemini-1.5-pro": "gemini-1.5-flash"
 }
 
-CAPACITY_KEYWORDS = ["429", "capacity", "quota", "exhausted", "rate limit"]
+CAPACITY_KEYWORDS = ["429", "capacity", "quota", "exhausted", "rate limit", "not found", "404"]
 
 def global_log(msg, level="INFO", user_data=None):
     # If user_data has a 'verbose_logging' setting, we might force INFO level or something.
