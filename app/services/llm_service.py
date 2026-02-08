@@ -288,6 +288,9 @@ class GeminiAgent:
             session_uuid = resume_session
 
         current_model = model or self.model_name
+
+        if plan_mode:
+            yield {"type": "plan_status", "status": "active", "message": "Entering Plan Mode..."}
         
         # System Prompt Injection for Interactive Mode
         settings = self.get_user_settings(user_id)
@@ -564,6 +567,9 @@ class GeminiAgent:
                 await proc.wait()
                 await stderr_task
                 log_debug(f"Process exited with code {proc.returncode}")
+                
+                if plan_mode:
+                    yield {"type": "plan_status", "status": "completed", "message": "Plan complete. Review proposed changes below."}
                 
                 # Check for capacity error in stderr if process failed
                 if proc.returncode != 0 and not should_fallback:

@@ -238,7 +238,7 @@ async def get_pats(request: Request):
     return res
 
 @router.post("/chat")
-async def chat(request: Request, message: str = Form(...), file: Optional[list[UploadFile]] = File(None), model: Optional[str] = Form(None), user=Depends(get_user)):
+async def chat(request: Request, message: str = Form(...), file: Optional[list[UploadFile]] = File(None), model: Optional[str] = Form(None), plan_mode: Optional[str] = Form(None), user=Depends(get_user)):
     agent = request.app.state.agent
     UPLOAD_DIR = request.app.state.UPLOAD_DIR
     if not user: raise HTTPException(401)
@@ -303,7 +303,7 @@ async def chat(request: Request, message: str = Form(...), file: Optional[list[U
     await agent.stop_chat(user)
 
     msg = message.strip()
-    plan_mode = False
+    is_plan = (plan_mode == "true")
     if msg.startswith("/"):
         parts = msg.split(maxsplit=2)
         cmd = parts[0].lower()
@@ -313,7 +313,7 @@ async def chat(request: Request, message: str = Form(...), file: Optional[list[U
             if len(parts) > 1: return {"response": await agent.generate_response(user, parts[1] + (f" {parts[2]}" if len(parts) > 2 else ""), model=m_override, file_paths=file_paths)}
             return {"response": "Model set to Pro."}
         if cmd == "/plan":
-            plan_mode = True
+            is_plan = True
             if len(parts) > 1:
                 message = parts[1] + (f" {parts[2]}" if len(parts) > 2 else "")
             else:
@@ -338,7 +338,7 @@ async def chat(request: Request, message: str = Form(...), file: Optional[list[U
 
         log_sse("Starting event_generator")
         try:
-            stream = agent.generate_response_stream(user, message, model=m_override, file_paths=file_paths, plan_mode=plan_mode)
+            stream = agent.generate_response_stream(user, message, model=m_override, file_paths=file_paths, plan_mode=is_plan)
             it = stream.__aiter__()
             
             while True:

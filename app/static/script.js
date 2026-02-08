@@ -215,6 +215,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const tagFilterContainer = document.getElementById('tag-filter-container');
     const chatTagsHeader = document.getElementById('chat-tags-header');
 
+    // --- Plan Mode ---
+    const planModeBtn = document.getElementById('plan-mode-btn');
+    let planModeActive = false;
+
+    planModeBtn?.addEventListener('click', () => {
+        planModeActive = !planModeActive;
+        if (planModeActive) {
+            planModeBtn.classList.replace('btn-outline-warning', 'btn-warning');
+            messageInput.placeholder = "Message Gemini in Plan Mode...";
+            messageInput.classList.add('border-warning');
+        } else {
+            planModeBtn.classList.replace('btn-warning', 'btn-outline-warning');
+            messageInput.placeholder = "Message Gemini...";
+            messageInput.classList.remove('border-warning');
+        }
+    });
+
     const taggingModal = document.getElementById('taggingModal');
     const modalCurrentTags = document.getElementById('modal-current-tags');
     const modalExistingTags = document.getElementById('modal-existing-tags');
@@ -1684,6 +1701,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             formData.append('model', modelInput.value);
+            if (planModeActive) {
+                formData.append('plan_mode', 'true');
+            }
 
             const response = await fetch('/chat', {
                 method: 'POST',
@@ -1770,6 +1790,12 @@ document.addEventListener('DOMContentLoaded', () => {
                             const data = JSON.parse(dataStr);
                             if (data.type === 'message' && data.role === 'assistant') {
                                 fullText += data.content;
+                            } else if (data.type === 'plan_status') {
+                                if (data.status === 'active') {
+                                    fullText += `\n\n<div class="alert alert-info py-2 px-3 mb-2"><i class="bi bi-journal-text me-2"></i><strong>Plan Mode Active:</strong> ${data.message}</div>\n\n`;
+                                } else if (data.status === 'completed') {
+                                    fullText += `\n\n<div class="alert alert-success py-2 px-3 mt-2"><i class="bi bi-check-circle me-2"></i><strong>Plan Complete:</strong> ${data.message}</div>\n\n`;
+                                }
                             } else if (data.type === 'question') {
                                 // Render question card
                                 const card = createQuestionCard(data);
