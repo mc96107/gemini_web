@@ -10,10 +10,10 @@
 - [x] Modify `GeminiAgent.generate_response_stream` to pass `--plan` flag when appropriate. 9b076d6
 - [x] Add UI indicators/modals for Plan Mode execution and review. ddb3c10
 
-## Phase 3: Admin & MCP Support
+## Phase 3: Admin & MCP Support [checkpoint: ca00f07]
 - [x] Add MCP configuration section to `app/templates/admin.html`. 394369e
 - [x] Implement backend routes in `app/routers/admin.py` for MCP management. 394369e
-- [ ] Update `config.py` to handle MCP-related settings.
+- [x] Update `config.py` to handle MCP-related settings. 1a2c71e
 
 ## Phase 4: Agent Skills Support
 - [ ] Add skill management UI to Agent Editor.
