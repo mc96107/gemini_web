@@ -6,8 +6,8 @@
 - [x] Update model selection list in `app/templates/index.html`. 7932628
 
 ## Phase 2: Plan Mode Integration
-- [ ] Update `app/routers/chat.py` to recognize `/plan` command.
-- [ ] Modify `GeminiAgent.generate_response_stream` to pass `--plan` flag when appropriate.
+- [x] Update `app/routers/chat.py` to recognize `/plan` command. 9b076d6
+- [x] Modify `GeminiAgent.generate_response_stream` to pass `--plan` flag when appropriate. 9b076d6
 - [ ] Add UI indicators/modals for Plan Mode execution and review.
 
 ## Phase 3: Admin & MCP Support
