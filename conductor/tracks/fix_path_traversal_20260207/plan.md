@@ -18,7 +18,7 @@
     - [x] Run existing `tests/test_uploads.py` to ensure no regressions.
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Implementation & Green Phase' (Protocol in workflow.md) [2e3c4f2]
 
-## Phase 3: Final Validation & Cleanup
+## Phase 3: Final Validation & Cleanup [checkpoint: 67b07a0]
 - [x] Task: Execute full test suite and check coverage. [ddbc052]
     - [x] Run all project tests.
     - [x] Verify coverage for `app/main.py` is >80%.
