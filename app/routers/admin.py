@@ -2,6 +2,10 @@ from fastapi import APIRouter, Request, Form, Depends, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from typing import Optional
 
+import subprocess
+import json
+import re
+import shutil
 from app.core import config
 from app.services.pattern_sync_service import PatternSyncService
 from app.models.agent import AgentModel
@@ -10,6 +14,89 @@ router = APIRouter()
 
 async def get_user(request: Request):
     return request.session.get("user")
+
+def run_gemini_mcp_command(args):
+    cmd = [shutil.which("gemini") or "gemini", "mcp"] + args
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        return result.stdout
+    except subprocess.CalledProcessError as e:
+        return f"Error: {e.stderr}"
+
+@router.get("/admin/mcp")
+async def list_mcp(request: Request, user=Depends(get_user)):
+    user_manager = request.app.state.user_manager
+    if user_manager.get_role(user) != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
+    output = run_gemini_mcp_command(["list"])
+    servers = []
+    # Parse output: ✓ web-inspector: npx -y mcp-web-inspector (stdio) - Connected
+    lines = output.split("\n")
+    for line in lines:
+        if ":" in line and ("stdio" in line or "sse" in line):
+            enabled = "✓" in line
+            parts = line.split(":", 1)
+            name = parts[0].replace("✓", "").replace("✗", "").strip()
+            rest = parts[1].strip()
+            # rest might be "npx -y mcp-web-inspector (stdio) - Connected"
+            cmd_parts = rest.split(" (", 1)
+            command = cmd_parts[0].strip()
+            servers.append({
+                "name": name,
+                "command": command,
+                "enabled": enabled,
+                "status": "Connected" if "Connected" in rest else "Disconnected"
+            })
+    return servers
+
+@router.post("/admin/mcp/add")
+async def add_mcp(request: Request, user=Depends(get_user)):
+    user_manager = request.app.state.user_manager
+    if user_manager.get_role(user) != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
+    data = await request.json()
+    name = data.get("name")
+    command = data.get("command")
+    args = data.get("args", [])
+    
+    if not name or not command:
+        raise HTTPException(status_code=400, detail="Name and command are required")
+    
+    full_args = ["add", name, command] + (args if isinstance(args, list) else args.split())
+    output = run_gemini_mcp_command(full_args)
+    return {"success": "Error" not in output, "output": output}
+
+@router.post("/admin/mcp/remove")
+async def remove_mcp(request: Request, user=Depends(get_user)):
+    user_manager = request.app.state.user_manager
+    if user_manager.get_role(user) != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
+    data = await request.json()
+    name = data.get("name")
+    if not name:
+        raise HTTPException(status_code=400, detail="Name is required")
+    
+    output = run_gemini_mcp_command(["remove", name])
+    return {"success": "Error" not in output, "output": output}
+
+@router.post("/admin/mcp/toggle")
+async def toggle_mcp(request: Request, user=Depends(get_user)):
+    user_manager = request.app.state.user_manager
+    if user_manager.get_role(user) != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
+    data = await request.json()
+    name = data.get("name")
+    enabled = data.get("enabled")
+    if not name:
+        raise HTTPException(status_code=400, detail="Name is required")
+    
+    cmd = "enable" if enabled else "disable"
+    output = run_gemini_mcp_command([cmd, name])
+    return {"success": "Error" not in output, "output": output}
 
 @router.post("/admin/patterns/sync")
 async def sync_patterns(request: Request, user=Depends(get_user)):
