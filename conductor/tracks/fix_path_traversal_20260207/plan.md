@@ -1,6 +1,6 @@
 # Implementation Plan - Fix Path Traversal in Uploads Route
 
-## Phase 1: Verification & TDD Setup
+## Phase 1: Verification & TDD Setup [checkpoint: 299ac3a]
 - [x] Task: Create a reproduction test suite for the path traversal vulnerability. [417b585]
     - [x] Create `tests/test_path_traversal.py`.
     - [x] Implement a test case that attempts to access `data/settings.json` via `/uploads/../../data/settings.json`.
