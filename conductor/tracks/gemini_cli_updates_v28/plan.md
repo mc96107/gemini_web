@@ -15,6 +15,6 @@
 - [x] Implement backend routes in `app/routers/admin.py` for MCP management. 394369e
 - [x] Update `config.py` to handle MCP-related settings. 1a2c71e
 
-## Phase 4: Agent Skills Support
-- [ ] Add skill management UI to Agent Editor.
-- [ ] Ensure skills in `.agents/skills` are correctly discovered and linked.
+## Phase 4: Agent Skills Support [checkpoint: 4a9c645]
+- [x] Add skill management UI to Agent Editor. 374ce78
+- [x] Ensure skills in `.agents/skills` are correctly discovered and linked. 374ce78
