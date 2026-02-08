@@ -18,14 +18,11 @@ This file tracks all major tracks for the project. Each track has its own detail
 - [x] **Track: tree prompt helper - visual**
 *Link: [./archive/tree_prompt_helper_20260131/](./archive/tree_prompt_helper_20260131/)*
 
+- [x] **Track: Fix path traversal vulnerability in uploads route**
+*Link: [./archive/fix_path_traversal_20260207/](./archive/fix_path_traversal_20260207/)*
+
 ---\
 ---
-
-- [x] **Track: Fix path traversal vulnerability in uploads route**
-
-*Link: [./tracks/fix_path_traversal_20260207/](./tracks/fix_path_traversal_20260207/)*
-
-
 
 ---
 

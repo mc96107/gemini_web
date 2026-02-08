@@ -1,0 +1,8 @@
+{
+  "track_id": "fix_path_traversal_20260207",
+  "type": "bug",
+  "status": "new",
+  "created_at": "2026-02-07T14:00:00Z",
+  "updated_at": "2026-02-07T14:00:00Z",
+  "description": "Fix path traversal vulnerability in the /uploads/{filename} route by sanitizing the filename input using pathlib."
+}
