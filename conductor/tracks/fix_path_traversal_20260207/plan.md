@@ -1,12 +1,12 @@
 # Implementation Plan - Fix Path Traversal in Uploads Route
 
 ## Phase 1: Verification & TDD Setup
-- [x] Task: Create a reproduction test suite for the path traversal vulnerability.
+- [x] Task: Create a reproduction test suite for the path traversal vulnerability. [417b585]
     - [x] Create `tests/test_path_traversal.py`.
     - [x] Implement a test case that attempts to access `data/settings.json` via `/uploads/../../data/settings.json`.
     - [x] Implement a test case for URL-encoded traversal (`%2e%2e%2f`).
     - [x] Verify these tests FAIL (Red Phase).
-- [~] Task: Conductor - User Manual Verification 'Phase 1: Verification & TDD Setup' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Verification & TDD Setup' (Protocol in workflow.md) [417b585]
 
 ## Phase 2: Implementation & Green Phase
 - [ ] Task: Implement filename sanitization in the uploads route.
