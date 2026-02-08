@@ -19,7 +19,7 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Implementation & Green Phase' (Protocol in workflow.md) [2e3c4f2]
 
 ## Phase 3: Final Validation & Cleanup
-- [ ] Task: Execute full test suite and check coverage.
-    - [ ] Run all project tests.
-    - [ ] Verify coverage for `app/main.py` is >80%.
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Final Validation & Cleanup' (Protocol in workflow.md)
+- [x] Task: Execute full test suite and check coverage. [ddbc052]
+    - [x] Run all project tests.
+    - [x] Verify coverage for `app/main.py` is >80%.
+- [~] Task: Conductor - User Manual Verification 'Phase 3: Final Validation & Cleanup' (Protocol in workflow.md)
