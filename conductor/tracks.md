@@ -24,11 +24,8 @@ This file tracks all major tracks for the project. Each track has its own detail
 - [x] **Track: Fix path traversal vulnerability in uploads route**
 *Link: [./archive/fix_path_traversal_20260207/](./archive/fix_path_traversal_20260207/)*
 
----
-
 - [x] **Track: Gemini CLI v0.28+ Updates**
-
-*Link: [./tracks/gemini_cli_updates_v28/](./tracks/gemini_cli_updates_v28/)*
+*Link: [./archive/gemini_cli_updates_v28/](./archive/gemini_cli_updates_v28/)*
 
 ---
 
