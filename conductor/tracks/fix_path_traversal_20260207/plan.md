@@ -8,7 +8,7 @@
     - [x] Verify these tests FAIL (Red Phase).
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Verification & TDD Setup' (Protocol in workflow.md) [417b585]
 
-## Phase 2: Implementation & Green Phase
+## Phase 2: Implementation & Green Phase [checkpoint: 5617b90]
 - [x] Task: Implement filename sanitization in the uploads route. [2e3c4f2]
     - [x] Modify `@app.get("/uploads/{filename}")` in `app/main.py`.
     - [x] Import `pathlib`.
