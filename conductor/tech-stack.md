@@ -23,6 +23,7 @@
 * **Blockchain Identity:** `eth-account` - For Ethereum-based cryptographic signing and authentication.
 * **Hashing:** `bcrypt` - For secure password hashing (where applicable).
 * **Session Management:** `itsdangerous` & Starlette SessionMiddleware - For secure session handling.
+* **File Security:** `pathlib.Path.name` - Used for robust filename sanitization to prevent path traversal vulnerabilities in file retrieval routes.
 
 ## Document Processing
 

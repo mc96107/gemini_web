@@ -26,6 +26,7 @@ The Gemini Termux Agent is designed for:
 *   **Math Rendering:** Built-in support for LaTeX mathematical expressions via KaTeX, enabling high-quality rendering of formulas.
 *   **Automatic PDF Compression:** Automatically optimizes uploaded PDF files using Ghostscript to reduce file size while maintaining readability for the AI model.
 *   **Filename Sanitization:** Automatically sanitizes uploaded filenames to strict ASCII to ensure compatibility with downstream CLI tools and cross-platform environments.
+*   **Path Traversal Protection:** Implements strict sanitization for file retrieval routes, ensuring that only files within designated upload directories are accessible and preventing directory traversal attacks.
 *   **Chat Export:** Export full conversation history as Markdown files for offline storage or sharing.
 * **Multi-File Attachments:** Users can attach and send multiple files (images, documents, etc.) in a single message.
 * **Automatic Document Conversion:** Automatically converts uploaded `.docx` and `.xlsx` files into Markdown format for better AI readability while excluding images to optimize token usage.
