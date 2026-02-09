@@ -2,14 +2,14 @@
 
 This plan addresses the issue where pinned chats are duplicated in the sidebar when loading more history. It involves strictly separating pinned and unpinned chats on the backend and updating the frontend to render them in distinct sections.
 
-## Phase 1: Backend Refactor (TDD)
-- [ ] Task: Create failing test for paginated session duplication in `tests/test_pinned_chats.py`.
-- [ ] Task: Update `app/services/llm_service.py`: Modify `get_user_sessions` to return a dictionary structure `{"pinned": [...], "history": [...], "total_unpinned": int}`.
-- [ ] Task: Ensure `pinned` list is only populated in the response when `offset == 0`.
-- [ ] Task: Update `app/routers/chat.py`: Adjust all routes that call `get_user_sessions` (index, /sessions) to handle the new dictionary return format.
-- [ ] Task: Update `app/services/llm_service.py`: Adjust `search_sessions` and other internal callers to handle the new format.
-- [ ] Task: Verify all backend tests pass, ensuring no regressions in session retrieval or pinning.
-- [ ] Task: Conductor - User Manual Verification 'Backend Refactor (TDD)' (Protocol in workflow.md)
+## Phase 1: Backend Refactor (TDD) [checkpoint: e07ddcd]
+- [x] Task: Create failing test for paginated session duplication in `tests/test_pinned_chats.py`. e07ddcd
+- [x] Task: Update `app/services/llm_service.py`: Modify `get_user_sessions` to return a dictionary structure `{"pinned": [...], "history": [...], "total_unpinned": int}`. e07ddcd
+- [x] Task: Ensure `pinned` list is only populated in the response when `offset == 0`. e07ddcd
+- [x] Task: Update `app/routers/chat.py`: Adjust all routes that call `get_user_sessions` (index, /sessions) to handle the new dictionary return format. e07ddcd
+- [x] Task: Update `app/services/llm_service.py`: Adjust `search_sessions` and other internal callers to handle the new format. e07ddcd
+- [x] Task: Verify all backend tests pass, ensuring no regressions in session retrieval or pinning. e07ddcd
+- [x] Task: Conductor - User Manual Verification 'Backend Refactor (TDD)' (Protocol in workflow.md) e07ddcd
 
 ## Phase 2: Frontend Refactor
 - [ ] Task: Update `app/templates/index.html`: Refactor the `#sessions-list` container to include two distinct sub-containers: `#pinned-sessions-list` and `#history-sessions-list`, with appropriate headers (e.g., "Pinned" and "Recent").
