@@ -8,7 +8,7 @@ import uuid
 import subprocess
 import threading
 from datetime import datetime, timezone
-from typing import Optional, List, Dict, AsyncGenerator
+from typing import Optional, List, Dict, AsyncGenerator, Any
 from app.core.patterns import PATTERNS
 from app.core import config
 
@@ -99,6 +99,27 @@ class ThreadedProcess:
         self.proc.terminate()
 
 class GeminiAgent:
+    async def check_plan_mode_support(self) -> Dict:
+        """Checks if the underlying gemini-cli supports --approval-mode plan."""
+        cmd = [self.gemini_cmd, "--approval-mode", "plan"]
+        try:
+            # We use a short timeout and a simple input to trigger the config check
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(input=b"test"), timeout=5.0)
+            err_text = stderr.decode(errors='replace')
+            if "experimental.plan" in err_text:
+                return {"supported": False, "reason": "experimental.plan not enabled in ~/.gemini/settings.json"}
+            return {"supported": True}
+        except asyncio.TimeoutError:
+            return {"supported": True} # Assume supported if it doesn't fail immediately
+        except Exception as e:
+            return {"supported": False, "reason": str(e)}
+
     def __init__(self, model: str = "gemini-2.5-flash", working_dir: Optional[str] = None):
         self.model_name = model
         self.working_dir = working_dir or os.getcwd()
@@ -642,7 +663,7 @@ class GeminiAgent:
         if user_id not in self.user_data: return False
         return session_uuid in self.user_data[user_id].get("sessions", [])
 
-    async def get_user_sessions(self, user_id: str, limit: Optional[int] = None, offset: int = 0, tags: Optional[List[str]] = None) -> List[Dict]:
+    async def get_user_sessions(self, user_id: str, limit: Optional[int] = None, offset: int = 0, tags: Optional[List[str]] = None) -> Dict[str, Any]:
         if user_id not in self.user_data:
             self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": [], "pinned_sessions": [], "session_metadata": {}}
             self._save_user_data()
@@ -654,7 +675,7 @@ class GeminiAgent:
         session_metadata = user_info.get("session_metadata", {})
         session_forks = user_info.get("session_forks", {})
         
-        if not uuids: return []
+        if not uuids: return {"pinned": [], "history": [], "total_unpinned": 0}
 
         # Check if we have metadata for all sessions
         missing_metadata = [u for u in uuids if u not in session_metadata]
@@ -755,7 +776,8 @@ class GeminiAgent:
                 
             except Exception as e:
                 global_log(f"Error in get_user_sessions (fetching): {str(e)}")
-                return []
+                return {"pinned": [], "history": [], "total_unpinned": 0}
+        
         # --- Grouping Logic: Display them as one (the latest fork) ---
         
         def get_root(u):
@@ -778,15 +800,8 @@ class GeminiAgent:
                 grouped_sessions.append(sess)
                 seen_roots.add(root_uuid)
             else:
-                # If the current active session is a fork that is NOT the latest, 
-                # we still might want to show it? 
-                # The user said "display them as one" and "opening a chat start by displaying the latest fork".
-                # This implies we only show the most recent fork in the sidebar.
-                # If the user IS currently in an older fork, maybe we should show that one instead?
-                # Let's stick to showing the latest, but if the active session is in this group, 
-                # ensure the "active" badge or state is represented if possible.
+                # If any fork in the group is active, the latest one shows it
                 if sess["active"]:
-                    # Update the already added group entry to be "active" if any member is active
                     for gs in grouped_sessions:
                         if get_root(gs["uuid"]) == root_uuid:
                             gs["has_active_fork"] = True
@@ -796,18 +811,26 @@ class GeminiAgent:
         pinned = [s for s in grouped_sessions if s["pinned"]]
         unpinned = [s for s in grouped_sessions if not s["pinned"]]
         
+        total_unpinned = len(unpinned)
+        
         if limit is not None:
             paged_unpinned = unpinned[offset : offset + limit]
         else:
             paged_unpinned = unpinned[offset:]
             
-        return pinned + paged_unpinned
+        return {
+            "pinned": pinned if offset == 0 else [],
+            "history": paged_unpinned,
+            "total_unpinned": total_unpinned
+        }
 
     async def search_sessions(self, user_id: str, query: str) -> List[Dict]:
-        if not query: return await self.get_user_sessions(user_id)
+        sessions_data = await self.get_user_sessions(user_id)
+        if not query:
+            return sessions_data.get("pinned", []) + sessions_data.get("history", [])
         
-        user_sessions = await self.get_user_sessions(user_id) # Get basic info for all user sessions
-        if not user_sessions: return []
+        all_sessions = sessions_data.get("pinned", []) + sessions_data.get("history", [])
+        if not all_sessions: return []
         
         query = query.lower()
         results = []
@@ -815,7 +838,7 @@ class GeminiAgent:
         home = os.path.expanduser("~")
         gemini_tmp_base = os.path.join(home, ".gemini", "tmp")
         
-        for sess in user_sessions:
+        for sess in all_sessions:
             match = False
             # Check title
             if query in sess.get("title", "").lower():

@@ -24,8 +24,9 @@ async def index(request: Request, user=Depends(get_user)):
     if not user: return RedirectResponse(str(request.url_for("login_pg")), status_code=303)
     
     # Pre-load active session and initial messages for faster start
-    sessions = await agent.get_user_sessions(user)
-    active_session = next((s for s in sessions if s.get('active')), None)
+    sessions_data = await agent.get_user_sessions(user)
+    all_sessions_list = sessions_data.get("pinned", []) + sessions_data.get("history", [])
+    active_session = next((s for s in all_sessions_list if s.get('active')), None)
     initial_messages = []
     has_more = False
     total_messages = 0
@@ -236,6 +237,12 @@ async def get_pats(request: Request):
         res = [{"name": k, "description": "", "type": "system"} for k in agent.list_patterns()]
         
     return res
+
+@router.get("/api/plan-support")
+async def check_plan_support(request: Request, user=Depends(get_user)):
+    if not user: raise HTTPException(401)
+    agent = request.app.state.agent
+    return await agent.check_plan_mode_support()
 
 @router.post("/chat")
 async def chat(request: Request, message: str = Form(...), file: Optional[list[UploadFile]] = File(None), model: Optional[str] = Form(None), plan_mode: Optional[str] = Form(None), user=Depends(get_user)):

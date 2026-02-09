@@ -61,22 +61,18 @@ async def test_get_user_sessions_pagination(agent, monkeypatch):
     monkeypatch.setattr("asyncio.create_subprocess_exec", mock_create_subprocess_exec)
     
     # Test with limit=5, offset=0
-    # Expected: 2 pinned + 5 unpinned (latest ones)
-    sessions = await agent.get_user_sessions(user_id, limit=5, offset=0)
+    # Expected: {"pinned": [2 items], "history": [5 items], "total_unpinned": 13}
+    data = await agent.get_user_sessions(user_id, limit=5, offset=0)
     
-    # Since sessions[::-1] is returned in get_user_sessions, 
-    # and we want pinned first, and then unpinned by recency.
-    # The current implementation returns sessions[::-1] which reverses the list-sessions order.
-    # If list-sessions returns [0, 1, 2... 14], sessions[::-1] is [14, 13, 12... 0].
-    
-    pinned_count = len([s for s in sessions if s["pinned"]])
-    assert pinned_count == 2
-    assert len(sessions) == 7 # 2 pinned + 5 unpinned
+    assert len(data["pinned"]) == 2
+    assert len(data["history"]) == 5
+    assert data["total_unpinned"] == 13
     
     # Test offset=5
-    sessions_offset = await agent.get_user_sessions(user_id, limit=5, offset=5)
-    assert len(sessions_offset) == 7 # 2 pinned (always) + 5 unpinned (the next ones)
-    assert sessions_offset[2]["uuid"] != sessions[2]["uuid"]
+    data_offset = await agent.get_user_sessions(user_id, limit=5, offset=5)
+    assert len(data_offset["pinned"]) == 0
+    assert len(data_offset["history"]) == 5
+    assert data_offset["history"][0]["uuid"] != data["history"][0]["uuid"]
 
 @pytest.mark.anyio
 async def test_search_sessions(agent, monkeypatch, tmp_path):
