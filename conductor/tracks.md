@@ -27,12 +27,10 @@ This file tracks all major tracks for the project. Each track has its own detail
 - [x] **Track: Fix path traversal vulnerability in uploads route**
 *Link: [./archive/fix_path_traversal_20260207/](./archive/fix_path_traversal_20260207/)*
 
-- [x] **Track: Gemini CLI v0.28+ Updates**
-*Link: [./archive/gemini_cli_updates_v28/](./archive/gemini_cli_updates_v28/)*
+- [x] **Track: Improve auto chat naming: do not include system instruction or file paths**
+*Link: [./archive/improve_auto_chat_naming_20260209/](./archive/improve_auto_chat_naming_20260209/)*
 
 ---
 
 - [x] **Track: sidebar: load more chats: do not repeat pinned**
 *Link: [./tracks/sidebar_load_more_no_repeat_pinned_20260208/](./tracks/sidebar_load_more_no_repeat_pinned_20260208/)*
-
-\`n---`n`n- [x] **Track: Improve auto chat naming: do not include system instruction or file paths**`n*Link: [./tracks/improve_auto_chat_naming_20260209/](./tracks/improve_auto_chat_naming_20260209/)*
