@@ -29,7 +29,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: sidebar: load more chats: do not repeat pinned**
+- [x] **Track: sidebar: load more chats: do not repeat pinned**
 *Link: [./tracks/sidebar_load_more_no_repeat_pinned_20260208/](./tracks/sidebar_load_more_no_repeat_pinned_20260208/)*
 
 \
