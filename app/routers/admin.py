@@ -32,22 +32,22 @@ async def list_mcp(request: Request, user=Depends(get_user)):
     
     output = run_gemini_mcp_command(["list"])
     servers = []
-    # Parse output: ✓ web-inspector: npx -y mcp-web-inspector (stdio) - Connected
     lines = output.split("\n")
     for line in lines:
-        if ":" in line and ("stdio" in line or "sse" in line):
-            enabled = "✓" in line
-            parts = line.split(":", 1)
-            name = parts[0].replace("✓", "").replace("✗", "").strip()
-            rest = parts[1].strip()
-            # rest might be "npx -y mcp-web-inspector (stdio) - Connected"
-            cmd_parts = rest.split(" (", 1)
-            command = cmd_parts[0].strip()
+        line = line.strip()
+        if not line or ":" not in line: continue
+        
+        # Match pattern like: ✓ web-inspector: npx -y mcp-web-inspector (stdio) - Connected
+        # Or: ✗ browser: npx -y mcp-server-browser (stdio) - Disconnected
+        # We make the prefix optional and the status optional
+        match = re.search(r'([✓✗]?)\s*(.*?):\s*(.*?)\s*\((stdio|sse)\)(?:\s*-\s*(.*))?', line)
+        if match:
+            enabled_char = match.group(1)
             servers.append({
-                "name": name,
-                "command": command,
-                "enabled": enabled,
-                "status": "Connected" if "Connected" in rest else "Disconnected"
+                "name": match.group(2).strip(),
+                "command": match.group(3).strip(),
+                "enabled": enabled_char != '✗', # Default to true if not specifically disabled
+                "status": (match.group(5) or "Unknown").strip()
             })
     return servers
 
@@ -111,7 +111,58 @@ async def list_skills(request: Request, user=Depends(get_user)):
         for f in os.listdir(skills_dir):
             if f.endswith(".md"):
                 skills.append(f[:-3]) # Remove .md
-    return skills
+    return sorted(skills)
+
+@router.get("/admin/skills/{name}")
+async def get_skill(request: Request, name: str, user=Depends(get_user)):
+    user_manager = request.app.state.user_manager
+    if user_manager.get_role(user) != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
+    skill_path = os.path.join(os.getcwd(), ".agents", "skills", f"{name}.md")
+    if not os.path.exists(skill_path):
+        raise HTTPException(status_code=404, detail="Skill not found")
+    
+    with open(skill_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    return {"name": name, "content": content}
+
+@router.post("/admin/skills")
+async def save_skill(request: Request, user=Depends(get_user)):
+    user_manager = request.app.state.user_manager
+    if user_manager.get_role(user) != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
+    data = await request.json()
+    name = data.get("name")
+    content = data.get("content")
+    
+    if not name or not content:
+        raise HTTPException(status_code=400, detail="Name and content are required")
+    
+    # Sanitize name
+    name = re.sub(r'[^a-zA-Z0-9_-]', '_', name)
+    
+    skills_dir = os.path.join(os.getcwd(), ".agents", "skills")
+    os.makedirs(skills_dir, exist_ok=True)
+    
+    skill_path = os.path.join(skills_dir, f"{name}.md")
+    with open(skill_path, "w", encoding="utf-8") as f:
+        f.write(content)
+    
+    return {"success": True}
+
+@router.delete("/admin/skills/{name}")
+async def delete_skill(request: Request, name: str, user=Depends(get_user)):
+    user_manager = request.app.state.user_manager
+    if user_manager.get_role(user) != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
+    skill_path = os.path.join(os.getcwd(), ".agents", "skills", f"{name}.md")
+    if os.path.exists(skill_path):
+        os.remove(skill_path)
+        return {"success": True}
+    return {"success": False, "error": "Skill not found"}
 
 @router.post("/admin/patterns/sync")
 async def sync_patterns(request: Request, user=Depends(get_user)):

@@ -212,34 +212,6 @@
             </div>
         </div>
 
-        <div class="row mt-4">
-            <div class="col-12">
-                <div class="card shadow-sm">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h5 class="card-title mb-0">MCP Servers</h5>
-                            <button class="btn btn-primary btn-sm" onclick="showNewMCP()">
-                                <i class="bi bi-plus-lg me-1"></i> Add MCP Server
-                            </button>
-                        </div>
-                        <div class="table-responsive">
-                            <table class="table table-dark table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>Status</th>
-                                        <th>Name</th>
-                                        <th>Command</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="mcpTableBody">
-                                    <!-- Loaded via JS -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 
@@ -293,7 +265,73 @@
 
     <!-- Change Password Modal -->
     <div class="modal fade" id="passwordModal" tabindex="-1" aria-hidden="true">
-        ...
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark text-light border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title">Change Password for <span id="targetUsername"></span></h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="/admin/user/update-password" method="post">
+                    <div class="modal-body">
+                        <input type="hidden" name="username" id="modalUsername">
+                        <div class="mb-3">
+                            <label class="form-label">New Password</label>
+                            <input type="password" name="new_password" class="form-control bg-dark text-light border-secondary" required>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-secondary">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Update Password</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="card-title mb-0">Available Skills</h5>
+                        <button class="btn btn-primary btn-sm" onclick="showNewSkill()">
+                            <i class="bi bi-plus-lg me-1"></i> Add Skill
+                        </button>
+                    </div>
+                    <p class="text-muted small">Managed in <code>.agents/skills/</code></p>
+                    <div id="dashboardSkillsList" class="list-group list-group-flush bg-dark">
+                        <!-- Loaded via JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="card-title mb-0">MCP Servers</h5>
+                        <button class="btn btn-primary btn-sm" onclick="showNewMCP()">
+                            <i class="bi bi-plus-lg me-1"></i> Add MCP Server
+                        </button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Status</th>
+                                    <th>Name</th>
+                                    <th>Command</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="mcpTableBody">
+                                <!-- Loaded via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- MCP Modal -->
@@ -328,11 +366,40 @@
         </div>
     </div>
 
+    <!-- Skill Modal -->
+    <div class="modal fade" id="skillModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content bg-dark text-light border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title" id="skillModalTitle">New Skill</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="skillForm">
+                        <div class="mb-3">
+                            <label class="form-label">Skill Name (Filename)</label>
+                            <input type="text" id="skillName" class="form-control bg-dark text-light border-secondary" placeholder="e.g., code-reviewer" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Instructions (Markdown)</label>
+                            <textarea id="skillContent" class="form-control bg-dark text-light border-secondary" rows="15" placeholder="# Skill: ...\n\n## Instructions\n..." required></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveSkill()">Save Skill</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         const passwordModal = new bootstrap.Modal(document.getElementById('passwordModal'));
         const agentModal = new bootstrap.Modal(document.getElementById('agentModal'));
         const mcpModal = new bootstrap.Modal(document.getElementById('mcpModal'));
+        const skillModal = new bootstrap.Modal(document.getElementById('skillModal'));
         let allAgents = [];
         let allSkills = [];
 
@@ -350,7 +417,77 @@
             try {
                 const res = await fetch('/admin/skills');
                 allSkills = await res.json();
+                
+                const list = document.getElementById('dashboardSkillsList');
+                if (list) {
+                    list.innerHTML = '';
+                    allSkills.forEach(skill => {
+                        const item = document.createElement('div');
+                        item.className = 'list-group-item bg-dark text-light border-secondary d-flex justify-content-between align-items-center py-1';
+                        item.innerHTML = `
+                            <span><i class="bi bi-magic me-2 text-info"></i>${skill}</span>
+                            <div>
+                                <button class="btn btn-sm btn-link text-info p-0 me-2" onclick="editSkill('${skill}')"><i class="bi bi-pencil"></i></button>
+                                <button class="btn btn-sm btn-link text-danger p-0" onclick="deleteSkill('${skill}')"><i class="bi bi-trash"></i></button>
+                            </div>
+                        `;
+                        list.appendChild(item);
+                    });
+                    if (allSkills.length === 0) {
+                        list.innerHTML = '<div class="text-muted small p-2">No skills found.</div>';
+                    }
+                }
             } catch (err) { console.error('Error fetching skills:', err); }
+        }
+
+        function showNewSkill() {
+            document.getElementById('skillModalTitle').textContent = 'New Skill';
+            document.getElementById('skillName').value = '';
+            document.getElementById('skillName').disabled = false;
+            document.getElementById('skillContent').value = '# Skill: ...\n\n## Instructions\n...';
+            skillModal.show();
+        }
+
+        async function editSkill(name) {
+            try {
+                const res = await fetch(`/admin/skills/${name}`);
+                const skill = await res.json();
+                document.getElementById('skillModalTitle').textContent = 'Edit Skill';
+                document.getElementById('skillName').value = skill.name;
+                document.getElementById('skillName').disabled = true;
+                document.getElementById('skillContent').value = skill.content;
+                skillModal.show();
+            } catch (err) { alert('Error loading skill'); }
+        }
+
+        async function saveSkill() {
+            const name = document.getElementById('skillName').value.trim();
+            const content = document.getElementById('skillContent').value.trim();
+            if (!name || !content) return;
+
+            try {
+                const res = await fetch('/admin/skills', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name, content})
+                });
+                const data = await res.json();
+                if (data.success) {
+                    skillModal.hide();
+                    fetchSkills();
+                } else { alert('Error saving skill'); }
+            } catch (err) { alert('Request failed'); }
+        }
+
+        async function deleteSkill(name) {
+            if (!confirm(`Are you sure you want to delete skill "${name}"?`)) return;
+            try {
+                const res = await fetch(`/admin/skills/${name}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) {
+                    fetchSkills();
+                } else { alert('Error deleting skill'); }
+            } catch (err) { alert('Request failed'); }
         }
 
         function renderSkillsCheckboxes(selectedSkills = []) {

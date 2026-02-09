@@ -37,9 +37,10 @@ async def test_tag_management(agent):
         
         # Test adding tags
         await agent.update_session_tags(user_id, session_uuid, ["work", "urgent"])
-        sessions = await agent.get_user_sessions(user_id)
-        assert len(sessions) > 0
-        target_session = next(s for s in sessions if s['uuid'] == session_uuid)
+        sessions_data = await agent.get_user_sessions(user_id)
+        all_sessions = sessions_data["pinned"] + sessions_data["history"]
+        assert len(all_sessions) > 0
+        target_session = next(s for s in all_sessions if s['uuid'] == session_uuid)
         assert "work" in target_session.get("tags", [])
         assert "urgent" in target_session.get("tags", [])
         
@@ -49,8 +50,9 @@ async def test_tag_management(agent):
         
         # Test removing tags
         await agent.update_session_tags(user_id, session_uuid, ["work"])
-        sessions = await agent.get_user_sessions(user_id)
-        target_session = next(s for s in sessions if s['uuid'] == session_uuid)
+        sessions_data = await agent.get_user_sessions(user_id)
+        all_sessions = sessions_data["pinned"] + sessions_data["history"]
+        target_session = next(s for s in all_sessions if s['uuid'] == session_uuid)
         assert "work" in target_session.get("tags", [])
         assert "urgent" not in target_session.get("tags", [])
 
@@ -80,22 +82,26 @@ async def test_tag_filtering(agent):
         mock_exec.return_value = mock_proc
         
         # Filter by 'work'
-        filtered = await agent.get_user_sessions(user_id, tags=["work"])
+        sessions_data = await agent.get_user_sessions(user_id, tags=["work"])
+        filtered = sessions_data["pinned"] + sessions_data["history"]
         assert len(filtered) == 1
         assert filtered[0]['uuid'] == s1
         
         # Filter by 'personal'
-        filtered = await agent.get_user_sessions(user_id, tags=["personal"])
+        sessions_data = await agent.get_user_sessions(user_id, tags=["personal"])
+        filtered = sessions_data["pinned"] + sessions_data["history"]
         assert len(filtered) == 1
         assert filtered[0]['uuid'] == s2
         
         # Filter by both (none match both)
-        filtered = await agent.get_user_sessions(user_id, tags=["work", "personal"])
+        sessions_data = await agent.get_user_sessions(user_id, tags=["work", "personal"])
+        filtered = sessions_data["pinned"] + sessions_data["history"]
         assert len(filtered) == 0
 
         # Filter by multiple existing tags on one session
         agent.user_data[user_id]["session_tags"][s1] = ["work", "urgent"]
-        filtered = await agent.get_user_sessions(user_id, tags=["work", "urgent"])
+        sessions_data = await agent.get_user_sessions(user_id, tags=["work", "urgent"])
+        filtered = sessions_data["pinned"] + sessions_data["history"]
         assert len(filtered) == 1
         assert filtered[0]['uuid'] == s1
         

@@ -36,7 +36,6 @@ async def test_get_user_sessions_pagination(agent, monkeypatch):
     user_id = "test_user"
     
     # 15 sessions total, 2 are pinned
-    # Use real-looking UUIDs (36 chars)
     uuids = [f"12345678-1234-5678-1234-5678123456{i:02d}" for i in range(15)]
     pinned = [uuids[0], uuids[1]]
     
@@ -44,35 +43,39 @@ async def test_get_user_sessions_pagination(agent, monkeypatch):
         "active_session": uuids[14],
         "sessions": uuids,
         "session_tools": {},
-        "pinned_sessions": pinned
+        "pinned_sessions": pinned,
+        "session_metadata": {u: {"original_title": f"Chat {i}", "time": "2026-01-15"} for i, u in enumerate(uuids)}
     }
-    
-    # Mock subprocess call to --list-sessions
-    class MockProc:
-        async def communicate(self):
-            # Output in chronological order
-            lines = [f"  {i+1}. Chat {i} (2026-01-15) [{uuids[i]}]" for i in range(15)]
-            output = "\n".join(lines) + "\n"
-            return output.encode(), b""
-    
-    async def mock_create_subprocess_exec(*args, **kwargs):
-        return MockProc()
-    
-    monkeypatch.setattr("asyncio.create_subprocess_exec", mock_create_subprocess_exec)
     
     # Test with limit=5, offset=0
     # Expected: {"pinned": [2 items], "history": [5 items], "total_unpinned": 13}
     data = await agent.get_user_sessions(user_id, limit=5, offset=0)
     
+    assert isinstance(data, dict)
     assert len(data["pinned"]) == 2
     assert len(data["history"]) == 5
     assert data["total_unpinned"] == 13
     
+    # Verify pinned chats are correct
+    pinned_uuids = [s["uuid"] for s in data["pinned"]]
+    assert uuids[0] in pinned_uuids
+    assert uuids[1] in pinned_uuids
+    
+    # Verify history chats do NOT include pinned ones
+    history_uuids = [s["uuid"] for s in data["history"]]
+    for pu in pinned_uuids:
+        assert pu not in history_uuids
+
     # Test offset=5
     data_offset = await agent.get_user_sessions(user_id, limit=5, offset=5)
-    assert len(data_offset["pinned"]) == 0
+    assert len(data_offset["pinned"]) == 0 # Pinned only on offset 0
     assert len(data_offset["history"]) == 5
-    assert data_offset["history"][0]["uuid"] != data["history"][0]["uuid"]
+    assert data_offset["total_unpinned"] == 13
+    
+    # Verify history chats in offset 5 are different from offset 0
+    offset_history_uuids = [s["uuid"] for s in data_offset["history"]]
+    for hu in history_uuids:
+        assert hu not in offset_history_uuids
 
 @pytest.mark.anyio
 async def test_search_sessions(agent, monkeypatch, tmp_path):
