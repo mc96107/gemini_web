@@ -282,6 +282,41 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    const showPlanSetting = document.getElementById('setting-show-plan');
+    const planSupportInfo = document.getElementById('plan-support-info');
+    if (showPlanSetting && window.USER_SETTINGS) {
+        showPlanSetting.checked = window.USER_SETTINGS.show_plan === true;
+        
+        showPlanSetting.onchange = async () => {
+            const enabled = showPlanSetting.checked;
+            try {
+                const response = await fetch('/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ show_plan: enabled })
+                });
+                if (response.ok) {
+                    window.USER_SETTINGS.show_plan = enabled;
+                    updatePlanModeVisibility();
+                }
+            } catch (err) {
+                console.error('Error saving setting:', err);
+            }
+        };
+
+        // Detect Plan Mode support from server
+        fetch('/api/plan-support')
+            .then(res => res.json())
+            .then(data => {
+                if (data.supported) {
+                    planSupportInfo.classList.add('d-none');
+                } else {
+                    planSupportInfo.classList.remove('d-none');
+                    planSupportInfo.querySelector('span').textContent = "Not supported: " + data.reason;
+                }
+            }).catch(e => console.error('Error checking plan support:', e));
+    }
+
     function updateDriveModeVisibility() {
         if (!driveModeBtn) return;
         const isEnabled = window.USER_SETTINGS && window.USER_SETTINGS.show_mic !== false;
@@ -293,7 +328,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     window.updateDriveModeVisibility = updateDriveModeVisibility;
 
+    function updatePlanModeVisibility() {
+        if (!planModeBtn) return;
+        const isEnabled = window.USER_SETTINGS && window.USER_SETTINGS.show_plan === true;
+        if (isEnabled) {
+            planModeBtn.classList.remove('d-none');
+        } else {
+            planModeBtn.classList.add('d-none');
+        }
+    }
+    window.updatePlanModeVisibility = updatePlanModeVisibility;
+
     updateDriveModeVisibility();
+    updatePlanModeVisibility();
 
     driveModeBtn?.addEventListener('click', () => {
         if (!driveMode.isActive) {
@@ -1172,16 +1219,29 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (query) {
             url = `/sessions/search?q=${encodeURIComponent(query)}`;
-            // Clear tags if searching by text for now to avoid complexity, 
-            // or we could combine them if backend search supported it.
         }
 
         try {
             isLoadingSidebar = true;
             const response = await fetch(url);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const sessions = await response.json();
+            const data = await response.json();
             
+            let sessions = [];
+            let pinned = [];
+            let history = [];
+            let totalUnpinned = 0;
+
+            if (Array.isArray(data)) {
+                sessions = data;
+                history = data;
+            } else {
+                pinned = data.pinned || [];
+                history = data.history || [];
+                totalUnpinned = data.total_unpinned || 0;
+                sessions = pinned.concat(history);
+            }
+
             // Auto-create if none and not searching
             if (!query && !append && sessions.length === 0) {
                 const newRes = await fetch('/sessions/new', { method: 'POST' });
@@ -1192,7 +1252,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             try {
-                renderSessions(sessions, append);
+                if (append) {
+                    renderSessions(history, true);
+                } else {
+                    renderSessions(sessions, false);
+                }
             } catch (renderError) {
                 console.error('Error rendering sessions:', renderError);
             }
@@ -1201,8 +1265,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (query) {
                 if (sidebarLoadMoreContainer) sidebarLoadMoreContainer.classList.add('d-none');
             } else {
-                const unpinnedCount = sessions.filter(s => !s.pinned).length;
-                if (unpinnedCount === SIDEBAR_PAGE_LIMIT) {
+                if (history.length === SIDEBAR_PAGE_LIMIT && (sidebarOffset + SIDEBAR_PAGE_LIMIT) < totalUnpinned) {
                     if (sidebarLoadMoreContainer) sidebarLoadMoreContainer.classList.remove('d-none');
                 } else {
                     if (sidebarLoadMoreContainer) sidebarLoadMoreContainer.classList.add('d-none');
@@ -1231,13 +1294,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function renderSessions(sessions, append = false) {
-        if (!append && sessions.length === 0) {
-            sessionsList.innerHTML = '<div class="text-center p-3 text-muted">No history found.</div>';
-            return;
+    function renderSessions(data, append = false) {
+        const pinnedList = document.getElementById('pinned-sessions-list');
+        const historyList = document.getElementById('history-sessions-list');
+        const pinnedHeader = document.getElementById('pinned-sessions-header');
+        const historyHeader = document.getElementById('history-sessions-header');
+        const initialLoader = document.getElementById('sidebar-initial-loader');
+
+        if (initialLoader) initialLoader.remove();
+
+        let pinned = [];
+        let history = [];
+
+        if (Array.isArray(data)) {
+            // Fallback for search results or legacy
+            history = data;
+        } else {
+            pinned = data.pinned || [];
+            history = data.history || [];
         }
 
-        const html = sessions.map(s => `
+        const createSessionHTML = (s) => `
             <div class="list-group-item list-group-item-action bg-dark text-light session-item ${(s.active || s.has_active_fork) ? 'active-session' : ''}" data-uuid="${s.uuid}">
                 <div class="d-flex justify-content-between align-items-start">
                     <div class="flex-grow-1 overflow-hidden">
@@ -1261,12 +1338,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
             </div>
-        `).join('');
+        `;
 
-        if (append) {
-            sessionsList.insertAdjacentHTML('beforeend', html);
+        if (!append) {
+            pinnedList.innerHTML = pinned.map(createSessionHTML).join('');
+            historyList.innerHTML = history.map(createSessionHTML).join('');
+            
+            if (pinned.length > 0) {
+                pinnedHeader.classList.remove('d-none');
+            } else {
+                pinnedHeader.classList.add('d-none');
+            }
+
+            if (history.length > 0 || pinned.length > 0) {
+                historyHeader.classList.remove('d-none');
+            } else {
+                historyHeader.classList.add('d-none');
+                historyList.innerHTML = '<div class="text-center p-3 text-muted">No history found.</div>';
+            }
         } else {
-            sessionsList.innerHTML = html;
+            historyList.insertAdjacentHTML('beforeend', history.map(createSessionHTML).join(''));
         }
 
         attachSessionListeners();

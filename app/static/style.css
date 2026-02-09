@@ -406,6 +406,14 @@ footer {
     transform: scale(1.02);
 }
 
+/* Sidebar Sections */
+.sidebar-section-header {
+    letter-spacing: 0.05rem;
+    z-index: 10;
+    position: sticky;
+    top: 0;
+}
+
 /* Pinning UI */
 .pin-btn {
     color: rgba(255, 255, 255, 0.3);
