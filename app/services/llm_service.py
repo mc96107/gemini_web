@@ -265,6 +265,38 @@ class GeminiAgent:
         err = re.sub(r".*?Default \"index\" lookups for the main are deprecated for ES modules..*?(\n|$)", "", err)
         return "\n".join([s for s in err.splitlines() if s.strip()]).strip()
 
+    def filter_title_text(self, text: str) -> str:
+        """
+        Filters out system instructions and file paths from the text to generate a clean title.
+        """
+        if not text:
+            return "New Conversation"
+
+        # 1. Remove [SYSTEM INSTRUCTION: ... ] blocks (including multi-line)
+        text = re.sub(r"\[SYSTEM INSTRUCTION:.*?\]", "", text, flags=re.DOTALL)
+
+        # 2. Remove file path references starting with @
+        # Matches @ followed by non-whitespace characters
+        text = re.sub(r"@\S+", "", text)
+
+        # 3. Remove common file path patterns (absolute or relative)
+        # Windows paths: C:\Users\..., D:\... (Stopped matching spaces to preserve sentence structure)
+        text = re.sub(r"[a-zA-Z]:\\[\w\-.\\\\]+", "", text)
+        # Unix paths: /var/log/..., /tmp/...
+        text = re.sub(r"(?<!\w)/[\w\-./]+", "", text)
+
+        # 4. Cleanup whitespace
+        text = re.sub(r"\s+", " ", text).strip()
+
+        # 5. Fallback and truncation
+        if not text or len(text) < 3:
+            return "New Conversation"
+            
+        if len(text) > 50:
+            return text[:47] + "..."
+            
+        return text
+
     async def stop_chat(self, user_id: str):
         task = self.active_tasks.pop(user_id, None)
         if task:
@@ -522,6 +554,10 @@ class GeminiAgent:
                                 self.user_data[user_id]["active_session"] = new_id
                                 if new_id not in self.user_data[user_id]["sessions"]:
                                     self.user_data[user_id]["sessions"].append(new_id)
+                                
+                                # Auto-name the session based on the first prompt
+                                filtered_title = self.filter_title_text(prompt)
+                                await self.update_session_title(user_id, new_id, filtered_title)
                                 
                                 # Promote pending tools to this new session
                                 pending = self.user_data[user_id].get("pending_tools", [])
