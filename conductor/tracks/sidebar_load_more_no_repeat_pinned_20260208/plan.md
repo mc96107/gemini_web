@@ -11,13 +11,13 @@ This plan addresses the issue where pinned chats are duplicated in the sidebar w
 - [x] Task: Verify all backend tests pass, ensuring no regressions in session retrieval or pinning. e07ddcd
 - [x] Task: Conductor - User Manual Verification 'Backend Refactor (TDD)' (Protocol in workflow.md) e07ddcd
 
-## Phase 2: Frontend Refactor
-- [ ] Task: Update `app/templates/index.html`: Refactor the `#sessions-list` container to include two distinct sub-containers: `#pinned-sessions-list` and `#history-sessions-list`, with appropriate headers (e.g., "Pinned" and "Recent").
-- [ ] Task: Update `app/static/script.js`: Modify `renderSessions` to accept the new dictionary format and render chats into their respective containers.
-- [ ] Task: Update `loadSessions`: Ensure that when `append=true`, only the `#history-sessions-list` is updated and the "Load More" logic uses `total_unpinned`.
-- [ ] Task: Update Pin/Unpin handlers: Ensure toggling a pin moves the session element between the two lists without a full page reload or duplication.
-- [ ] Task: Update `app/static/style.css`: Add styles for the new sidebar section headers and ensure consistent spacing.
-- [ ] Task: Conductor - User Manual Verification 'Frontend Refactor' (Protocol in workflow.md)
+## Phase 2: Frontend Refactor [checkpoint: 1964ac7]
+- [x] Task: Update `app/templates/index.html`: Refactor the `#sessions-list` container to include two distinct sub-containers: `#pinned-sessions-list` and `#history-sessions-list`, with appropriate headers (e.g., "Pinned" and "Recent"). 1964ac7
+- [x] Task: Update `app/static/script.js`: Modify `renderSessions` to accept the new dictionary format and render chats into their respective containers. 1964ac7
+- [x] Task: Update `loadSessions`: Ensure that when `append=true`, only the `#history-sessions-list` is updated and the "Load More" logic uses `total_unpinned`. 1964ac7
+- [x] Task: Update Pin/Unpin handlers: Ensure toggling a pin moves the session element between the two lists without a full page reload or duplication. 1964ac7
+- [x] Task: Update `app/static/style.css`: Add styles for the new sidebar section headers and ensure consistent spacing. 1964ac7
+- [x] Task: Conductor - User Manual Verification 'Frontend Refactor' (Protocol in workflow.md) 1964ac7
 
 ## Phase 3: Final Verification & Cleanup
 - [ ] Task: Run full test suite including existing pinned chat tests and new pagination tests.
