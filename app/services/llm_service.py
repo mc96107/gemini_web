@@ -99,27 +99,6 @@ class ThreadedProcess:
         self.proc.terminate()
 
 class GeminiAgent:
-    async def check_plan_mode_support(self) -> Dict:
-        """Checks if the underlying gemini-cli supports --approval-mode plan."""
-        cmd = [self.gemini_cmd, "--approval-mode", "plan"]
-        try:
-            # We use a short timeout and a simple input to trigger the config check
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            stdout, stderr = await asyncio.wait_for(proc.communicate(input=b"test"), timeout=5.0)
-            err_text = stderr.decode(errors='replace')
-            if "experimental.plan" in err_text:
-                return {"supported": False, "reason": "experimental.plan not enabled in ~/.gemini/settings.json"}
-            return {"supported": True}
-        except asyncio.TimeoutError:
-            return {"supported": True} # Assume supported if it doesn't fail immediately
-        except Exception as e:
-            return {"supported": False, "reason": str(e)}
-
     def __init__(self, model: str = "gemini-2.5-flash", working_dir: Optional[str] = None):
         self.model_name = model
         self.working_dir = working_dir or os.getcwd()

@@ -283,29 +283,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const showPlanSetting = document.getElementById('setting-show-plan');
-    const planSupportInfo = document.getElementById('plan-support-info');
     if (showPlanSetting && window.USER_SETTINGS) {
         showPlanSetting.checked = window.USER_SETTINGS.show_plan === true;
         
-        let planSupportChecked = false;
-        const checkPlanSupport = async () => {
-            if (planSupportChecked || !showPlanSetting.checked) return;
-            try {
-                const res = await fetch('/api/plan-support');
-                const data = await res.json();
-                if (data.supported) {
-                    planSupportInfo?.classList.add('d-none');
-                } else {
-                    planSupportInfo?.classList.remove('d-none');
-                    const span = planSupportInfo?.querySelector('span');
-                    if (span) span.textContent = "Not supported: " + data.reason;
-                }
-                planSupportChecked = true;
-            } catch (e) {
-                console.error('Error checking plan support:', e);
-            }
-        };
-
         showPlanSetting.onchange = async () => {
             const enabled = showPlanSetting.checked;
             try {
@@ -317,15 +297,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (response.ok) {
                     window.USER_SETTINGS.show_plan = enabled;
                     updatePlanModeVisibility();
-                    if (enabled) await checkPlanSupport();
                 }
             } catch (err) {
                 console.error('Error saving setting:', err);
             }
         };
-
-        // Detect Plan Mode support from server if enabled
-        checkPlanSupport();
     }
 
     function updateDriveModeVisibility() {

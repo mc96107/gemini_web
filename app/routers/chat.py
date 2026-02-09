@@ -238,12 +238,6 @@ async def get_pats(request: Request):
         
     return res
 
-@router.get("/api/plan-support")
-async def check_plan_support(request: Request, user=Depends(get_user)):
-    if not user: raise HTTPException(401)
-    agent = request.app.state.agent
-    return await agent.check_plan_mode_support()
-
 @router.post("/chat")
 async def chat(request: Request, message: str = Form(...), file: Optional[list[UploadFile]] = File(None), model: Optional[str] = Form(None), plan_mode: Optional[str] = Form(None), user=Depends(get_user)):
     agent = request.app.state.agent
