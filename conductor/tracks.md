@@ -6,6 +6,9 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ## Completed Tracks
 
+- [x] **Track: sidebar: load more chats: do not repeat pinned**
+*Link: [./archive/sidebar_load_more_no_repeat_pinned_20260208/](./archive/sidebar_load_more_no_repeat_pinned_20260208/)*
+
 - [x] **Track: When loading a chat, render correctly the questions from ai from previous Structured Interactive Questioning**
 *Link: [./archive/fix_historical_question_rendering_20260207/](./archive/fix_historical_question_rendering_20260207/)*
 
