@@ -7,5 +7,5 @@
 
 ## Phase 2: Verification and Integration
 - [x] Task: Write automated tests in `tests/test_session_tools_integration.py` to verify that the new tools are correctly passed to the Gemini CLI when enabled. 26d4275
-- [~] Task: Verify that the frontend correctly loads and saves the state of these new tools via existing API endpoints.
+- [x] Task: Verify that the frontend correctly loads and saves the state of these new tools via existing API endpoints. 26d4275
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Verification and Integration' (Protocol in workflow.md)
