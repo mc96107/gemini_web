@@ -6,6 +6,6 @@
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: UI Foundation' (Protocol in workflow.md)
 
 ## Phase 2: Verification and Integration
-- [ ] Task: Write automated tests in `tests/test_session_tools_integration.py` to verify that the new tools are correctly passed to the Gemini CLI when enabled.
-- [ ] Task: Verify that the frontend correctly loads and saves the state of these new tools via existing API endpoints.
+- [x] Task: Write automated tests in `tests/test_session_tools_integration.py` to verify that the new tools are correctly passed to the Gemini CLI when enabled. 26d4275
+- [~] Task: Verify that the frontend correctly loads and saves the state of these new tools via existing API endpoints.
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Verification and Integration' (Protocol in workflow.md)
