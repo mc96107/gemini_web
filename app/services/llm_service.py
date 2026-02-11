@@ -244,6 +244,20 @@ class GeminiAgent:
         err = re.sub(r".*?Default \"index\" lookups for the main are deprecated for ES modules..*?(\n|$)", "", err)
         return "\n".join([s for s in err.splitlines() if s.strip()]).strip()
 
+    def _get_text_content(self, content: Any) -> str:
+        """Extracts plain text from potentially multimodal or structured content."""
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            text_parts = []
+            for part in content:
+                if isinstance(part, dict) and "text" in part:
+                    text_parts.append(part["text"])
+                elif isinstance(part, str):
+                    text_parts.append(part)
+            return "".join(text_parts)
+        return str(content)
+
     def filter_title_text(self, text: str) -> str:
         """
         Filters out system instructions and file paths from the text to generate a clean title.
@@ -870,7 +884,8 @@ class GeminiAgent:
                         with open(files[0], 'r', encoding='utf-8') as f:
                             data = json.load(f)
                             for msg in data.get("messages", []):
-                                if query in msg.get("content", "").lower():
+                                content_text = self._get_text_content(msg.get("content", ""))
+                                if query in content_text.lower():
                                     match = True; break
                     except: pass
             
@@ -903,10 +918,11 @@ class GeminiAgent:
                 messages = []
                 for idx, msg in enumerate(messages_to_process):
                     content = msg.get("content", "")
-                    if not content or content.strip() == "": continue
+                    content_text = self._get_text_content(content)
+                    if not content_text or content_text.strip() == "": continue
                     messages.append({
                         "role": "user" if msg.get("type") == "user" else "bot", 
-                        "content": content,
+                        "content": content_text,
                         "raw_index": start + idx
                     })
                 return {"messages": messages, "total": total}
