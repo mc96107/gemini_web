@@ -1,6 +1,6 @@
 {
   "name": "gemini_web",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "description": "A mobile-first, secure web interface for interacting with Google's Gemini AI, specifically optimized for the Termux environment on Android.",
   "main": "index.js",
   "directories": {
