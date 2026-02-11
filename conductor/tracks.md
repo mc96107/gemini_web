@@ -34,3 +34,8 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 - [x] **Track: sidebar: load more chats: do not repeat pinned**
 *Link: [./tracks/sidebar_load_more_no_repeat_pinned_20260208/](./tracks/sidebar_load_more_no_repeat_pinned_20260208/)*
+
+---
+
+- [x] **Track: Add new tools for gemini cli current version: activate_skill etc**
+*Link: [./tracks/new_cli_tools_20260211/](./tracks/new_cli_tools_20260211/)*
