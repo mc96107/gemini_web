@@ -13,7 +13,7 @@ Implement the persistence of the new setting and the UI toggle in the settings m
     - Edit `app/templates/index.html` to add the checkbox.
 - [x] Task: Sync `copy_formatted` setting with backend. a09ce2f
     - Update `app/static/script.js` to load the setting into `window.USER_SETTINGS` and handle the toggle's `change` event to perform a `fetch('/settings', ...)` POST request.
-- [ ] Task: Write tests for user settings persistence.
+- [x] Task: Write tests for user settings persistence. 1ae50d1
     - Update `tests/test_user_settings.py` to include checks for `copy_formatted`.
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: Infrastructure & Settings UI' (Protocol in workflow.md)
 
