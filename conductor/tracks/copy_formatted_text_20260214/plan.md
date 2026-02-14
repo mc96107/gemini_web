@@ -2,7 +2,7 @@
 
 This plan outlines the steps to add a "Copy Formatted Text" toggle to user settings and implement the corresponding logic to copy rich text or markdown to the clipboard.
 
-## Phase 1: Infrastructure & Settings UI
+## Phase 1: Infrastructure & Settings UI [checkpoint: 9a6645f]
 
 Implement the persistence of the new setting and the UI toggle in the settings modal.
 
@@ -15,7 +15,7 @@ Implement the persistence of the new setting and the UI toggle in the settings m
     - Update `app/static/script.js` to load the setting into `window.USER_SETTINGS` and handle the toggle's `change` event to perform a `fetch('/settings', ...)` POST request.
 - [x] Task: Write tests for user settings persistence. 1ae50d1
     - Update `tests/test_user_settings.py` to include checks for `copy_formatted`.
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Infrastructure & Settings UI' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Infrastructure & Settings UI' (Protocol in workflow.md) 9a6645f
 
 ## Phase 2: Enhanced Copy Logic
 
