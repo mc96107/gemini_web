@@ -6,7 +6,7 @@ This plan outlines the steps to add a "Copy Formatted Text" toggle to user setti
 
 Implement the persistence of the new setting and the UI toggle in the settings modal.
 
-- [ ] Task: Update `GeminiAgent` to support `copy_formatted` setting.
+- [x] Task: Update `GeminiAgent` to support `copy_formatted` setting. 1ae50d1
     - Modify `GeminiAgent._load_user_data` to ensure `copy_formatted` is initialized for existing sessions.
     - Update `get_user_settings` and `update_user_settings` default values.
 - [ ] Task: Add "Copy Formatted Text" toggle to the Security Settings modal.
