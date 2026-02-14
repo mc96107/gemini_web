@@ -35,6 +35,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## Completed Tracks
+## Current Tracks
 
-- [x] **Track: sidebar: load more chats: do not repeat pinned**
+- [ ] **Track: add a way to copy formatted text to clipboard**
+*Link: [./tracks/copy_formatted_text_20260214/](./tracks/copy_formatted_text_20260214/)*
