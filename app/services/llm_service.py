@@ -129,7 +129,11 @@ class GeminiAgent:
                         if "pending_tools" not in data[uid]: data[uid]["pending_tools"] = []
                         if "pinned_sessions" not in data[uid]: data[uid]["pinned_sessions"] = []
                         if "session_metadata" not in data[uid]: data[uid]["session_metadata"] = {}
-                        if "settings" not in data[uid]: data[uid]["settings"] = {"show_mic": True, "interactive_mode": True}
+                        if "settings" not in data[uid]: data[uid]["settings"] = {"show_mic": True, "interactive_mode": True, "copy_formatted": False}
+                        else:
+                            # Ensure defaults for existing settings objects
+                            if "copy_formatted" not in data[uid]["settings"]:
+                                data[uid]["settings"]["copy_formatted"] = False
                     return data
             except: return {}
         return {}
@@ -138,15 +142,15 @@ class GeminiAgent:
         with open(self.session_file, "w") as f: json.dump(self.user_data, f, indent=2)
 
     def get_user_settings(self, user_id: str) -> Dict:
-        if user_id not in self.user_data: return {"show_mic": True, "interactive_mode": True}
-        return self.user_data[user_id].get("settings", {"show_mic": True, "interactive_mode": True})
+        if user_id not in self.user_data: return {"show_mic": True, "interactive_mode": True, "copy_formatted": False}
+        return self.user_data[user_id].get("settings", {"show_mic": True, "interactive_mode": True, "copy_formatted": False})
 
     def update_user_settings(self, user_id: str, settings: Dict):
         if user_id not in self.user_data:
-            self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": [], "pinned_sessions": [], "session_metadata": {}, "settings": {"show_mic": True, "interactive_mode": True}}
+            self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": [], "pinned_sessions": [], "session_metadata": {}, "settings": {"show_mic": True, "interactive_mode": True, "copy_formatted": False}}
         
         if "settings" not in self.user_data[user_id]:
-            self.user_data[user_id]["settings"] = {"show_mic": True, "interactive_mode": True}
+            self.user_data[user_id]["settings"] = {"show_mic": True, "interactive_mode": True, "copy_formatted": False}
             
         self.user_data[user_id]["settings"].update(settings)
         self._save_user_data()
@@ -350,7 +354,8 @@ class GeminiAgent:
                 "- If 'options' is empty [], it is an open-ended question.\n"
                 "The user's response will be sent back to you as a normal message."
             )
-            interactive_instruction = config.get_global_setting("interactive_mode_instructions", default_interactive)
+            global_setting = config.get_global_setting("interactive_mode_instructions")
+            interactive_instruction = global_setting if global_setting is not None else default_interactive
             prompt = f"\n\n[SYSTEM INSTRUCTION: INTERACTIVE QUESTIONING ENABLED]\n{interactive_instruction}\n\n{prompt}"
         else:
             # Subtle instruction to avoid JSON questioning without being overly rigid about identity.

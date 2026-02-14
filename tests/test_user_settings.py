@@ -29,6 +29,31 @@ def test_user_settings_interactive_mode(tmp_path):
         data = json.load(f)
         assert data[user_id]["settings"]["interactive_mode"] is False
 
+def test_user_settings_copy_formatted(tmp_path):
+    # Use a temporary file for sessions
+    session_file = tmp_path / "user_sessions.json"
+    agent = GeminiAgent(working_dir=str(tmp_path))
+    agent.session_file = str(session_file)
+    
+    user_id = "test_user"
+    
+    # Test default settings
+    settings = agent.get_user_settings(user_id)
+    assert settings.get("copy_formatted") is False
+    
+    # Update settings
+    agent.update_user_settings(user_id, {"copy_formatted": True})
+    
+    # Verify update
+    settings = agent.get_user_settings(user_id)
+    assert settings["copy_formatted"] is True
+    assert settings["interactive_mode"] is True # Should remain default
+    
+    # Verify persistence
+    with open(session_file, "r") as f:
+        data = json.load(f)
+        assert data[user_id]["settings"]["copy_formatted"] is True
+
 @pytest.mark.asyncio
 async def test_system_prompt_injection(tmp_path):
     agent = GeminiAgent(working_dir=str(tmp_path))
