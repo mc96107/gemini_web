@@ -654,6 +654,7 @@
 
         const showMicSetting = document.getElementById('setting-show-mic');
         const interactiveModeSetting = document.getElementById('setting-interactive-mode');
+        const copyFormattedSetting = document.getElementById('setting-copy-formatted');
 
         if (showMicSetting && window.USER_SETTINGS) {
             showMicSetting.checked = window.USER_SETTINGS.show_mic !== false;
@@ -685,6 +686,22 @@
                         body: JSON.stringify({ interactive_mode: enabled })
                     });
                     window.USER_SETTINGS.interactive_mode = enabled;
+                } catch (err) { console.error(err); }
+            };
+        }
+
+        if (copyFormattedSetting && window.USER_SETTINGS) {
+            copyFormattedSetting.checked = window.USER_SETTINGS.copy_formatted === true;
+            
+            copyFormattedSetting.onchange = async () => {
+                const enabled = copyFormattedSetting.checked;
+                try {
+                    await fetch('/settings', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ copy_formatted: enabled })
+                    });
+                    window.USER_SETTINGS.copy_formatted = enabled;
                 } catch (err) { console.error(err); }
             };
         }

@@ -304,6 +304,27 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    const copyFormattedSetting = document.getElementById('setting-copy-formatted');
+    if (copyFormattedSetting && window.USER_SETTINGS) {
+        copyFormattedSetting.checked = window.USER_SETTINGS.copy_formatted === true;
+        
+        copyFormattedSetting.onchange = async () => {
+            const enabled = copyFormattedSetting.checked;
+            try {
+                const response = await fetch('/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ copy_formatted: enabled })
+                });
+                if (response.ok) {
+                    window.USER_SETTINGS.copy_formatted = enabled;
+                }
+            } catch (err) {
+                console.error('Error saving setting:', err);
+            }
+        };
+    }
+
     function updateDriveModeVisibility() {
         if (!driveModeBtn) return;
         const isEnabled = window.USER_SETTINGS && window.USER_SETTINGS.show_mic !== false;
