@@ -105,12 +105,13 @@ async def list_skills(request: Request, user=Depends(get_user)):
     if user_manager.get_role(user) != "admin":
         raise HTTPException(status_code=403, detail="Forbidden")
     
-    skills_dir = os.path.join(os.getcwd(), ".agents", "skills")
+    skills_dir = config.SKILLS_BASE_DIR
     skills = []
     if os.path.exists(skills_dir):
-        for f in os.listdir(skills_dir):
-            if f.endswith(".md"):
-                skills.append(f[:-3]) # Remove .md
+        for d in os.listdir(skills_dir):
+            d_path = os.path.join(skills_dir, d)
+            if os.path.isdir(d_path) and os.path.exists(os.path.join(d_path, "SKILL.md")):
+                skills.append(d)
     return sorted(skills)
 
 @router.get("/admin/skills/{name}")
@@ -119,13 +120,28 @@ async def get_skill(request: Request, name: str, user=Depends(get_user)):
     if user_manager.get_role(user) != "admin":
         raise HTTPException(status_code=403, detail="Forbidden")
     
-    skill_path = os.path.join(os.getcwd(), ".agents", "skills", f"{name}.md")
+    skill_path = os.path.join(config.SKILLS_BASE_DIR, name, "SKILL.md")
     if not os.path.exists(skill_path):
         raise HTTPException(status_code=404, detail="Skill not found")
     
     with open(skill_path, "r", encoding="utf-8") as f:
         content = f.read()
-    return {"name": name, "content": content}
+    
+    # Parse YAML frontmatter
+    description = ""
+    instructions = content
+    if content.startswith("---"):
+        parts = content.split("---", 2)
+        if len(parts) >= 3:
+            frontmatter = parts[1]
+            instructions = parts[2].strip()
+            # Simple line-by-line parsing for name/description
+            for line in frontmatter.splitlines():
+                if line.startswith("description:"):
+                    description = line.split(":", 1)[1].strip()
+                    # Handle multi-line if needed, but keeping it simple for now
+    
+    return {"name": name, "description": description, "content": instructions}
 
 @router.post("/admin/skills")
 async def save_skill(request: Request, user=Depends(get_user)):
@@ -135,7 +151,8 @@ async def save_skill(request: Request, user=Depends(get_user)):
     
     data = await request.json()
     name = data.get("name")
-    content = data.get("content")
+    description = data.get("description", "")
+    content = data.get("content") # This is now just the instructions
     
     if not name or not content:
         raise HTTPException(status_code=400, detail="Name and content are required")
@@ -143,12 +160,15 @@ async def save_skill(request: Request, user=Depends(get_user)):
     # Sanitize name
     name = re.sub(r'[^a-zA-Z0-9_-]', '_', name)
     
-    skills_dir = os.path.join(os.getcwd(), ".agents", "skills")
-    os.makedirs(skills_dir, exist_ok=True)
+    skill_dir = os.path.join(config.SKILLS_BASE_DIR, name)
+    os.makedirs(skill_dir, exist_ok=True)
     
-    skill_path = os.path.join(skills_dir, f"{name}.md")
+    # Serialize with YAML frontmatter
+    skill_md = f"---\nname: {name}\ndescription: {description}\n---\n\n{content}"
+    
+    skill_path = os.path.join(skill_dir, "SKILL.md")
     with open(skill_path, "w", encoding="utf-8") as f:
-        f.write(content)
+        f.write(skill_md)
     
     return {"success": True}
 
@@ -158,9 +178,9 @@ async def delete_skill(request: Request, name: str, user=Depends(get_user)):
     if user_manager.get_role(user) != "admin":
         raise HTTPException(status_code=403, detail="Forbidden")
     
-    skill_path = os.path.join(os.getcwd(), ".agents", "skills", f"{name}.md")
-    if os.path.exists(skill_path):
-        os.remove(skill_path)
+    skill_dir = os.path.join(config.SKILLS_BASE_DIR, name)
+    if os.path.exists(skill_dir):
+        shutil.rmtree(skill_dir)
         return {"success": True}
     return {"success": False, "error": "Skill not found"}
 

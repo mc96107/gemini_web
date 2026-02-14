@@ -298,7 +298,7 @@
                             <i class="bi bi-plus-lg me-1"></i> Add Skill
                         </button>
                     </div>
-                    <p class="text-muted small">Managed in <code>.agents/skills/</code></p>
+                    <p class="text-muted small">Managed in <code>.gemini/skills/</code></p>
                     <div id="dashboardSkillsList" class="list-group list-group-flush bg-dark">
                         <!-- Loaded via JS -->
                     </div>
@@ -381,8 +381,12 @@
                             <input type="text" id="skillName" class="form-control bg-dark text-light border-secondary" placeholder="e.g., code-reviewer" required>
                         </div>
                         <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <input type="text" id="skillDescription" class="form-control bg-dark text-light border-secondary" placeholder="Short summary of what this skill does">
+                        </div>
+                        <div class="mb-3">
                             <label class="form-label">Instructions (Markdown)</label>
-                            <textarea id="skillContent" class="form-control bg-dark text-light border-secondary" rows="15" placeholder="# Skill: ...\n\n## Instructions\n..." required></textarea>
+                            <textarea id="skillContent" class="form-control bg-dark text-light border-secondary" rows="15" placeholder="## Instructions\n..." required></textarea>
                         </div>
                     </form>
                 </div>
@@ -440,14 +444,14 @@
             } catch (err) { console.error('Error fetching skills:', err); }
         }
 
-        function showNewSkill() {
-            document.getElementById('skillModalTitle').textContent = 'New Skill';
-            document.getElementById('skillName').value = '';
-            document.getElementById('skillName').disabled = false;
-            document.getElementById('skillContent').value = '# Skill: ...\n\n## Instructions\n...';
-            skillModal.show();
-        }
-
+            function showNewSkill() {
+                document.getElementById('skillModalTitle').textContent = 'New Skill';
+                document.getElementById('skillName').value = '';
+                document.getElementById('skillName').disabled = false;
+                document.getElementById('skillDescription').value = '';
+                document.getElementById('skillContent').value = '# Skill Title\n\n## Instructions\n...';
+                skillModal.show();
+            }
         async function editSkill(name) {
             try {
                 const res = await fetch(`/admin/skills/${name}`);
@@ -455,6 +459,7 @@
                 document.getElementById('skillModalTitle').textContent = 'Edit Skill';
                 document.getElementById('skillName').value = skill.name;
                 document.getElementById('skillName').disabled = true;
+                document.getElementById('skillDescription').value = skill.description || '';
                 document.getElementById('skillContent').value = skill.content;
                 skillModal.show();
             } catch (err) { alert('Error loading skill'); }
@@ -462,6 +467,7 @@
 
         async function saveSkill() {
             const name = document.getElementById('skillName').value.trim();
+            const description = document.getElementById('skillDescription').value.trim();
             const content = document.getElementById('skillContent').value.trim();
             if (!name || !content) return;
 
@@ -469,7 +475,7 @@
                 const res = await fetch('/admin/skills', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({name, content})
+                    body: JSON.stringify({name, description, content})
                 });
                 const data = await res.json();
                 if (data.success) {
@@ -495,7 +501,7 @@
             container.innerHTML = '';
             
             if (allSkills.length === 0) {
-                container.innerHTML = '<span class="text-muted small">No skills found in .agents/skills/</span>';
+                container.innerHTML = '<span class="text-muted small">No skills found in .gemini/skills/</span>';
                 return;
             }
 

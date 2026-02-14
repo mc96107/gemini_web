@@ -1062,6 +1062,26 @@ document.addEventListener('DOMContentLoaded', () => {
         toolToggles.forEach(t => t.checked = false);
     });
 
+    const btnSafeToolsOnly = document.getElementById('btn-safe-tools-only');
+    const btnAllExceptMemory = document.getElementById('btn-all-except-memory');
+
+    const safeToolNames = [
+        'list_directory', 'read_file', 'glob', 'grep_search', 
+        'google_web_search', 'web_fetch', 'cli_help', 'ask_user', 'confirm_output'
+    ];
+
+    btnSafeToolsOnly?.addEventListener('click', () => {
+        toolToggles.forEach(t => {
+            t.checked = safeToolNames.includes(t.value);
+        });
+    });
+
+    btnAllExceptMemory?.addEventListener('click', () => {
+        toolToggles.forEach(t => {
+            t.checked = (t.value !== 'save_memory');
+        });
+    });
+
     if (loadMoreBtn) {
         loadMoreBtn.addEventListener('click', () => {
             const activeSessionItem = document.querySelector('.session-item.active-session');

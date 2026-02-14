@@ -6,7 +6,7 @@
 *   **Configuration:** Persistent global settings stored in `data/settings.json` for runtime application customization.
 *   **Gemini CLI Integration:** Full support for the latest Gemini CLI toolset including skill activation and codebase investigation.
 *   **MCP Support:** Integrated management of Model Context Protocol (MCP) servers via the Gemini CLI.
-*   **Agent Skills:** Support for the `.agents/skills` lifecycle for specialized agent capabilities.
+*   **Agent Skills:** Support for the `.gemini/skills` lifecycle for specialized agent capabilities.
 *   **Orchestration Metadata:** Wiki-link style YAML frontmatter (`[[path/to/agent.md]]`) for hierarchical agent linking and tracking.
 * **Framework:** FastAPI - A modern, fast (high-performance) web framework for building APIs with Python 3.7+ based on standard Python type hints.
 * **Streaming:** Server-Sent Events (SSE) via FastAPI `StreamingResponse`.

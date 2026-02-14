@@ -466,9 +466,15 @@
             </div>
         </div>
 
-        <div class="d-flex justify-content-between gap-2 mt-4">
-            <button type="button" class="btn btn-outline-danger btn-sm" id="btn-deselect-all-tools">Deselect All</button>
-            <button type="button" class="btn btn-primary btn-sm" id="btn-apply-tools">Apply Settings</button>
+        <div class="d-flex flex-wrap justify-content-between gap-2 mt-4">
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-outline-info btn-sm" id="btn-safe-tools-only">Safe Tools Only</button>
+                <button type="button" class="btn btn-outline-warning btn-sm" id="btn-all-except-memory">All Except Memory</button>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-outline-danger btn-sm" id="btn-deselect-all-tools">Deselect All</button>
+                <button type="button" class="btn btn-primary btn-sm" id="btn-apply-tools">Apply Settings</button>
+            </div>
         </div>
         <div id="tools-status" class="mt-2 small text-center"></div>
       </div>
