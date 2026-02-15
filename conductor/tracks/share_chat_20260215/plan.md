@@ -2,7 +2,7 @@
 
 This plan details the steps to implement a collaborative chat sharing feature by directly modifying `user_sessions.json` to allow multi-user access to the same Gemini CLI session.
 
-## Phase 1: Backend Logic & API
+## Phase 1: Backend Logic & API [checkpoint: bcf6403]
 Implement the core logic for sharing and safe deletion in the `GeminiAgent` service and expose it via API.
 
 - [x] Task: Implement `GeminiAgent.share_session(user_id, session_uuid, target_username)` in `app/services/llm_service.py`. 28966c2
