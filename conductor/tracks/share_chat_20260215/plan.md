@@ -34,8 +34,8 @@ Add the UI components to trigger the sharing flow.
 ## Phase 3: Verification
 Ensure the multi-user collaboration and safe deletion work as expected.
 
-- [ ] Task: Verify that sharing a chat with a valid user makes it appear in their sidebar.
-- [ ] Task: Verify that both users can send messages and see the updated history.
-- [ ] Task: Verify that deleting the chat as one user doesn't remove it for the other.
-- [ ] Task: Verify that the last user deleting the chat correctly triggers the CLI deletion.
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Verification' (Protocol in workflow.md)
+- [x] Task: Verify that sharing a chat with a valid user makes it appear in their sidebar. 7467af6
+- [x] Task: Verify that both users can send messages and see the updated history. 7467af6
+- [x] Task: Verify that deleting the chat as one user doesn't remove it for the other. 7467af6
+- [x] Task: Verify that the last user deleting the chat correctly triggers the CLI deletion. 7467af6
+- [x] Task: Conductor - User Manual Verification 'Phase 3: Verification' (Protocol in workflow.md) 7467af6
