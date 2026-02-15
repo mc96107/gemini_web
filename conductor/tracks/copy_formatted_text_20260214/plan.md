@@ -29,8 +29,8 @@ Implement the conditional logic to copy either raw markdown or formatted rich te
     - Update `tests/attachment_manager.test.js` or create a new frontend test to mock the clipboard API and verify the correct blobs are created based on settings.
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Enhanced Copy Logic' (Protocol in workflow.md) 0fbf6a7
 
-## Phase 3: Final Integration & Verification
+## Phase 3: Final Integration & Verification [checkpoint: be552c1]
 
-- [~] Task: Verify cross-browser compatibility for `ClipboardItem` (especially on Termux/Android browsers).
-- [~] Task: Run full project test suite.
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Final Integration & Verification' (Protocol in workflow.md)
+- [x] Task: Verify cross-browser compatibility for `ClipboardItem` (especially on Termux/Android browsers). be552c1
+- [x] Task: Run full project test suite. be552c1
+- [x] Task: Conductor - User Manual Verification 'Phase 3: Final Integration & Verification' (Protocol in workflow.md) be552c1
