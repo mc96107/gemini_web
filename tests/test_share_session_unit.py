@@ -79,3 +79,61 @@ async def test_share_session_unauthorized(agent, user_manager):
     assert result is False
     if "bob" in agent.user_data:
         assert session_id not in agent.user_data["bob"]["sessions"]
+
+@pytest.mark.anyio
+async def test_delete_shared_session_one_user_remains(agent, user_manager, mocker):
+    # Setup users
+    user_manager.register_user("alice", "password")
+    user_manager.register_user("bob", "password")
+    
+    session_id = "shared-session-uuid"
+    
+    # Both users have the session
+    agent.user_data["alice"] = {"sessions": [session_id]}
+    agent.user_data["bob"] = {"sessions": [session_id]}
+    agent._save_user_data()
+    
+    # Mock _create_subprocess to see if it's called
+    mock_subprocess = mocker.patch.object(agent, '_create_subprocess', return_value=mocker.Mock())
+    mock_subprocess.return_value.communicate = mocker.AsyncMock(return_value=(b"", b""))
+    
+    # Alice deletes the session
+    result = await agent.delete_specific_session("alice", session_id)
+    assert result is True
+    
+    # Alice should not have it, but Bob should
+    assert session_id not in agent.user_data["alice"]["sessions"]
+    assert session_id in agent.user_data["bob"]["sessions"]
+    
+    # gemini-cli --delete-session should NOT have been called because Bob still has it
+    # We need to check the arguments.
+    # Note: the current implementation deletes all related forks. 
+    # For this test, let's assume no forks.
+    delete_calls = [call for call in mock_subprocess.call_args_list if "--delete-session" in call.args[0]]
+    assert len(delete_calls) == 0
+
+@pytest.mark.anyio
+async def test_delete_shared_session_last_user(agent, user_manager, mocker):
+    # Setup users
+    user_manager.register_user("alice", "password")
+    
+    session_id = "last-session-uuid"
+    
+    # Only Alice has the session
+    agent.user_data["alice"] = {"sessions": [session_id]}
+    agent._save_user_data()
+    
+    # Mock _create_subprocess
+    mock_subprocess = mocker.patch.object(agent, '_create_subprocess', return_value=mocker.Mock())
+    mock_subprocess.return_value.communicate = mocker.AsyncMock(return_value=(b"", b""))
+    
+    # Alice deletes the session
+    result = await agent.delete_specific_session("alice", session_id)
+    assert result is True
+    
+    # Alice should not have it
+    assert session_id not in agent.user_data["alice"]["sessions"]
+    
+    # gemini-cli --delete-session SHOULD have been called
+    delete_calls = [call for call in mock_subprocess.call_args_list if "--delete-session" in call.args[0]]
+    assert len(delete_calls) > 0

@@ -1151,10 +1151,19 @@ class GeminiAgent:
         success = True
         for target_uuid in list(related_uuids):
             try:
-                # 1. Delete from CLI
-                await (await self._create_subprocess([self.gemini_cmd, "--delete-session", target_uuid], cwd=self.working_dir)).communicate()
+                # 1. Check if any OTHER user still has this session
+                is_tracked_by_others = False
+                for other_user_id, other_user_info in self.user_data.items():
+                    if other_user_id == user_id: continue
+                    if target_uuid in other_user_info.get("sessions", []):
+                        is_tracked_by_others = True
+                        break
+
+                # 2. Only delete from CLI if no other users are tracking it
+                if not is_tracked_by_others:
+                    await (await self._create_subprocess([self.gemini_cmd, "--delete-session", target_uuid], cwd=self.working_dir)).communicate()
                 
-                # 2. Cleanup local tracking
+                # 3. Cleanup local tracking
                 if target_uuid in user_info["sessions"]:
                     user_info["sessions"].remove(target_uuid)
                 
