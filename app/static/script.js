@@ -1140,11 +1140,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.INITIAL_MESSAGES && window.INITIAL_MESSAGES.length > 0) {
         if (chatWelcome) chatWelcome.classList.add('d-none');
         window.INITIAL_MESSAGES.forEach((msg, idx) => {
-            const msgDiv = createMessageDiv(msg.role, msg.content, null, null, idx);
+            const index = (msg.raw_index !== undefined) ? msg.raw_index : idx;
+            const msgDiv = createMessageDiv(msg.role, msg.content, null, null, index);
             if (msgDiv) chatContainer.appendChild(msgDiv);
         });
         chatContainer.scrollTop = chatContainer.scrollHeight;
-        currentOffset = window.INITIAL_MESSAGES.length;
+        currentOffset = 20; // Default limit used in index route
         window.HAS_INITIAL_MESSAGES = true;
     }
 
@@ -1205,7 +1206,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     chatContainer.scrollTop = chatContainer.scrollHeight - scrollHeightBefore;
                 }
                 
-                currentOffset += messages.length;
+                currentOffset = offset + limit;
                 
                 // Show/Hide Load More
                 if (currentOffset < total) {
