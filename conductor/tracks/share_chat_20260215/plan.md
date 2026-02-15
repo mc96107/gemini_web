@@ -31,7 +31,7 @@ Add the UI components to trigger the sharing flow.
 - [x] Task: Bind the Share button click events to `shareSession`. 4a76a4d
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Frontend Implementation' (Protocol in workflow.md) 6e23490
 
-## Phase 3: Verification
+## Phase 3: Verification [checkpoint: b56f981]
 Ensure the multi-user collaboration and safe deletion work as expected.
 
 - [x] Task: Verify that sharing a chat with a valid user makes it appear in their sidebar. 7467af6
