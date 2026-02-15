@@ -1873,6 +1873,8 @@ document.addEventListener('DOMContentLoaded', () => {
             appendMessage('bot', `Error: ${displayError}`);
         } finally {
             toggleStopButton(false);
+            // Refresh sidebar to ensure new sessions appear without reload
+            loadSessions();
         }
     });
 
@@ -1981,6 +1983,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 removeLoading(loadingId);
             }
             toggleStopButton(false);
+            // Refresh sidebar to ensure new sessions appear without reload
+            loadSessions();
         } catch (error) {
             console.error('Stream processing error:', error);
             if (!errorYielded) {
