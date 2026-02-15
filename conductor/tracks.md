@@ -40,7 +40,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ## Current Tracks
 
-- [ ] **Track: share chat with other user (the user should type the name, if it does not exist fail silently)**
+- [x] **Track: share chat with other user (the user should type the name, if it does not exist fail silently)**
 *Link: [./tracks/share_chat_20260215/](./tracks/share_chat_20260215/)*
 
 ---
