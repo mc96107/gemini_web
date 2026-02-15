@@ -39,8 +39,8 @@ async def index(request: Request, user=Depends(get_user)):
             # Fallback for unexpected return type
             initial_messages = msg_data
             total_messages = len(msg_data)
-        # If we got exactly 20, there might be more
-        if len(initial_messages) == 20:
+        # If the total messages in the session exceeds 20, there are more older messages
+        if total_messages > 20:
             has_more = True
     
     user_settings = agent.get_user_settings(user)
