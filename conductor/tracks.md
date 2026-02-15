@@ -37,5 +37,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ## Current Tracks
 
-- [~] **Track: add a way to copy formatted text to clipboard**
+- [x] **Track: add a way to copy formatted text to clipboard**
 *Link: [./tracks/copy_formatted_text_20260214/](./tracks/copy_formatted_text_20260214/)*
