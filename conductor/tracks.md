@@ -41,6 +41,3 @@ This file tracks all major tracks for the project. Each track has its own detail
 ## Current Tracks
 
 ---
-
-- [x] **Track: Fix: New Chat Sidebar Update**
-*Link: [./tracks/sidebar_update_20260215/](./tracks/sidebar_update_20260215/)*
