@@ -27,7 +27,7 @@ Implement the conditional logic to copy either raw markdown or formatted rich te
     - Ensure code block copy buttons are not affected (or handle them consistently if required).
 - [x] Task: Add frontend unit tests for copy logic. 4f01292
     - Update `tests/attachment_manager.test.js` or create a new frontend test to mock the clipboard API and verify the correct blobs are created based on settings.
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Enhanced Copy Logic' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Enhanced Copy Logic' (Protocol in workflow.md) 0fbf6a7
 
 ## Phase 3: Final Integration & Verification
 
