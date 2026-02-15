@@ -52,6 +52,7 @@ The Gemini Termux Agent is designed for:
 *   **Extended CLI Tools:** Support for advanced Gemini CLI tools including `cli_help` for documentation, `ask_user` for interactive clarification, `activate_skill` for capability expansion, and `codebase_investigator` for deep repository analysis.
 * **Advanced Authentication:** Support for passwordless login via Passkeys (WebAuthn) and cryptographically secure login via Ethereum wallet signatures.
 * **Per-Session Tool Security:** Granular control over Gemini CLI tools (e.g., file access, shell execution) on a per-session basis. All tools are disabled by default for maximum security, allowing users to selectively enable only the tools required for the current task.
+* **Copy Formatted Text:** Users can choose to copy message content as raw Markdown or as rich text (preserving bold, italics, links, and code formatting) via a configurable user setting.
 * **Pattern-Based Prompting:** A template system (Patterns) that allows users to leverage expert-crafted prompts for specific tasks like Agile story creation or insightful AI analysis.
 * **Admin Dashboard:** A dedicated interface for managing users, monitoring system status, and configuring agent behavior.
 * **Global Interaction Customization:** Administrators can globally customize the system instructions for both the Prompt Helper and the main chat's Interactive Mode via the Admin Dashboard, enabling fine-tuned control over the AI's persona and questioning behavior.
