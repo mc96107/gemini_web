@@ -112,6 +112,25 @@ async def dl_sess(request: Request, session_uuid: str = Form(...), user=Depends(
     if not user: raise HTTPException(401)
     return {"success": await agent.delete_specific_session(user, session_uuid)}
 
+@router.post("/sessions/{session_uuid}/share")
+async def share_sess(session_uuid: str, request: Request, user=Depends(get_user)):
+    agent = request.app.state.agent
+    user_manager = request.app.state.user_manager
+    if not user: raise HTTPException(401)
+    
+    # 1. Verify session ownership (or participation)
+    if not agent.is_user_session(user, session_uuid):
+        raise HTTPException(403, "Access denied")
+    
+    data = await request.json()
+    target_username = data.get("username")
+    if not target_username:
+        raise HTTPException(400, "Username is required")
+        
+    # 2. Call agent.share_session
+    success = await agent.share_session(user, session_uuid, target_username, user_manager)
+    return {"success": success}
+
 @router.post("/sessions/{session_uuid}/pin")
 async def pin_sess(session_uuid: str, request: Request, user=Depends(get_user)):
     agent = request.app.state.agent
