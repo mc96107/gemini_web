@@ -66,13 +66,9 @@
         const originInput = document.getElementById('origin');
         const rpIdInput = document.getElementById('rp_id');
         
-        // Auto-fill based on current URL
-        if (window.location.origin) {
-            originInput.value = window.location.origin;
-        }
-        if (window.location.hostname) {
-            rpIdInput.value = window.location.hostname;
-        }
+        // Auto-fill based on current URL to handle non-LAN access
+        originInput.value = window.location.origin;
+        rpIdInput.value = window.location.hostname;
     });
 </script>
 </body>
