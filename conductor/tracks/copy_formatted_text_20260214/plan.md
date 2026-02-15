@@ -31,6 +31,6 @@ Implement the conditional logic to copy either raw markdown or formatted rich te
 
 ## Phase 3: Final Integration & Verification
 
-- [ ] Task: Verify cross-browser compatibility for `ClipboardItem` (especially on Termux/Android browsers).
-- [ ] Task: Run full project test suite.
+- [~] Task: Verify cross-browser compatibility for `ClipboardItem` (especially on Termux/Android browsers).
+- [~] Task: Run full project test suite.
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: Final Integration & Verification' (Protocol in workflow.md)
