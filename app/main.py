@@ -45,14 +45,12 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 # Session Middleware
-# We enable https_only if the origin starts with https
-https_only = config.ORIGIN.startswith("https")
 app.add_middleware(
     SessionMiddleware, 
     secret_key=config.SESSION_SECRET,
     session_cookie="gemini_session",
     same_site="lax",
-    https_only=https_only
+    https_only=config.ORIGIN.startswith("https") if config.ORIGIN else False
 )
 
 # Security Headers Middleware
@@ -62,7 +60,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
-        if https_only:
+        
+        # Determine if HTTPS is used
+        is_https = request.url.scheme == "https" or config.ORIGIN.startswith("https") if config.ORIGIN else False
+        if is_https:
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         
         # Content Security Policy
@@ -79,6 +80,25 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(SecurityHeadersMiddleware)
 
+# Dynamic Auth Middleware to handle LAN/External access
+class DynamicAuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # Update dynamic origin and rp_id if not set or if they are localhost
+        if not config.ORIGIN or "localhost" in config.ORIGIN:
+            # Construct origin from request
+            proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+            host = request.headers.get("x-forwarded-host", request.url.netloc)
+            current_origin = f"{proto}://{host}"
+            current_rp_id = host.split(":")[0]
+            
+            # Update auth service for this request
+            request.app.state.auth_service.origin = current_origin
+            request.app.state.auth_service.rp_id = current_rp_id
+            
+        return await call_next(request)
+
+app.add_middleware(DynamicAuthMiddleware)
+
 # UPLOAD_DIR
 UPLOAD_DIR = config.UPLOAD_DIR
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -93,7 +113,7 @@ def render(name, **ctx):
 
 # Services
 user_manager = UserManager()
-auth_service = AuthService(config.RP_ID, config.RP_NAME, config.ORIGIN)
+auth_service = AuthService(config.RP_ID or "localhost", config.RP_NAME, config.ORIGIN or "http://localhost:8000")
 agent = GeminiAgent()
 conversion_service = FileConversionService()
 pdf_service = PDFService()

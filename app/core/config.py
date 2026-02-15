@@ -6,9 +6,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # WebAuthn Configuration
-RP_ID = os.getenv("RP_ID", "localhost")
+RP_ID = os.getenv("RP_ID")
 RP_NAME = os.getenv("RP_NAME", "Gemini Agent")
-ORIGIN = os.getenv("ORIGIN", "http://localhost:8000")
+ORIGIN = os.getenv("ORIGIN")
 
 # Security Configuration
 SESSION_SECRET = os.getenv("SESSION_SECRET", secrets.token_hex(32))
