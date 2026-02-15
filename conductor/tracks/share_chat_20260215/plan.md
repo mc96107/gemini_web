@@ -20,16 +20,16 @@ Implement the core logic for sharing and safe deletion in the `GeminiAgent` serv
     - [ ] Call `agent.share_session`.
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Backend Logic & API' (Protocol in workflow.md) f25110e
 
-## Phase 2: Frontend Implementation
+## Phase 2: Frontend Implementation [checkpoint: 6e23490]
 Add the UI components to trigger the sharing flow.
 
-- [ ] Task: Update `app/templates/index.html` to include the Share button in the header and mobile actions sidebar.
-- [ ] Task: Implement `shareSession(uuid)` in `app/static/script.js`.
+- [x] Task: Update `app/templates/index.html` to include the Share button in the header and mobile actions sidebar. 4962fd2
+- [x] Task: Implement `shareSession(uuid)` in `app/static/script.js`. 4a76a4d
     - [ ] Show a `prompt()` to get the username.
     - [ ] Call the new share API endpoint.
     - [ ] Show a toast notification upon success (or silent completion).
-- [ ] Task: Bind the Share button click events to `shareSession`.
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Frontend Implementation' (Protocol in workflow.md)
+- [x] Task: Bind the Share button click events to `shareSession`. 4a76a4d
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Frontend Implementation' (Protocol in workflow.md) 6e23490
 
 ## Phase 3: Verification
 Ensure the multi-user collaboration and safe deletion work as expected.
