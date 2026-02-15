@@ -11,7 +11,7 @@ Implement the core logic for sharing and safe deletion in the `GeminiAgent` serv
     - [ ] Add `session_uuid` to `target_username`'s session list in `user_data`.
     - [ ] Copy `custom_titles`, `session_tags`, `session_metadata`, and `session_tools` to the target user.
     - [ ] Save `user_sessions.json`.
-- [ ] Task: Update `GeminiAgent.delete_specific_session` in `app/services/llm_service.py`.
+- [x] Task: Update `GeminiAgent.delete_specific_session` in `app/services/llm_service.py`. 46e8464
     - [ ] Modify the deletion logic to check if *any other user* in `user_data` still has the `target_uuid` in their `sessions` list.
     - [ ] Only call `gemini-cli --delete-session` if no other users are tracking it.
     - [ ] Always remove the session from the current user's `user_data`.
