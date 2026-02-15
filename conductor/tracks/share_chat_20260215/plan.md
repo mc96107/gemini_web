@@ -18,7 +18,7 @@ Implement the core logic for sharing and safe deletion in the `GeminiAgent` serv
 - [x] Task: Add the `/api/sessions/{session_uuid}/share` POST endpoint in `app/routers/chat.py`. 4a76a4d
     - [ ] Authenticate user and verify session ownership.
     - [ ] Call `agent.share_session`.
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Backend Logic & API' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Backend Logic & API' (Protocol in workflow.md) f25110e
 
 ## Phase 2: Frontend Implementation
 Add the UI components to trigger the sharing flow.
