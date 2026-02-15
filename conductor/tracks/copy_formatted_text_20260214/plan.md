@@ -21,7 +21,7 @@ Implement the persistence of the new setting and the UI toggle in the settings m
 
 Implement the conditional logic to copy either raw markdown or formatted rich text.
 
-- [ ] Task: Implement Rich Text Copying logic in `script.js`.
+- [x] Task: Implement Rich Text Copying logic in `script.js`. bc676c6
     - Modify the `copyBtn.onclick` handler in `createMessageDiv` and message display logic.
     - If `copy_formatted` is ON, use `ClipboardItem` to write both `text/html` (from the rendered message bubble) and `text/plain` (raw markdown).
     - Ensure code block copy buttons are not affected (or handle them consistently if required).
