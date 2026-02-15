@@ -56,6 +56,7 @@
                 <button id="prompt-helper-btn" class="btn btn-outline-info btn-sm" title="Guided Prompt Builder"><i class="bi bi-magic"></i> <span class="d-none d-lg-inline">Prompt Helper</span></button>
                 <button id="tree-view-btn" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#treeViewModal" title="View Conversation Tree"><svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16" class="bi"><path d="M5 5.372v.878c0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75v-.878a2.25 2.25 0 1 1 1.5 0v.878a2.25 2.25 0 0 1-2.25 2.25h-1.5v2.128a2.251 2.251 0 1 1-1.5 0V8.5h-1.5A2.25 2.25 0 0 1 3.5 6.25v-.878a2.25 2.25 0 1 1 1.5 0ZM5 3.25a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0Zm6.75.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm-3 8.75a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0Z"></path></svg> <span class="d-none d-lg-inline">Tree</span></button>
                 <button id="security-btn" class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#securityModal" title="Security"><i class="bi bi-shield-lock"></i> <span class="d-none d-lg-inline">Security</span></button>
+                <button id="share-btn" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#shareModal" title="Share Chat"><i class="bi bi-share"></i> <span class="d-none d-lg-inline">Share</span></button>
                 <button id="export-btn" class="btn btn-outline-success btn-sm" title="Export Chat"><i class="bi bi-download"></i> <span class="d-none d-lg-inline">Export</span></button>
                 <button id="reset-btn" class="btn btn-outline-warning btn-sm" title="Reset Chat"><i class="bi bi-trash"></i> <span class="d-none d-lg-inline">Reset</span></button>
                 <button id="patterns-btn" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#patternsModal" title="Patterns"><i class="bi bi-collection"></i> <span class="d-none d-lg-inline">Patterns</span></button>
@@ -136,6 +137,7 @@
             {% endif %}
             <button id="prompt-helper-btn-mobile" class="list-group-item list-group-item-action bg-dark text-info border-secondary" data-bs-dismiss="offcanvas"><i class="bi bi-magic me-2"></i> Prompt Helper</button>
             <button id="tree-view-btn-mobile" class="list-group-item list-group-item-action bg-dark text-info border-secondary" data-bs-toggle="modal" data-bs-target="#treeViewModal" data-bs-dismiss="offcanvas"><svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16" class="bi me-2"><path d="M5 5.372v.878c0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75v-.878a2.25 2.25 0 1 1 1.5 0v.878a2.25 2.25 0 0 1-2.25 2.25h-1.5v2.128a2.251 2.251 0 1 1-1.5 0V8.5h-1.5A2.25 2.25 0 0 1 3.5 6.25v-.878a2.25 2.25 0 1 1 1.5 0ZM5 3.25a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0Zm6.75.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm-3 8.75a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0Z"></path></svg> Conversation Tree</button>
+            <button class="list-group-item list-group-item-action bg-dark text-primary border-secondary" data-bs-toggle="modal" data-bs-target="#shareModal" data-bs-dismiss="offcanvas"><i class="bi bi-share me-2"></i> Share Chat</button>
             <button class="list-group-item list-group-item-action bg-dark text-light border-secondary" data-bs-toggle="modal" data-bs-target="#securityModal" data-bs-dismiss="offcanvas"><i class="bi bi-shield-lock me-2"></i> Security Settings</button>
             <button class="list-group-item list-group-item-action bg-dark text-light border-secondary" data-bs-toggle="modal" data-bs-target="#patternsModal" data-bs-dismiss="offcanvas"><i class="bi bi-collection me-2"></i> Available Patterns</button>
             <button id="export-btn-mobile" class="list-group-item list-group-item-action bg-dark text-light border-secondary" data-bs-dismiss="offcanvas"><i class="bi bi-download me-2"></i> Export Conversation</button>
@@ -521,20 +523,28 @@
 
 <!-- Tree View Modal -->
 <div class="modal fade" id="treeViewModal" tabindex="-1" aria-labelledby="treeViewModalLabel">
-  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+...
+</div>
+
+<!-- Share Modal -->
+<div class="modal fade" id="shareModal" tabindex="-1" aria-labelledby="shareModalLabel">
+  <div class="modal-dialog">
     <div class="modal-content bg-dark text-light border-secondary">
       <div class="modal-header border-secondary">
-        <h5 class="modal-title" id="treeViewModalLabel"><svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16" class="bi me-2" style="margin-top: -4px;"><path d="M5 5.372v.878c0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75v-.878a2.25 2.25 0 1 1 1.5 0v.878a2.25 2.25 0 0 1-2.25 2.25h-1.5v2.128a2.251 2.251 0 1 1-1.5 0V8.5h-1.5A2.25 2.25 0 0 1 3.5 6.25v-.878a2.25 2.25 0 1 1 1.5 0ZM5 3.25a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0Zm6.75.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm-3 8.75a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0Z"></path></svg> Conversation Tree</h5>
+        <h5 class="modal-title" id="shareModalLabel"><i class="bi bi-share"></i> Share Chat</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <div id="tree-container" class="p-3 overflow-auto" style="min-height: 400px;">
-            <!-- Tree will be rendered here -->
-            <div class="text-center p-5">
-                <div class="spinner-border text-info" role="status"></div>
-                <p class="mt-2">Building conversation tree...</p>
-            </div>
+        <p class="small text-muted">Enter the username of the person you want to share this chat with. They will be able to read and participate in the conversation.</p>
+        <div class="mb-3">
+            <label for="share-username-input" class="form-label">Username</label>
+            <input type="text" class="form-control bg-dark text-light border-secondary" id="share-username-input" placeholder="e.g. bob">
         </div>
+        <div id="share-status" class="small mt-2"></div>
+      </div>
+      <div class="modal-footer border-secondary">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" id="btn-confirm-share" class="btn btn-primary btn-sm">Share</button>
       </div>
     </div>
   </div>

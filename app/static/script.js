@@ -95,6 +95,63 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    const shareModalEl = document.getElementById('shareModal');
+    const shareUsernameInput = document.getElementById('share-username-input');
+    const shareStatus = document.getElementById('share-status');
+    const btnConfirmShare = document.getElementById('btn-confirm-share');
+    let shareModal = null;
+
+    if (shareModalEl) {
+        shareModal = new bootstrap.Modal(shareModalEl);
+        
+        shareModalEl.addEventListener('shown.bs.modal', () => {
+            shareUsernameInput.focus();
+            shareStatus.textContent = '';
+        });
+
+        if (btnConfirmShare) {
+            btnConfirmShare.addEventListener('click', async () => {
+                const username = shareUsernameInput.value.trim();
+                if (!username) return;
+                
+                const uuid = currentActiveUUID;
+                if (!uuid) return;
+
+                shareStatus.textContent = 'Sharing...';
+                shareStatus.className = 'small mt-2 text-muted';
+                
+                try {
+                    const response = await fetch(`/sessions/${uuid}/share`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username })
+                    });
+                    const data = await response.json();
+                    
+                    // Fail silently or with simple success per spec
+                    if (data.success) {
+                        shareStatus.textContent = 'Chat shared successfully!';
+                        shareStatus.className = 'small mt-2 text-success';
+                        setTimeout(() => {
+                            shareModal.hide();
+                            shareUsernameInput.value = '';
+                        }, 1000);
+                    } else {
+                        // Per spec: fail silently if target does not exist.
+                        // We close the modal as if nothing happened or show a subtle message.
+                        shareModal.hide();
+                        shareUsernameInput.value = '';
+                        showToast('Sharing operation finished.');
+                    }
+                } catch (error) {
+                    console.error('Error sharing session:', error);
+                    shareStatus.textContent = 'Network error. Try again.';
+                    shareStatus.className = 'small mt-2 text-danger';
+                }
+            });
+        }
+    }
+
     async function handleReset() {
         if (confirm('Are you sure you want to clear the conversation history?')) {
             try {
