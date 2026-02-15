@@ -15,7 +15,7 @@ Implement the core logic for sharing and safe deletion in the `GeminiAgent` serv
     - [ ] Modify the deletion logic to check if *any other user* in `user_data` still has the `target_uuid` in their `sessions` list.
     - [ ] Only call `gemini-cli --delete-session` if no other users are tracking it.
     - [ ] Always remove the session from the current user's `user_data`.
-- [ ] Task: Add the `/api/sessions/{session_uuid}/share` POST endpoint in `app/routers/chat.py`.
+- [x] Task: Add the `/api/sessions/{session_uuid}/share` POST endpoint in `app/routers/chat.py`. 4a76a4d
     - [ ] Authenticate user and verify session ownership.
     - [ ] Call `agent.share_session`.
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: Backend Logic & API' (Protocol in workflow.md)
