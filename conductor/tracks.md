@@ -6,6 +6,9 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ## Completed Tracks
 
+- [x] **Track: add a way to copy formatted text to clipboard**
+*Link: [./archive/copy_formatted_text_20260214/](./archive/copy_formatted_text_20260214/)*
+
 - [x] **Track: sidebar: load more chats: do not repeat pinned**
 *Link: [./archive/sidebar_load_more_no_repeat_pinned_20260208/](./archive/sidebar_load_more_no_repeat_pinned_20260208/)*
 
@@ -36,6 +39,3 @@ This file tracks all major tracks for the project. Each track has its own detail
 ---
 
 ## Current Tracks
-
-- [x] **Track: add a way to copy formatted text to clipboard**
-*Link: [./tracks/copy_formatted_text_20260214/](./tracks/copy_formatted_text_20260214/)*
