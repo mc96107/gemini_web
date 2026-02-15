@@ -2106,6 +2106,51 @@ document.addEventListener('DOMContentLoaded', () => {
         chatForm.dispatchEvent(new Event('submit'));
     }
 
+    async function copyMessageToClipboard(text, messageDiv, btn) {
+        try {
+            const icon = btn.querySelector('i');
+            const isFormatted = window.USER_SETTINGS && window.USER_SETTINGS.copy_formatted === true;
+
+            if (isFormatted && typeof ClipboardItem !== 'undefined') {
+                // Get the rendered HTML content, excluding the actions div
+                const contentClone = messageDiv.cloneNode(true);
+                const actions = contentClone.querySelector('.message-actions');
+                if (actions) actions.remove();
+                
+                // Remove question cards
+                contentClone.querySelectorAll('.question-card').forEach(c => c.remove());
+
+                const htmlContent = contentClone.innerHTML;
+                const blobHtml = new Blob([htmlContent], { type: 'text/html' });
+                const blobText = new Blob([text], { type: 'text/plain' });
+                
+                const data = [new ClipboardItem({
+                    'text/html': blobHtml,
+                    'text/plain': blobText
+                })];
+                
+                await navigator.clipboard.write(data);
+            } else {
+                // Default markdown only
+                await navigator.clipboard.writeText(text);
+            }
+
+            icon.className = 'bi bi-check2';
+            setTimeout(() => { icon.className = 'bi bi-clipboard'; }, 2000);
+        } catch (err) {
+            console.error('Failed to copy:', err);
+            // Fallback
+            try {
+                await navigator.clipboard.writeText(text);
+                const icon = btn.querySelector('i');
+                if (icon) {
+                    icon.className = 'bi bi-check2';
+                    setTimeout(() => { icon.className = 'bi bi-clipboard'; }, 2000);
+                }
+            } catch (e) {}
+        }
+    }
+
     function updateStreamingMessage(messageDiv, text, toolLogs, isFinal = false) {
         const contentArea = messageDiv.querySelector('.message-content');
         const logsArea = messageDiv.querySelector('.tool-logs');
@@ -2160,11 +2205,7 @@ document.addEventListener('DOMContentLoaded', () => {
             copyBtn.innerHTML = '<i class="bi bi-clipboard"></i>';
             copyBtn.onclick = (e) => {
                 e.stopPropagation();
-                navigator.clipboard.writeText(text).then(() => {
-                    const icon = copyBtn.querySelector('i');
-                    icon.className = 'bi bi-check2';
-                    setTimeout(() => { icon.className = 'bi bi-clipboard'; }, 2000);
-                });
+                copyMessageToClipboard(text, messageDiv, copyBtn);
             };
             actionsDiv.appendChild(copyBtn);
 
@@ -2303,11 +2344,7 @@ document.addEventListener('DOMContentLoaded', () => {
         copyBtn.innerHTML = '<i class="bi bi-clipboard"></i>';
         copyBtn.onclick = (e) => {
             e.stopPropagation();
-            navigator.clipboard.writeText(text).then(() => {
-                const icon = copyBtn.querySelector('i');
-                icon.className = 'bi bi-check2';
-                setTimeout(() => { icon.className = 'bi bi-clipboard'; }, 2000);
-            });
+            copyMessageToClipboard(text, messageDiv, copyBtn);
         };
         actionsDiv.appendChild(copyBtn);
 
