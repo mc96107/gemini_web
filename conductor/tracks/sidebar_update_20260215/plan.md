@@ -15,3 +15,6 @@
 - [ ] Task: Write Tests: Verify that starting a new chat correctly updates the sidebar.
 - [ ] Task: Write Tests: Verify that the URL remains unchanged after the sidebar update.
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: Verification' (Protocol in workflow.md)
+
+## Phase: Review Fixes
+- [x] Task: Apply review suggestions c9f5864
