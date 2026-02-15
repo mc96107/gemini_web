@@ -1190,6 +1190,55 @@ class GeminiAgent:
         self._save_user_data()
         return count
 
+    async def share_session(self, user_id: str, session_uuid: str, target_username: str, user_manager: Any) -> bool:
+        """
+        Share a session with another user.
+        Fails silently if target_username does not exist.
+        """
+        # 1. Verify user_id has access to session_uuid
+        if user_id not in self.user_data or session_uuid not in self.user_data[user_id].get("sessions", []):
+            return False
+
+        # 2. Verify target_username exists via UserManager
+        if target_username not in user_manager.users:
+            return False
+
+        # 3. Add session_uuid to target_username's session list in user_data
+        if target_username not in self.user_data:
+            self.user_data[target_username] = {
+                "active_session": None, 
+                "sessions": [], 
+                "session_tools": {}, 
+                "pending_tools": [], 
+                "pinned_sessions": [], 
+                "session_metadata": {},
+                "settings": {"show_mic": True, "interactive_mode": True, "copy_formatted": False}
+            }
+        
+        target_info = self.user_data[target_username]
+        if "sessions" not in target_info: target_info["sessions"] = []
+        if session_uuid not in target_info["sessions"]:
+            target_info["sessions"].append(session_uuid)
+
+        # 4. Copy custom_titles, session_tags, session_metadata, and session_tools to the target user
+        source_info = self.user_data[user_id]
+        
+        if "custom_titles" in source_info and session_uuid in source_info["custom_titles"]:
+            target_info.setdefault("custom_titles", {})[session_uuid] = source_info["custom_titles"][session_uuid]
+            
+        if "session_tags" in source_info and session_uuid in source_info["session_tags"]:
+            target_info.setdefault("session_tags", {})[session_uuid] = list(source_info["session_tags"][session_uuid])
+            
+        if "session_metadata" in source_info and session_uuid in source_info["session_metadata"]:
+            target_info.setdefault("session_metadata", {})[session_uuid] = dict(source_info["session_metadata"][session_uuid])
+            
+        if "session_tools" in source_info and session_uuid in source_info["session_tools"]:
+            target_info.setdefault("session_tools", {})[session_uuid] = list(source_info["session_tools"][session_uuid])
+
+        # 5. Save user_sessions.json
+        self._save_user_data()
+        return True
+
     async def reset_chat(self, user_id: str) -> str:
         uuid = self.user_data.get(user_id, {}).get("active_session")
         if uuid:
