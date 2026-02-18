@@ -39,11 +39,12 @@ This file tracks all major tracks for the project. Each track has its own detail
 - [x] **Track: share chat with other user (the user should type the name, if it does not exist fail silently)**
 *Link: [./archive/share_chat_20260215/](./archive/share_chat_20260215/)*
 
+- [x] **Track: Surgical Removal of Prompt Helper**
+*Link: [./archive/remove_prompt_helper_20260218/](./archive/remove_prompt_helper_20260218/)*
+
 ---
 
 ## Current Tracks
 
 ---
 
-- [x] **Track: Surgical Removal of Prompt Helper**
-*Link: [./tracks/remove_prompt_helper_20260218/](./tracks/remove_prompt_helper_20260218/)*
