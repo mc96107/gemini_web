@@ -257,6 +257,90 @@ async def get_pats(request: Request):
         
     return res
 
+@router.get("/prompts/{filename}")
+async def get_prompt_content(filename: str, request: Request, user=Depends(get_user)):
+    agent = request.app.state.agent
+    if not user: raise HTTPException(401)
+    if ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(400, "Invalid filename")
+        
+    filepath = os.path.join(agent.working_dir, "prompts", filename)
+    if os.path.exists(filepath):
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                content = f.read()
+            return {"success": True, "content": content}
+        except Exception as e:
+            raise HTTPException(500, f"Failed to read file: {e}")
+    else:
+        raise HTTPException(404, "Prompt not found")
+
+@router.delete("/prompts/{filename}")
+async def delete_prompt(filename: str, request: Request, user=Depends(get_user)):
+    agent = request.app.state.agent
+    if not user: raise HTTPException(401)
+    # Security check: filename should be simple to avoid path traversal
+    if ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(400, "Invalid filename")
+    
+    filepath = os.path.join(agent.working_dir, "prompts", filename)
+    if os.path.exists(filepath):
+        try:
+            os.remove(filepath)
+            return {"success": True}
+        except Exception as e:
+            raise HTTPException(500, f"Failed to delete file: {e}")
+    else:
+        raise HTTPException(404, "Prompt not found")
+
+@router.put("/prompts/{filename}")
+async def update_prompt(filename: str, request: Request, user=Depends(get_user)):
+    agent = request.app.state.agent
+    if not user: raise HTTPException(401)
+    if ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(400, "Invalid filename")
+        
+    data = await request.form()
+    content = data.get("content")
+    if content is None:
+        raise HTTPException(400, "Content is required")
+
+    filepath = os.path.join(agent.working_dir, "prompts", filename)
+    if os.path.exists(filepath):
+        try:
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(content)
+            return {"success": True}
+        except Exception as e:
+            raise HTTPException(500, f"Failed to update file: {e}")
+    else:
+        raise HTTPException(404, "Prompt not found")
+
+@router.post("/prompts/new")
+async def create_prompt(request: Request, user=Depends(get_user)):
+    agent = request.app.state.agent
+    if not user: raise HTTPException(401)
+    
+    data = await request.form()
+    title = data.get("title", "New Prompt")
+    content = data.get("content", "")
+    
+    # Save to prompts/ directory
+    prompts_dir = os.path.join(agent.working_dir, "prompts")
+    os.makedirs(prompts_dir, exist_ok=True)
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    safe_title = "".join([c if c.isalnum() else "_" for c in title])
+    filename = f"prompt_{timestamp}_{safe_title}.md"
+    filepath = os.path.join(prompts_dir, filename)
+    
+    try:
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(content)
+        return {"success": True, "filename": filename}
+    except Exception as e:
+        raise HTTPException(500, f"Failed to create file: {e}")
+
 @router.post("/chat")
 async def chat(request: Request, message: str = Form(...), file: Optional[list[UploadFile]] = File(None), model: Optional[str] = Form(None), plan_mode: Optional[str] = Form(None), user=Depends(get_user)):
     agent = request.app.state.agent
