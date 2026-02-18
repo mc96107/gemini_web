@@ -1,11 +1,11 @@
 ---
 name: ready-for-release-gemini-web
-description: Executes the deployment and release workflow for Gemini Web. Use this when the project is ready for a new production release to remote servers and GitHub.
+description: Executes the deployment and release workflow for Gemini Web. Automatically increments the version number based on the latest git tag. Use this when the project is ready for a new production release.
 ---
 
 # Ready For Release Gemini Web
 
-This skill automates the sequential process of deploying the consolidated release bundle to the production server and finalizing the release on Git/GitHub.
+This skill automates the sequential process of deploying the consolidated release bundle to the production server and finalizing the release on Git/GitHub. It automatically determines the next version number by incrementing the patch version of the latest git tag.
 
 ## Workflow
 
@@ -16,25 +16,34 @@ Execute the secure copy of the release artifact to the target production server.
 scp gemini_agent_release.py z@192.168.1.84:g
 ```
 
-### 2. Finalize Git Changes
-Stage all changes (including the updated release artifact), commit with a descriptive release message, and push to the remote repository.
+### 2. Determine Next Version
+The skill will automatically calculate the next version. You can also run this command to see it:
 
-```bash
-git add .
-git commit -m "chore: release version [version_number]"
-git push
+```powershell
+$current = git describe --tags --abbrev=0; $parts = $current.TrimStart('v').Split('.'); $nextVersion = "$($parts[0]).$($parts[1]).$([int]$parts[2] + 1)"; echo "Next version: $nextVersion"
 ```
 
-### 3. Create GitHub Release
-Create a new formal release on GitHub using the GitHub CLI.
+### 3. Finalize Git Changes
+Stage all changes, commit with the new version number, and push.
 
-```bash
-# Example: Create a release with automatically generated notes
-gh release create v[version_number] --generate-notes
+```powershell
+# Automated sequence
+$current = git describe --tags --abbrev=0; $parts = $current.TrimStart('v').Split('.'); $nextVersion = "$($parts[0]).$($parts[1]).$([int]$parts[2] + 1)";
+git add .;
+git commit -m "chore: release version $nextVersion";
+git push;
+```
+
+### 4. Create GitHub Release
+Create a new formal release on GitHub using the calculated version.
+
+```powershell
+# Continued from previous step
+gh release create "v$nextVersion" --generate-notes
 ```
 
 ## Usage Guidelines
 
 - Ensure `gemini_agent_release.py` has been generated and verified before triggering this workflow.
-- Always confirm the `[version_number]` with the user before performing the Git commit and GitHub release steps.
+- This skill assumes a `vMAJOR.MINOR.PATCH` tagging format.
 - The `scp` command targets user `z` at IP `192.168.1.84`.

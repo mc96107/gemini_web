@@ -27,17 +27,17 @@ def test_admin_settings_routes():
         response = client.get("/admin/settings")
         assert response.status_code == 200
         settings = response.json()
-        assert "prompt_helper_instructions" in settings
+        assert "interactive_mode_instructions" in settings
         
         # Test POST /admin/settings
         new_instructions = "New instructions for test"
-        response = client.post("/admin/settings", json={"prompt_helper_instructions": new_instructions})
+        response = client.post("/admin/settings", json={"interactive_mode_instructions": new_instructions})
         assert response.status_code == 200
         assert response.json()["success"] is True
         
         # Verify change
         response = client.get("/admin/settings")
-        assert response.json()["prompt_helper_instructions"] == new_instructions
+        assert response.json()["interactive_mode_instructions"] == new_instructions
     finally:
         # Clear override
         del app.dependency_overrides[get_user]

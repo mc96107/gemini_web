@@ -63,9 +63,7 @@ def recombine():
     conversion_service_code = clean_config_ref(strip_local_imports(get_file_content('app/services/conversion_service.py')))
     pdf_service_code = clean_config_ref(strip_local_imports(get_file_content('app/services/pdf_service.py')))
     agent_model_code = strip_local_imports(get_file_content('app/models/agent.py'))
-    prompt_tree_model_code = strip_local_imports(get_file_content('app/models/prompt_tree.py'))
     agent_manager_code = clean_config_ref(strip_local_imports(get_file_content('app/services/agent_manager.py')))
-    tree_prompt_service_code = clean_config_ref(strip_local_imports(get_file_content('app/services/tree_prompt_service.py')))
     
     auth_router_code = clean_config_ref(strip_local_imports(get_file_content('app/routers/auth.py')))
     # Update auth_router setup to re-init auth_service
@@ -76,7 +74,6 @@ def recombine():
     
     chat_router_code = clean_config_ref(strip_local_imports(get_file_content('app/routers/chat.py')))
     admin_router_code = clean_config_ref(strip_local_imports(get_file_content('app/routers/admin.py')))
-    prompt_helper_router_code = clean_config_ref(strip_local_imports(get_file_content('app/routers/prompt_helper.py')))
     
     main_code = clean_config_ref(strip_local_imports(get_file_content('app/main.py')))
 
@@ -115,7 +112,6 @@ def recombine():
     # Models
     combined.append("# --- MODELS ---")
     combined.append(agent_model_code)
-    combined.append(prompt_tree_model_code)
     combined.append("\n")
 
     # Services
@@ -134,8 +130,6 @@ def recombine():
     combined.append("\n")
     combined.append(agent_manager_code)
     combined.append("\n")
-    combined.append(tree_prompt_service_code)
-    combined.append("\n")
 
     # Routers
     combined.append("# --- ROUTERS ---")
@@ -147,9 +141,6 @@ def recombine():
     combined.append("\n")
     combined.append("admin_router = APIRouter()")
     combined.append(admin_router_code.replace('router = APIRouter()', '').replace('@router.', '@admin_router.'))
-    combined.append("\n")
-    combined.append("prompt_helper_router = APIRouter()")
-    combined.append(prompt_helper_router_code.replace('router = APIRouter()', '').replace('@router.', '@prompt_helper_router.'))
     combined.append("\n")
 
     # Main
@@ -210,14 +201,11 @@ async def manifest():
     main_clean = main_clean.replace('app.include_router(chat.router)', 'app.include_router(chat_router)')
     main_clean = main_clean.replace('app.include_router(admin.router)', 'app.include_router(admin_router)')
     
-    # Robust replacement for prompt_helper which might already have a prefix in the source
-    main_clean = re.sub(r'app\.include_router\(prompt_helper\.router.*?\)', 'app.include_router(prompt_helper_router, prefix="/api/prompt-helper")', main_clean)
-    
     # Prepare all our custom routes
     custom_logic = "\n" + static_handler + "\n"
     
     if 'app.include_router(chat_router)' not in main_clean:
-        custom_logic += "\napp.include_router(auth_router)\napp.include_router(chat_router)\napp.include_router(admin_router)\napp.include_router(prompt_helper_router, prefix=\"/api/prompt-helper\")\n"
+        custom_logic += "\napp.include_router(auth_router)\napp.include_router(chat_router)\napp.include_router(admin_router)\n"
 
     # Insert everything before the if __name__ block to ensure it's executed
     if 'if __name__ == "__main__":' in main_clean:

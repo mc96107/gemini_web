@@ -19,7 +19,6 @@ The Gemini Termux Agent is designed for:
 * **Interactive Web Chat:** A responsive chat interface featuring conversation history and dynamic UI updates.
 * **Collaborative Chat Sharing:** Share active chat sessions with other registered users by username. Shared chats allow all participants to read, send messages, and execute tools, enabling seamless multi-user collaboration.
 * **Structured Interactive Questioning:** The AI can ask multiple-choice or open-ended questions using "Question Cards" directly in the main chat, providing a more structured way to gather user requirements.
-* **Tree Prompt Helper:** A guided, interactive tool for building complex prompts. It visualizes the prompt's evolution as a collapsible tree structure, allowing users to rewind to previous decision points and explore different branching paths.
 * **Drive Mode (Voice-Only Loop):** A hands-free conversation mode that uses voice recognition and text-to-speech to enable a continuous, eyes-free interaction loop.
 * **Mobile Swipe Gestures:** Intuitive swipe-to-open gestures for accessing chat history and session actions on mobile devices.
 * **Chat Renaming:** Manually rename chat sessions to easily identify and organize different conversations.
@@ -56,7 +55,7 @@ The Gemini Termux Agent is designed for:
 * **Copy Formatted Text:** Users can choose to copy message content as raw Markdown or as rich text (preserving bold, italics, links, and code formatting) via a configurable user setting.
 * **Pattern-Based Prompting:** A template system (Patterns) that allows users to leverage expert-crafted prompts for specific tasks like Agile story creation or insightful AI analysis.
 * **Admin Dashboard:** A dedicated interface for managing users, monitoring system status, and configuring agent behavior.
-* **Global Interaction Customization:** Administrators can globally customize the system instructions for both the Prompt Helper and the main chat's Interactive Mode via the Admin Dashboard, enabling fine-tuned control over the AI's persona and questioning behavior.
+* **Global Interaction Customization:** Administrators can globally customize the system instructions for the main chat's Interactive Mode via the Admin Dashboard, enabling fine-tuned control over the AI's persona and questioning behavior.
 * **Hierarchical Agent Management:** Specialized orchestration system where a central `AGENT.md` at the project root manages enabled sub-agents. Features an "Enabled" toggle in the Admin UI and automatic relationship tracking (parent/children/used_by) using Wiki-link style links in YAML frontmatter.
 
 ## User Experience & Visual Aesthetic

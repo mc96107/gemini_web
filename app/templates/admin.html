@@ -117,15 +117,6 @@
                         <h5 class="card-title">Global Settings</h5>
                         <div class="mb-3">
                             <div class="d-flex justify-content-between align-items-center mb-1">
-                                <label class="form-label small text-muted mb-0">Prompt Helper Instructions</label>
-                                <button class="btn btn-link btn-sm text-warning p-0" style="text-decoration: none; font-size: 0.7rem;" onclick="resetPromptHelperInstructions()">
-                                    <i class="bi bi-arrow-counterclockwise"></i> Reset
-                                </button>
-                            </div>
-                            <textarea id="prompt-helper-instructions" class="form-control form-control-sm bg-dark text-light border-secondary" rows="4"></textarea>
-                        </div>
-                        <div class="mb-3">
-                            <div class="d-flex justify-content-between align-items-center mb-1">
                                 <label class="form-label small text-muted mb-0">Interactive Mode Instructions</label>
                                 <button class="btn btn-link btn-sm text-warning p-0" style="text-decoration: none; font-size: 0.7rem;" onclick="resetInteractiveModeInstructions()">
                                     <i class="bi bi-arrow-counterclockwise"></i> Reset
@@ -628,9 +619,6 @@
             try {
                 const res = await fetch('/admin/settings');
                 const data = await res.json();
-                if (data.prompt_helper_instructions) {
-                    document.getElementById('prompt-helper-instructions').value = data.prompt_helper_instructions;
-                }
                 if (data.interactive_mode_instructions) {
                     document.getElementById('interactive-mode-instructions').value = data.interactive_mode_instructions;
                 }
@@ -639,7 +627,6 @@
 
         async function saveGlobalSettings() {
             const status = document.getElementById('settings-status');
-            const helperInstructions = document.getElementById('prompt-helper-instructions').value;
             const interactiveInstructions = document.getElementById('interactive-mode-instructions').value;
             
             status.textContent = 'Saving...';
@@ -650,7 +637,6 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
-                        prompt_helper_instructions: helperInstructions,
                         interactive_mode_instructions: interactiveInstructions
                     })
                 });
@@ -667,29 +653,6 @@
                 status.textContent = 'Error: ' + e.message;
                 status.className = 'small mt-2 text-danger';
             }
-        }
-
-        function resetPromptHelperInstructions() {
-            const defaultInstructions = `You are an expert prompt engineer. Your goal is to help the user build a high-quality, effective prompt through a guided interaction.
-Based on the information gathered so far, your task is to ask the NEXT logical question to further refine the prompt.
-
-If 'ACTIVE CHAT CONTEXT' is provided, use it to infer the user's likely goal and skip initial general questions (like "What is the topic?"). Instead, ask a more specific starting question relevant to that context.
-
-Output your response EXCLUSIVELY in JSON format with the following keys:
-- "question": The question to ask the user.
-- "options": A list of suggested short answers (buttons), or an empty list [] if it's an open-ended question.
-- "allow_multiple": Boolean, true if the user should be allowed to select multiple options.
-- "reasoning": A brief explanation of why you are asking this question.
-- "is_complete": Boolean, true if you have enough information to synthesize the final prompt.
-
-Guidelines:
-- Keep questions concise and focused.
-- Provide 2-4 options when possible.
-- Set "allow_multiple" to true if the question asks for "all that apply" or features/topics.
-- DO NOT loop indefinitely. If you have a clear idea of the role, goal, and constraints, set 'is_complete' to true.
-- If 'is_complete' is true, set 'question' to "I have gathered enough information to build your prompt. Would you like to review it now?" and provide options ["Yes", "Not yet, I want to add more"].`;
-            
-            document.getElementById('prompt-helper-instructions').value = defaultInstructions;
         }
 
         function resetInteractiveModeInstructions() {
