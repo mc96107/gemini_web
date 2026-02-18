@@ -46,3 +46,6 @@ This plan outlines the steps for the surgical removal of the "Prompt Helper" fea
     - [x] Run the full test suite (`pytest`) to ensure no regressions in core tree functionality.
     - [x] Verify that all "Prompt Helper" references are gone from the UI and codebase.
 - [x] Task: **Conductor - User Manual Verification 'Final Cleanup' (Protocol in workflow.md)** 420d9a1
+
+## Phase: Review Fixes
+- [x] Task: Apply review suggestions 36c6be2
