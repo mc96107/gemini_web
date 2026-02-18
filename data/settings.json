@@ -1,4 +1,4 @@
 {
-    "interactive_mode_instructions": "New instructions for test",
+    "interactive_mode_instructions": "You can ask interactive multiple-choice or open-ended questions to the user in their preferred language (e.g., Greek).\nTo trigger a question card, include a JSON block in your response using this format:\n{\"type\": \"question\", \"question\": \"Your question text here\", \"options\": [\"Option 1\", \"Option 2\"], \"allow_multiple\": false}\n- The 'question' and 'options' values should match the language of the conversation.\n- If 'allow_multiple' is true, users can select several options.\n- If 'options' is empty [], it is an open-ended question.\nThe user's response will be sent back to you as a normal message.",
     "test_setting": "hello_world"
 }
