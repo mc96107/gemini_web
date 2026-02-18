@@ -1500,15 +1500,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load patterns when modal is shown
     patternsModal.addEventListener('show.bs.modal', async () => {
         if (allPatterns.length === 0) {
-            try {
-                const response = await fetch('/patterns');
-                const data = await response.json();
-                allPatterns = data; // data is already the list
-                renderPatterns(allPatterns);
-            } catch (error) {
-                console.error('Error loading patterns:', error);
-                patternsList.innerHTML = '<div class="alert alert-danger">Failed to load patterns.</div>';
-            }
+            await loadPatterns();
         }
     });
 
@@ -1521,6 +1513,84 @@ document.addEventListener('DOMContentLoaded', () => {
         );
         renderPatterns(filtered);
     });
+
+    // --- Static Prompt Management Listeners ---
+    const editPromptModalEl = document.getElementById('editPromptModal');
+    const editPromptModal = new bootstrap.Modal(editPromptModalEl);
+
+    // New Prompt Button
+    const newPromptBtn = document.getElementById('btn-new-prompt');
+    if (newPromptBtn) {
+        newPromptBtn.onclick = () => {
+            document.getElementById('editPromptModalTitle').innerHTML = '<i class="bi bi-plus-lg"></i> Create New Custom Prompt';
+            document.getElementById('edit-prompt-filename').value = '';
+            document.getElementById('edit-prompt-filename').readOnly = false;
+            document.getElementById('edit-prompt-filename').placeholder = 'e.g. My Expert Agent';
+            document.getElementById('edit-prompt-content').value = '';
+            
+            editPromptModalEl.dataset.mode = 'create';
+            editPromptModal.show();
+        };
+    }
+
+    // Handle Prompt Save
+    const savePromptBtn = document.getElementById('btn-save-prompt-edit');
+    if (savePromptBtn) {
+        savePromptBtn.onclick = async () => {
+            const mode = editPromptModalEl.dataset.mode || 'edit';
+            const filename = document.getElementById('edit-prompt-filename').value.trim();
+            const content = document.getElementById('edit-prompt-content').value;
+            
+            if (!filename) {
+                alert('Please enter a title or filename.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('content', content);
+            
+            let url = `/prompts/${filename}`;
+            let method = 'PUT';
+            
+            if (mode === 'create') {
+                url = '/prompts/new';
+                method = 'POST';
+                formData.append('title', filename);
+            }
+
+            try {
+                const res = await fetch(url, {
+                    method: method,
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(mode === 'create' ? 'Prompt created successfully!' : 'Prompt updated successfully!');
+                    editPromptModal.hide();
+                    await loadPatterns(); // Refresh list
+                } else {
+                    alert('Failed to save prompt.');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Error saving prompt.');
+            }
+        };
+    }
+
+    async function loadPatterns() {
+        try {
+            const response = await fetch('/patterns');
+            const data = await response.json();
+            allPatterns = data; // data is already the list
+            renderPatterns(allPatterns);
+        } catch (error) {
+            console.error('Error loading patterns:', error);
+            if (patternsList) {
+                patternsList.innerHTML = '<div class="alert alert-danger">Failed to load patterns.</div>';
+            }
+        }
+    }
 
     function renderPatterns(patterns) {
         if (patterns.length === 0) {
@@ -1543,7 +1613,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="d-flex align-items-center">
                             <h6 class="mb-1 text-info"><i class="bi bi-file-text me-2"></i>${p.name}</h6>
                         </div>
-                        <small class="text-muted">${p.description}</small>
+                        <small class="text-muted">${p.description || ''}</small>
                     </div>
                     <div class="d-flex gap-2">
                         <button class="btn btn-sm btn-outline-warning edit-prompt-btn" data-name="${p.name}" title="Edit"><i class="bi bi-pencil"></i></button>
@@ -1572,30 +1642,13 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
-        // User Prompt Click (Load)
-        document.querySelectorAll('.user-prompt-item').forEach(item => {
-            item.addEventListener('click', async () => {
-                const name = item.dataset.name;
-                // Fetch content? Or just assume it was loaded?
-                // The list endpoint didn't return content. We need to fetch or just execute.
-                // Actually, prompts are files. We can't just "/p name" them unless the backend supports it.
-                // The backend "apply_pattern" reads from PATTERNS dict. It doesn't read files yet.
-                // BUT, the request was "list prompts... option to edit or delete".
-                // If I click it, maybe I want to RUN it?
-                // For now, let's load it into the input as text so the user can send it.
-                try {
-                    // Prompt content retrieval is not currently implemented for general chat.
-                } catch (e) {}
-            });
-        });
-        
         // Delete Prompt
         document.querySelectorAll('.delete-prompt-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 if (confirm(`Delete prompt "${btn.dataset.name}"?`)) {
                     try {
-                        const res = await fetch(`/api/prompt-helper/prompts/${btn.dataset.name}`, { method: 'DELETE' });
+                        const res = await fetch(`/prompts/${btn.dataset.name}`, { method: 'DELETE' });
                         if (res.ok) {
                             allPatterns = allPatterns.filter(p => p.name !== btn.dataset.name);
                             renderPatterns(allPatterns);
@@ -1609,21 +1662,22 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
-        // Edit Prompt (Open Modal)
+        // Edit Prompt Button (Open Modal)
         document.querySelectorAll('.edit-prompt-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 const name = btn.dataset.name;
-                const modalEl = document.getElementById('editPromptModal');
-                const editModal = new bootstrap.Modal(modalEl);
                 
                 try {
-                    const res = await fetch(`/api/prompt-helper/prompts/${name}`);
+                    const res = await fetch(`/prompts/${name}`);
                     const data = await res.json();
                     if (data.content) {
+                        document.getElementById('editPromptModalTitle').innerHTML = '<i class="bi bi-pencil"></i> Edit Custom Prompt';
                         document.getElementById('edit-prompt-filename').value = name;
+                        document.getElementById('edit-prompt-filename').readOnly = true;
                         document.getElementById('edit-prompt-content').value = data.content;
-                        editModal.show();
+                        editPromptModalEl.dataset.mode = 'edit';
+                        editPromptModal.show();
                     }
                 } catch (err) {
                     console.error(err);
@@ -1631,41 +1685,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         });
-
-        // Handle Prompt Save
-        const savePromptBtn = document.getElementById('btn-save-prompt-edit');
-        if (savePromptBtn) {
-            savePromptBtn.onclick = async () => {
-                const filename = document.getElementById('edit-prompt-filename').value;
-                const content = document.getElementById('edit-prompt-content').value;
-                const formData = new FormData();
-                formData.append('content', content);
-
-                try {
-                    const res = await fetch(`/api/prompt-helper/prompts/${filename}`, {
-                        method: 'PUT',
-                        body: formData
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                        showToast('Prompt updated successfully!');
-                        bootstrap.Modal.getInstance(document.getElementById('editPromptModal')).hide();
-                    } else {
-                        alert('Failed to update prompt.');
-                    }
-                } catch (err) {
-                    console.error(err);
-                    alert('Error saving prompt.');
-                }
-            };
-        }
         
         // User Prompt Item Click (Load content into chat input)
         document.querySelectorAll('.user-prompt-item').forEach(item => {
-            item.addEventListener('click', async () => {
+            item.addEventListener('click', async (e) => {
+                // Prevent trigger if clicking the edit/delete buttons (stopPropagation handles this but extra safety)
+                if (e.target.closest('.edit-prompt-btn') || e.target.closest('.delete-prompt-btn')) return;
+
                 const name = item.dataset.name;
                 try {
-                    const res = await fetch(`/api/prompt-helper/prompts/${name}`);
+                    const res = await fetch(`/prompts/${name}`);
                     const data = await res.json();
                     if (data.content) {
                         messageInput.value = data.content;

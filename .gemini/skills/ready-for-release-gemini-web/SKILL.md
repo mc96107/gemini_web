@@ -16,14 +16,21 @@ Execute the secure copy of the release artifact to the target production server.
 scp gemini_agent_release.py z@192.168.1.84:g
 ```
 
-### 2. Determine Next Version
+### 2. Restart Server
+Execute the server restart command via SSH.
+
+```bash
+ssh z@192.168.1.84 "sudo systemctl restart gemini-agent"
+```
+
+### 3. Determine Next Version
 The skill will automatically calculate the next version. You can also run this command to see it:
 
 ```powershell
 $current = git describe --tags --abbrev=0; $parts = $current.TrimStart('v').Split('.'); $nextVersion = "$($parts[0]).$($parts[1]).$([int]$parts[2] + 1)"; echo "Next version: $nextVersion"
 ```
 
-### 3. Finalize Git Changes
+### 4. Finalize Git Changes
 Stage all changes, commit with the new version number, and push.
 
 ```powershell
@@ -34,7 +41,7 @@ git commit -m "chore: release version $nextVersion";
 git push;
 ```
 
-### 4. Create GitHub Release
+### 5. Create GitHub Release
 Create a new formal release on GitHub using the calculated version.
 
 ```powershell
