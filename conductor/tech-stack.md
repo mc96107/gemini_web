@@ -2,7 +2,7 @@
 
 ## Backend
 * **Language:** Python 3
-*   **State Management:** Pydantic models for tracking complex session state (e.g., prompt building trees).
+*   **State Management:** Pydantic models for tracking application state.
 *   **Configuration:** Persistent global settings stored in `data/settings.json` for runtime application customization.
 *   **Gemini CLI Integration:** Full support for the latest Gemini CLI toolset including skill activation and codebase investigation.
 *   **MCP Support:** Integrated management of Model Context Protocol (MCP) servers via the Gemini CLI.
