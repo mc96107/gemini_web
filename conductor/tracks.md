@@ -44,3 +44,6 @@ This file tracks all major tracks for the project. Each track has its own detail
 ## Current Tracks
 
 ---
+
+- [ ] **Track: Surgical Removal of Prompt Helper**
+*Link: [./tracks/remove_prompt_helper_20260218/](./tracks/remove_prompt_helper_20260218/)*
