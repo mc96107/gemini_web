@@ -1584,16 +1584,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // If I click it, maybe I want to RUN it?
                 // For now, let's load it into the input as text so the user can send it.
                 try {
-                    // We need an endpoint to get the content. 
-                    // We can reuse the `get_pats` if we included content, or add a simple get endpoint.
-                    // Or, we can use `read_file` via tool? No, frontend.
-                    // Let's assume for now clicking puts `/p name` and we update backend to handle file prompts.
-                    // WAIT, I updated `get_pats` but didn't update `apply_pattern`.
-                    // Let's implement client-side fetch for content to populate input.
-                    // I'll add a quick fetch logic here.
-                    const res = await fetch(`/api/prompt-helper/prompts/${name}`); // Need this endpoint? No, we have PUT/DELETE.
-                    // We don't have GET content endpoint for general chat.
-                    // I will add GET /api/prompt-helper/prompts/{filename} to the router next.
+                    // Prompt content retrieval is not currently implemented for general chat.
                 } catch (e) {}
             });
         });
