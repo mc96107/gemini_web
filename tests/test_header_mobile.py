@@ -34,7 +34,7 @@ def test_header_mobile_dropdown_exists(auth_client):
     app.state.user_manager.get_role = MagicMock(return_value="admin")
     
     # Mock agent async methods
-    app.state.agent.get_user_sessions = AsyncMock(return_value=[{"uuid": "test-uuid", "active": True, "title": "Test Chat"}])
+    app.state.agent.get_user_sessions = AsyncMock(return_value={"pinned": [], "history": [{"uuid": "test-uuid", "active": True, "title": "Test Chat"}], "total_unpinned": 1})
     app.state.agent.get_session_messages = AsyncMock(return_value=[])
     
     response = auth_client.get("/")

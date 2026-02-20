@@ -388,6 +388,7 @@ class GeminiAgent:
             log_debug(f"Attempt {attempt}: Running command {' '.join(args)}")
             
             should_fallback = False
+            high_demand_detected = False
             proc = None
             stderr_buffer = []
             try:
@@ -416,12 +417,18 @@ class GeminiAgent:
                     await write_to_stdin(proc, prompt.encode('utf-8'))
                 
                 async def capture_stderr(pipe):
+                    nonlocal high_demand_detected
                     while True:
                         line = await pipe.readline()
                         if not line: break
                         line_str = line.decode(errors='replace').strip()
                         log_debug(f"STDERR: {line_str}")
                         stderr_buffer.append(line_str)
+                        if "High demand. Retry?" in line_str:
+                            log_debug("High demand detected in stderr")
+                            high_demand_detected = True
+                            try: proc.terminate()
+                            except: pass
                 
                 stderr_task = asyncio.create_task(capture_stderr(proc.stderr))
 
@@ -439,6 +446,13 @@ class GeminiAgent:
                     if not line_str: continue
                     
                     log_debug(f"Received line ({len(line_str)} chars)")
+                    if "High demand. Retry?" in line_str:
+                        log_debug("High demand detected in stdout")
+                        high_demand_detected = True
+                        try: proc.terminate()
+                        except: pass
+                        break
+
                     try:
                         data = json.loads(line_str)
                         
@@ -623,6 +637,16 @@ class GeminiAgent:
                 await stderr_task
                 log_debug(f"Process exited with code {proc.returncode}")
                 
+                if high_demand_detected:
+                    yield {
+                        "type": "question",
+                        "question": "We are currently experiencing high demand. Should I keep trying?",
+                        "options": ["Retry", "Stop"],
+                        "allow_multiple": False,
+                        "is_retry": True
+                    }
+                    break 
+
                 if plan_mode:
                     yield {"type": "plan_status", "status": "completed", "message": "Plan complete. Review proposed changes below."}
                 

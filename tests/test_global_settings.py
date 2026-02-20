@@ -23,6 +23,9 @@ def test_admin_settings_routes():
     app.dependency_overrides[get_user] = override_get_user
     
     try:
+        # Save original setting for cleanup
+        original_instructions = get_global_setting("interactive_mode_instructions")
+
         # Test GET /admin/settings
         response = client.get("/admin/settings")
         assert response.status_code == 200
@@ -41,3 +44,5 @@ def test_admin_settings_routes():
     finally:
         # Clear override
         del app.dependency_overrides[get_user]
+        # Restore original setting
+        update_global_setting("interactive_mode_instructions", original_instructions)
