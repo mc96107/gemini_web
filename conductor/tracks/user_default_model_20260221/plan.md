@@ -11,20 +11,20 @@
     - [x] Run tests and ensure they pass.
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Backend Infrastructure & Persistence' (Protocol in workflow.md) [975f25c]
 
-## Phase 2: Frontend UI - Settings & Interaction
-- [ ] Task: Update `index.html` with Model Dropdown
-    - [ ] Add a `<select>` or dropdown menu for "Default Model" in the Security Modal -> Preferences section.
-    - [ ] Populate with the specified models: Gemini 3 Pro, Gemini 3 Flash (Stable/Preview) and Gemini 2.5 Pro/Flash.
-- [ ] Task: Update `script.js` for settings sync
-    - [ ] Add event listener for the new dropdown to call `/settings` endpoint on change.
-    - [ ] Update `loadUserSettings` (if it exists) or initialization logic to set the dropdown value.
-- [ ] Task: Implement immediate UI update logic
-    - [ ] Ensure that changing the default model dropdown also updates the current active session's `model-input` and `model-label`.
-- [ ] Task: Red Phase - Write integration tests for settings UI
-    - [ ] Create/Update tests to verify that changing the dropdown sends the correct request and updates the local state.
-- [ ] Task: Green Phase - Implement frontend changes
-    - [ ] Run tests and ensure they pass.
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Frontend UI - Settings & Interaction' (Protocol in workflow.md)
+## Phase 2: Frontend UI - Settings & Interaction [checkpoint: 53970e0]
+- [x] Task: Update `index.html` with Model Dropdown [f517d01]
+    - [x] Add a `<select>` or dropdown menu for "Default Model" in the Security Modal -> Preferences section.
+    - [x] Populate with the specified models: Gemini 3 Pro, Gemini 3 Flash (Stable/Preview) and Gemini 2.5 Pro/Flash.
+- [x] Task: Update `script.js` for settings sync [f517d01]
+    - [x] Add event listener for the new dropdown to call `/settings` endpoint on change.
+    - [x] Update `loadUserSettings` (if it exists) or initialization logic to set the dropdown value.
+- [x] Task: Implement immediate UI update logic [f517d01]
+    - [x] Ensure that changing the default model dropdown also updates the current active session's `model-input` and `model-label`.
+- [x] Task: Red Phase - Write integration tests for settings UI [f517d01]
+    - [x] Create/Update tests to verify that changing the dropdown sends the correct request and updates the local state.
+- [x] Task: Green Phase - Implement frontend changes [f517d01]
+    - [x] Run tests and ensure they pass.
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Frontend UI - Settings & Interaction' (Protocol in workflow.md) [53970e0]
 
 ## Phase 3: Integration & New Chat Logic
 - [ ] Task: Connect New Chat button to Default Model
