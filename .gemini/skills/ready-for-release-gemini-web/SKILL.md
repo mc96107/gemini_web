@@ -14,6 +14,8 @@ Execute the secure copy of the release artifact to the target production server.
 
 ```bash
 scp gemini_agent_release.py z@192.168.1.84:g
+scp gemini_agent_release.py z@192.168.1.84:gg/law
+scp gemini_agent_release.py z@192.168.1.84:gg/school
 ```
 
 ### 2. Restart Server
@@ -21,6 +23,8 @@ Execute the server restart command via SSH.
 
 ```bash
 ssh z@192.168.1.84 "sudo systemctl restart gemini-agent"
+ssh z@192.168.1.84 "sudo systemctl restart gemini-agent-law"
+ssh z@192.168.1.84 "sudo systemctl restart gemini-agent-school"
 ```
 
 ### 3. Determine Next Version
