@@ -46,7 +46,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ## Current Tracks
 
-- [ ] **Track: in user settings each user should be able to select his default model from a dropdown menu**
+- [x] **Track: in user settings each user should be able to select his default model from a dropdown menu**
 *Link: [./tracks/user_default_model_20260221/](./tracks/user_default_model_20260221/)*
 
 ---
