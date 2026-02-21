@@ -26,10 +26,10 @@
     - [x] Run tests and ensure they pass.
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Frontend UI - Settings & Interaction' (Protocol in workflow.md) [53970e0]
 
-## Phase 3: Integration & New Chat Logic
-- [ ] Task: Connect New Chat button to Default Model
-    - [ ] Modify the "New Chat" click handler in `script.js` to ensure the `model-input` is set to the user's `default_model` before starting the session.
-- [ ] Task: Final Verification & Polish
-    - [ ] Verify the end-to-end flow: Login -> Set Default Model -> New Chat -> Confirm Model Used.
-    - [ ] Ensure mobile responsiveness of the new dropdown.
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Integration & New Chat Logic' (Protocol in workflow.md)
+## Phase 3: Integration & New Chat Logic [checkpoint: cf98fcd]
+- [x] Task: Connect New Chat button to Default Model [f517d01]
+    - [x] Modify the "New Chat" click handler in `script.js` to ensure the `model-input` is set to the user's `default_model` before starting the session.
+- [x] Task: Final Verification & Polish [ee62ad3]
+    - [x] Verify the end-to-end flow: Login -> Set Default Model -> New Chat -> Confirm Model Used.
+    - [x] Ensure mobile responsiveness of the new dropdown.
+- [x] Task: Conductor - User Manual Verification 'Phase 3: Integration & New Chat Logic' (Protocol in workflow.md) [cf98fcd]
