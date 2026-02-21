@@ -1,7 +1,7 @@
 import json
 import os
 
-file_path = r"C:\Users\dgar\.gemini\tmp\f535d4977bb3d317ff6e0465b07d4e4e0337013c6b6caacfef3e260f6e2d3b28\chats\session-2026-01-11T11-13-c6299816.json"
+file_path = r"C:\Users\dgar\.opencode\tmp\f535d4977bb3d317ff6e0465b07d4e4e0337013c6b6caacfef3e260f6e2d3b28\chats\session-2026-01-11T11-13-c6299816.json"
 
 with open(file_path, 'r', encoding='utf-8') as f:
     data = json.load(f)

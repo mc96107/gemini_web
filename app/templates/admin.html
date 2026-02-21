@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard - Gemini Agent</title>
+    <title>Admin Dashboard - OpenCode Agent</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <link rel="icon" type="image/svg+xml" href="/static/icon.svg?v=2">
@@ -20,7 +20,7 @@
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark border-bottom border-secondary">
         <div class="container">
-            <a class="navbar-brand" href="/"><i class="bi bi-robot text-primary me-2"></i>Gemini Agent Admin</a>
+            <a class="navbar-brand" href="/"><i class="bi bi-robot text-primary me-2"></i>OpenCode Agent Admin</a>
             <div class="navbar-nav ms-auto">
                 <a class="nav-link" href="/">Back to Chat</a>
                 <a class="nav-link" href="/logout">Logout</a>
@@ -289,7 +289,7 @@
                             <i class="bi bi-plus-lg me-1"></i> Add Skill
                         </button>
                     </div>
-                    <p class="text-muted small">Managed in <code>.gemini/skills/</code></p>
+                    <p class="text-muted small">Managed in <code>.opencode/skills/</code></p>
                     <div id="dashboardSkillsList" class="list-group list-group-flush bg-dark">
                         <!-- Loaded via JS -->
                     </div>
@@ -492,7 +492,7 @@
             container.innerHTML = '';
             
             if (allSkills.length === 0) {
-                container.innerHTML = '<span class="text-muted small">No skills found in .gemini/skills/</span>';
+                container.innerHTML = '<span class="text-muted small">No skills found in .opencode/skills/</span>';
                 return;
             }
 

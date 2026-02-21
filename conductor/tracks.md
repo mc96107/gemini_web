@@ -36,7 +36,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 - [x] **Track: Improve auto chat naming: do not include system instruction or file paths**
 *Link: [./archive/improve_auto_chat_naming_20260209/](./archive/improve_auto_chat_naming_20260209/)*      
 
-- [x] **Track: Add new tools for gemini cli current version: activate_skill etc**
+- [x] **Track: Add new tools for opencode cli current version: activate_skill etc**
 *Link: [./archive/new_cli_tools_20260211/](./archive/new_cli_tools_20260211/)*
 
 - [x] **Track: share chat with other user (the user should type the name, if it does not exist fail silently)**

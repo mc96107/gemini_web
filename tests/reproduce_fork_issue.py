@@ -1,12 +1,12 @@
 import pytest
 import os
 import json
-from app.services.llm_service import GeminiAgent
+from app.services.llm_service import OpenCodeAgent
 
 @pytest.mark.asyncio
 async def test_clone_session_inheritance(tmp_path):
     # Setup agent with temp working directory
-    agent = GeminiAgent(working_dir=str(tmp_path))
+    agent = OpenCodeAgent(working_dir=str(tmp_path))
     user_id = "test_user"
     
     # 1. Create a dummy session with tools and tags
@@ -21,7 +21,7 @@ async def test_clone_session_inheritance(tmp_path):
     agent._save_user_data()
 
     # 2. Mock a chat JSON file so clone_session doesn't fail on message truncation
-    # GeminiAgent looks in ~/.gemini/tmp/*/chats/*.json
+    # OpenCodeAgent looks in ~/.opencode/tmp/*/chats/*.json
     # This is hard to mock easily without changing the agent or mocking glob/open
     # But wait, clone_session has a branch for message_index == -1 which doesn't touch files.
     
@@ -46,7 +46,7 @@ if __name__ == "__main__":
     sys.path.append(str(Path(__file__).parent.parent))
     
     try:
-        from app.services.llm_service import GeminiAgent
+        from app.services.llm_service import OpenCodeAgent
         # We can't easily run pytest from here without it being installed
         # but we can call the function directly
         class MockTmpPath:

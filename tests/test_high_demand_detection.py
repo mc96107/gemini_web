@@ -2,11 +2,11 @@ import json
 import pytest
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
-from app.services.llm_service import GeminiAgent
+from app.services.llm_service import OpenCodeAgent
 
 @pytest.mark.asyncio
 async def test_detect_high_demand_in_stdout(tmp_path):
-    agent = GeminiAgent(working_dir=str(tmp_path))
+    agent = OpenCodeAgent(working_dir=str(tmp_path))
     user_id = "test_user"
     
     agent._create_subprocess = AsyncMock()
@@ -43,7 +43,7 @@ async def test_detect_high_demand_in_stdout(tmp_path):
 
 @pytest.mark.asyncio
 async def test_detect_high_demand_in_stderr(tmp_path):
-    agent = GeminiAgent(working_dir=str(tmp_path))
+    agent = OpenCodeAgent(working_dir=str(tmp_path))
     user_id = "test_user"
     
     agent._create_subprocess = AsyncMock()

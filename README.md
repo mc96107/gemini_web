@@ -1,6 +1,6 @@
-# Gemini Termux Agent
+# OpenCode Agent
 
-A mobile-first, secure web interface for interacting with Google's Gemini AI, specifically optimized for the Termux environment on Android.
+A secure web interface for interacting with Google's Gemini AI, specifically optimized for Raspberry Pi 4 and other Linux environments.
 
 ## Features
 
@@ -14,66 +14,41 @@ A mobile-first, secure web interface for interacting with Google's Gemini AI, sp
 *   **Advanced Chat Management:** Organize your history with tags, pinning, and custom chat titles.
 *   **User Role Management:** Admins can manage users and toggle roles (user/admin) directly from the dashboard.
 *   **Per-User Preferences:** Customize your experience, such as toggling Interactive Mode or showing/hiding the Drive Mode (Mic) icon.
-*   **Mobile-First UX:** Optimized for Termux with 100dvh support and intuitive swipe gestures (swipe left for history, right for actions).
+*   **Modern Web UX:** Optimized for high-performance responsive browsing with intuitive gestures.
 *   **Advanced Authentication:** Login via Passkeys (WebAuthn), Ethereum Wallet signatures, or traditional passwords.
-*   **Progressive Web App (PWA):** Install the agent directly to your home screen for an app-like experience.
+*   **Progressive Web App (PWA):** Install the agent directly for an app-like experience.
 *   **Pattern-Based Prompting:** Leverage specialized prompts for consistent, high-quality AI responses.
-*   **Self-Hosted & Private:** Runs entirely on your local device via Termux.
-
-## Screenshots
-
-| Login | Security Settings | Available Patterns |
-| :---: | :---: | :---: |
-| ![Login](./screenshots/login.png) | ![Security](./screenshots/password.png) | ![Patterns](./screenshots/patterns.png) |
-
-| Chat Interface | Chat History |
-| :---: | :---: |
-| ![Chat](./screenshots/chat.png) | ![History](./screenshots/chat_history.png) |
+*   **Self-Hosted & Private:** Runs entirely on your local device.
 
 ## Installation & Setup
 
-### For Android (Termux)
-The application is optimized for Termux on Android.
+### For Raspberry Pi 4 (Raspberry Pi OS 64-bit)
 
-1.  **Install Termux** (F-Droid version recommended).
-2.  **Clone the repository** (or transfer the files):
+1.  **Update system**:
     ```bash
-    pkg update && pkg upgrade
-    pkg install git python -y
-    git clone https://github.com/your-username/gemini_web.git
-    cd gemini_web
+    sudo apt update && sudo apt upgrade -y
+    sudo apt install git python3-venv ghostscript -y
     ```
-3.  **Install and Patch Gemini CLI**:
-    The Gemini CLI needs a small patch to work correctly in the Termux environment:
+2.  **Clone the repository**:
     ```bash
-    yarn global add @google/gemini-cli
-    mkdir -p ~/.config/yarn/global/node_modules/clipboardy
-    cat > ~/.config/yarn/global/node_modules/clipboardy/index.js << 'EOF'
-    export function write() { return Promise.resolve(); }
-    export function read() { return Promise.resolve(""); }
-    export default { write, read };
-    EOF
-    cat > ~/.config/yarn/global/node_modules/clipboardy/package.json << 'EOF'
-    {
-      "name": "clipboardy",
-      "version": "0.0.0",
-      "type": "module"
-    }
-    EOF
+    git clone https://github.com/your-username/opencode_web.git
+    cd opencode_web
     ```
-4.  **Run the automated Termux setup**:
+3.  **Install OpenCode CLI**:
     ```bash
-    pkg install ghostscript -y
-    chmod +x setup_py.sh
-    ./setup_py.sh
+    npm install -g @anomaly/opencode
     ```
-    *This will install necessary packages, global dependencies, and register a Termux service named `gemini-agent`.*
-4.  **Start the service**:
+4.  **Setup Environment**:
     ```bash
-    sv-enable gemini-agent
-    sv up gemini-agent
+    uv venv
+    uv pip install -r requirements.txt
     ```
-5.  **Access the UI**: Open your browser and go to `http://localhost:8000`.
+5.  **Run the automated systemd setup**:
+    ```bash
+    chmod +x setup_systemd.sh
+    sudo ./setup_systemd.sh
+    ```
+    *This will create and register a systemd service named `opencode-agent` running on port 8020.*
 
 ### For Desktop / Development
 1.  Clone the repository.
@@ -83,37 +58,34 @@ The application is optimized for Termux on Android.
         *   **Linux/macOS:** `sudo apt install ghostscript` or `brew install ghostscript`.
     *   **Python packages:**
         ```bash
-        pip install -r requirements.txt
+        uv venv
+        uv pip install -r requirements.txt
         ```
 3.  Run the application:
     ```bash
-    python -m app.main
+    uv run python -m app.main
     ```
 
 ## Usage Guide
 
-1.  **Initial Setup**: On your first run, visit `http://localhost:8000/setup` to create the admin user and configure your `GOOGLE_API_KEY`.
+1.  **Initial Setup**: On your first run, visit `http://localhost:8020/setup` to create the admin user and configure your `GOOGLE_API_KEY`.
 2.  **Login**: Use the credentials created during setup. You can later add Passkeys or Link an Ethereum Wallet for faster login.
 3.  **Chatting**: Simply type your message in the chat box. Use the "Patterns" button to select specialized AI personas.
-4.  **Custom Prompts**: Access your saved prompts at the top of the "Patterns" list. Click a prompt to load it, or use the icons to edit or delete the file.
-6.  **Branching & Editing**: Click the edit icon next to any of your previous questions to fork the conversation from that point and explore a new path.
-7.  **History & Organization**: Access previous conversations via the sidebar. Use the "Tags" button to categorize chats and the "Tree" button to visualize conversation branches.
-8.  **User Management & Admin**: Admins can visit `/admin` to add/remove users and change user roles.
-9.  **Global Interaction Customization**: Administrators can globally tune the AI's persona and questioning behavior for the main chat by updating the System Instructions in the Admin Dashboard.
-10. **Preferences**: Open the "Security" modal (shield icon) to toggle general preferences, like enabling/disabling Interactive Mode or showing/hiding the microphone icon.
-11. **Mobile Navigation**: Swipe from the left edge to open your chat history, or from the right edge to access chat actions.
-7.  **PWA**: For the best experience, use the "Add to Home Screen" option in your mobile browser to install it as a Progressive Web App.
+4.  **History & Organization**: Access previous conversations via the sidebar. Use the "Tags" button to categorize chats and the "Tree" button to visualize conversation branches.
+5.  **User Management & Admin**: Admins can visit `/admin` to add/remove users and change user roles.
+6.  **PWA**: For the best experience, use the "Add to Home Screen" option in your browser to install it as a Progressive Web App.
+
 
 ## Building for Release
 
-The Gemini Termux Agent can be bundled into a single-file portable application for easier distribution and deployment.
+The OpenCode Termux Agent can be bundled into a single-file portable application for easier distribution and deployment.
 
 ### 1. Generate the Release Bundle
 To recombine the modular project structure into a single-file script, run the recombination script:
 ```bash
 python scripts/recombine.py
 ```
-This will create `gemini_agent_release.py` in the root directory.
+This will create `opencode_agent_release.py` in the root directory.
 
 ### 2. Setup & Test Release Environment
 You can automate the creation of a dedicated virtual environment and test the release bundle using:
@@ -121,17 +93,17 @@ You can automate the creation of a dedicated virtual environment and test the re
 python setup_release.py
 ```
 This script will:
-*   Regenerate the `gemini_agent_release.py` bundle.
+*   Regenerate the `opencode_agent_release.py` bundle.
 *   Create a `venv_release` virtual environment.
 *   Install all necessary dependencies into that environment.
 *   Offer to start the bundled application for verification.
 
 ## Serving with Nginx (Reverse Proxy)
 
-To access your Gemini Agent securely over the internet or a local network via a standard domain, you can use Nginx as a reverse proxy.
+To access your OpenCode Agent securely over the internet or a local network via a standard domain, you can use Nginx as a reverse proxy.
 
 ### Sample Nginx Configuration
-Create a new configuration file (e.g., `/etc/nginx/sites-available/gemini-agent`):
+Create a new configuration file (e.g., `/etc/nginx/sites-available/opencode-agent`):
 
 ```nginx
 server {
@@ -155,7 +127,7 @@ server {
 
 Enable the site and restart Nginx:
 ```bash
-sudo ln -s /etc/nginx/sites-available/gemini-agent /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/opencode-agent /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl restart nginx
 ```

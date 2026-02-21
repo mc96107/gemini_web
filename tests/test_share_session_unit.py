@@ -3,7 +3,7 @@ import json
 import pytest
 import shutil
 import tempfile
-from app.services.llm_service import GeminiAgent
+from app.services.llm_service import OpenCodeAgent
 from app.services.user_manager import UserManager
 
 @pytest.fixture
@@ -14,7 +14,7 @@ def temp_dir():
 
 @pytest.fixture
 def agent(temp_dir):
-    return GeminiAgent(working_dir=temp_dir)
+    return OpenCodeAgent(working_dir=temp_dir)
 
 @pytest.fixture
 def user_manager(temp_dir):

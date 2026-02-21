@@ -1,5 +1,5 @@
 ---
-name: ready-for-release-gemini-web
+name: ready-for-release-opencode-web
 description: Executes the deployment and release workflow for Gemini Web. Automatically increments the version number based on the latest git tag. Use this when the project is ready for a new production release.
 ---
 
@@ -13,9 +13,9 @@ This skill automates the sequential process of deploying the consolidated releas
 Execute the secure copy of the release artifact to the target production server.
 
 ```bash
-scp gemini_agent_release.py z@192.168.1.84:g
-scp gemini_agent_release.py z@192.168.1.84:gg/law
-scp gemini_agent_release.py z@192.168.1.84:gg/school
+scp opencode_agent_release.py z@192.168.1.84:g
+scp opencode_agent_release.py z@192.168.1.84:gg/law
+scp opencode_agent_release.py z@192.168.1.84:gg/school
 ```
 
 ### 2. Restart Server
@@ -47,7 +47,7 @@ git push;
 
 ### 5. Create GitHub Release
 Create a new formal release on GitHub using the calculated version.
-Include release docs and gemini_agent_release.py
+Include release docs and opencode_agent_release.py
 
 ```powershell
 # Continued from previous step
@@ -56,6 +56,6 @@ gh release create "v$nextVersion" --generate-notes
 
 ## Usage Guidelines
 
-- Ensure `gemini_agent_release.py` has been generated and verified before triggering this workflow.
+- Ensure `opencode_agent_release.py` has been generated and verified before triggering this workflow.
 - This skill assumes a `vMAJOR.MINOR.PATCH` tagging format.
 - The `scp` command targets user `z` at IP `192.168.1.84`.

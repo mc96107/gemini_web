@@ -136,7 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let markdown = `# Chat Export: ${title}\n\n`;
             messages.forEach(msg => {
-                const role = msg.role === 'user' ? 'User' : 'Gemini';
+                const role = msg.role === 'user' ? 'User' : 'OpenCode';
                 markdown += `## ${role}\n\n${msg.content}\n\n---\n\n`;
             });
 
@@ -196,11 +196,11 @@ document.addEventListener('DOMContentLoaded', () => {
         planModeActive = !planModeActive;
         if (planModeActive) {
             planModeBtn.classList.replace('btn-outline-warning', 'btn-warning');
-            messageInput.placeholder = "Message Gemini in Plan Mode...";
+            messageInput.placeholder = "Message OpenCode in Plan Mode...";
             messageInput.classList.add('border-warning');
         } else {
             planModeBtn.classList.replace('btn-warning', 'btn-outline-warning');
-            messageInput.placeholder = "Message Gemini...";
+            messageInput.placeholder = "Message OpenCode...";
             messageInput.classList.remove('border-warning');
         }
     });
@@ -632,7 +632,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function switchToFlashModel() {
-        const flashModel = "gemini-3-flash-preview";
+        const flashModel = "google/antigravity-gemini-3-flash";
         modelInput.value = flashModel;
         modelLinks.forEach(link => {
             if (link.dataset.model === flashModel) {
@@ -2366,6 +2366,14 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Use marked to parse markdown safely
         let parsedText = text;
+        
+        // Handle thinking blocks
+        if (sender === 'bot') {
+            parsedText = parsedText.replace(/\[Thinking\]([\s\S]*?)\[\/Thinking\]/g, (match, content) => {
+                return `<div class="thinking-block">${content.trim()}</div>`;
+            });
+        }
+
         try {
             if (typeof marked !== 'undefined') {
                 if (typeof marked.parse === 'function') {

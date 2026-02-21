@@ -18,10 +18,10 @@ def test_env():
     
     # Re-initialize with temp dir
     from app.services.user_manager import UserManager
-    from app.services.llm_service import GeminiAgent
+    from app.services.llm_service import OpenCodeAgent
     
     app.state.user_manager = UserManager(working_dir=temp_dir)
-    app.state.agent = GeminiAgent(working_dir=temp_dir)
+    app.state.agent = OpenCodeAgent(working_dir=temp_dir)
     
     # Pre-register Alice and Bob
     app.state.user_manager.register_user("alice", "password")

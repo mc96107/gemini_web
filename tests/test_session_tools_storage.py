@@ -1,11 +1,11 @@
 import pytest
 import json
 import os
-from app.services.llm_service import GeminiAgent
+from app.services.llm_service import OpenCodeAgent
 
 def test_session_tools_persistence(tmp_path):
     # Setup
-    agent = GeminiAgent(working_dir=str(tmp_path))
+    agent = OpenCodeAgent(working_dir=str(tmp_path))
     user_id = "test_user"
     session_uuid = "test-session-uuid"
     
@@ -27,11 +27,11 @@ def test_session_tools_persistence(tmp_path):
     assert agent.get_session_tools(user_id, session_uuid) == tools
     
     # Verify persistence
-    agent2 = GeminiAgent(working_dir=str(tmp_path))
+    agent2 = OpenCodeAgent(working_dir=str(tmp_path))
     assert agent2.get_session_tools(user_id, session_uuid) == tools
 
 def test_default_tools_empty(tmp_path):
-    agent = GeminiAgent(working_dir=str(tmp_path))
+    agent = OpenCodeAgent(working_dir=str(tmp_path))
     user_id = "test_user"
     session_uuid = "test-session-uuid"
     

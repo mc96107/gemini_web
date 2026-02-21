@@ -1,6 +1,6 @@
 {
-  "name": "Gemini Termux Agent",
-  "short_name": "Gemini Agent",
+  "name": "OpenCode Termux Agent",
+  "short_name": "OpenCode Agent",
   "description": "Mobile-first web interface for Gemini AI in Termux.",
   "start_url": "/",
   "scope": "/",

@@ -1,53 +1,67 @@
 import pytest
 import asyncio
 from unittest.mock import MagicMock, AsyncMock, patch
-from app.services.llm_service import GeminiAgent
+from app.services.llm_service import OpenCodeAgent
 import json
 import os
 
+
 @pytest.fixture
 def agent(tmp_path):
-    return GeminiAgent(working_dir=str(tmp_path))
+    return OpenCodeAgent(working_dir=str(tmp_path))
+
 
 @pytest.mark.asyncio
 async def test_get_sessions_caching(agent):
     valid_uuid = "12345678-1234-1234-1234-123456789012"
     # Setup initial state with no metadata
-    agent.user_data["user1"] = {
-        "sessions": [valid_uuid],
-        "session_metadata": {}
-    }
-    
+    agent.user_data["user1"] = {"sessions": [valid_uuid], "session_metadata": {}}
+
     # Mock CLI output
-    cli_output = f"1. My Chat (2 days ago) [{valid_uuid}]\n"
-    
+    cli_output = json.dumps(
+        [
+            {
+                "id": valid_uuid,
+                "title": "My Chat",
+                "updated": 1771684008401,
+                "created": 1771684004294,
+            }
+        ]
+    )
+
     with patch("asyncio.create_subprocess_exec") as mock_exec:
         # Mock process
         process_mock = AsyncMock()
         process_mock.communicate.return_value = (cli_output.encode(), b"")
         mock_exec.return_value = process_mock
-        
+
         # First call: Should hit CLI because metadata is missing
-        sessions = await agent.get_user_sessions("user1")
-        
+        sessions_data = await agent.get_user_sessions("user1")
+        sessions = sessions_data["history"]
+
         assert len(sessions) == 1
         assert sessions[0]["uuid"] == valid_uuid
         assert sessions[0]["title"] == "My Chat"
         assert mock_exec.called
-        
+
         # Check cache was updated
         assert "session_metadata" in agent.user_data["user1"]
         assert valid_uuid in agent.user_data["user1"]["session_metadata"]
-        assert agent.user_data["user1"]["session_metadata"][valid_uuid]["original_title"] == "My Chat"
-        
+        assert (
+            agent.user_data["user1"]["session_metadata"][valid_uuid]["original_title"]
+            == "My Chat"
+        )
+
         # Reset mock to verify 2nd call doesn't hit it
         mock_exec.reset_mock()
-        
+
         # Second call: Should use cache because metadata exists
-        sessions_2 = await agent.get_user_sessions("user1")
+        sessions_data_2 = await agent.get_user_sessions("user1")
+        sessions_2 = sessions_data_2["history"]
         assert len(sessions_2) == 1
         assert sessions_2[0]["title"] == "My Chat"
         assert not mock_exec.called
+
 
 @pytest.mark.asyncio
 async def test_delete_removes_metadata(agent):
@@ -56,22 +70,21 @@ async def test_delete_removes_metadata(agent):
     agent.user_data["user1"] = {
         "sessions": [valid_uuid],
         "active_session": None,
-        "session_metadata": {
-            valid_uuid: {"original_title": "My Chat", "time": "now"}
-        }
+        "session_metadata": {valid_uuid: {"original_title": "My Chat", "time": "now"}},
     }
-    
+
     with patch("asyncio.create_subprocess_exec") as mock_exec:
         process_mock = AsyncMock()
         process_mock.communicate.return_value = (b"", b"")
         mock_exec.return_value = process_mock
-        
+
         # Execute delete
         result = await agent.delete_specific_session("user1", valid_uuid)
-        
+
         assert result is True
         assert valid_uuid not in agent.user_data["user1"]["sessions"]
         assert valid_uuid not in agent.user_data["user1"]["session_metadata"]
+
 
 @pytest.mark.asyncio
 async def test_get_sessions_with_deleted_remote(agent):
@@ -79,24 +92,26 @@ async def test_get_sessions_with_deleted_remote(agent):
     # Case: Session exists in local JSON but CLI doesn't return it (deleted remotely)
     agent.user_data["user1"] = {
         "sessions": [valid_uuid],
-        "session_metadata": {} # Missing metadata triggers CLI call
+        "session_metadata": {},  # Missing metadata triggers CLI call
     }
-    
-    # Mock CLI output EMPTY
-    cli_output = ""
-    
+
+    # Mock CLI output EMPTY JSON array
+    cli_output = "[]"
+
     with patch("asyncio.create_subprocess_exec") as mock_exec:
         process_mock = AsyncMock()
         process_mock.communicate.return_value = (cli_output.encode(), b"")
         mock_exec.return_value = process_mock
-        
-        sessions = await agent.get_user_sessions("user1")
-        
+
+        sessions_data = await agent.get_user_sessions("user1")
+        sessions = sessions_data["history"]
+
         # Should be empty list
         assert len(sessions) == 0
-        
+
         # Should have removed it from local sessions list
         assert valid_uuid not in agent.user_data["user1"]["sessions"]
+
 
 @pytest.mark.asyncio
 async def test_legacy_data_auto_cache(agent):
@@ -108,20 +123,33 @@ async def test_legacy_data_auto_cache(agent):
     }
 
     # Mock CLI output
-    cli_output = f"1. Legacy Chat (2 days ago) [{valid_uuid}]\n"
-    
+    cli_output = json.dumps(
+        [
+            {
+                "id": valid_uuid,
+                "title": "Legacy Chat",
+                "updated": 1771684008401,
+                "created": 1771684004294,
+            }
+        ]
+    )
+
     with patch("asyncio.create_subprocess_exec") as mock_exec:
         process_mock = AsyncMock()
         process_mock.communicate.return_value = (cli_output.encode(), b"")
         mock_exec.return_value = process_mock
-        
+
         # This call should initialize session_metadata, fetch from CLI, and populate it
-        sessions = await agent.get_user_sessions("user1")
-        
+        sessions_data = await agent.get_user_sessions("user1")
+        sessions = sessions_data["history"]
+
         assert len(sessions) == 1
         assert sessions[0]["title"] == "Legacy Chat"
-        
+
         # Verify metadata is now present and populated
         assert "session_metadata" in agent.user_data["user1"]
         assert valid_uuid in agent.user_data["user1"]["session_metadata"]
-        assert agent.user_data["user1"]["session_metadata"][valid_uuid]["original_title"] == "Legacy Chat"
+        assert (
+            agent.user_data["user1"]["session_metadata"][valid_uuid]["original_title"]
+            == "Legacy Chat"
+        )

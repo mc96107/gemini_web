@@ -1,19 +1,19 @@
 # Initial Concept
 
-A "Gemini Termux Agent" providing a web-based chat interface with advanced authentication (Passkeys and Ethereum signing) specifically designed for the Termux environment on Android.
+A "OpenCode Agent" providing a web-based chat interface with advanced authentication (Passkeys and Ethereum signing) specifically designed for Raspberry Pi 4 and Linux home servers.
 
-# Product Guide - Gemini Termux Agent
+# Product Guide - OpenCode Agent
 
 ## Target Audience
-The Gemini Termux Agent is designed for:
-* **Developers and Power Users:** Individuals who utilize the Termux environment on Android for development, scripting, and mobile computing.
-* **Privacy-Conscious Users:** Those seeking a self-hosted, private AI chat interface that runs locally on their device.
+The OpenCode Agent is designed for:
+* **IoT & Home Server Enthusiasts:** Individuals who utilize Raspberry Pi or other Linux servers for hosting persistent local services.
+* **Privacy-Conscious Users:** Those seeking a self-hosted, private AI chat interface that runs locally on their own hardware.
 * **Web3 Enthusiasts:** Users who value decentralized identity and secure authentication methods like Ethereum signing and Passkeys.
 
 ## Goals & Benefits
-* **Seamless Mobile AI:** Provide a robust and user-friendly web interface for interacting with Large Language Models (LLMs) directly from an Android device via Termux.
-* **Secure Local Access:** Implement modern authentication standards (Passkeys, WebAuthn, and Ethereum-based login) to ensure that the local AI agent and its data remain private and accessible only to authorized users.
-* **Termux-Native Experience:** Optimize the application for the unique constraints and capabilities of the Termux environment, including simple deployment and wake-lock management.
+* **Persistent Home AI:** Provide a robust and user-friendly web interface for interacting with Large Language Models (LLMs) via a dedicated home server.
+* **Secure Local Access:** Implement modern authentication standards (Passkeys, WebAuthn, and Ethereum-based login) to ensure that the AI agent and its data remain private.
+* **Linux-Native Experience:** Optimized for standard Linux distributions with support for systemd services and persistent background execution.
 
 ## Key Features
 * **Interactive Web Chat:** A responsive chat interface featuring conversation history and dynamic UI updates.
@@ -22,15 +22,15 @@ The Gemini Termux Agent is designed for:
 * **Drive Mode (Voice-Only Loop):** A hands-free conversation mode that uses voice recognition and text-to-speech to enable a continuous, eyes-free interaction loop.
 * **Mobile Swipe Gestures:** Intuitive swipe-to-open gestures for accessing chat history and session actions on mobile devices.
 * **Chat Renaming:** Manually rename chat sessions to easily identify and organize different conversations.
-* **Chat Tagging & Auto-Categorization:** Organize conversations with multiple tags. Gemini automatically suggests descriptive tags for new chats, and users can manually add or filter by tags in the sidebar.
+* **Chat Tagging & Auto-Categorization:** Organize conversations with multiple tags. OpenCode automatically suggests descriptive tags for new chats, and users can manually add or filter by tags in the sidebar.
 * **Smart Auto-Naming:** Automatically generates clean, readable chat titles by filtering out system instructions and file paths from the initial message.
 *   **Math Rendering:** Built-in support for LaTeX mathematical expressions via KaTeX, enabling high-quality rendering of formulas.
 *   **Automatic PDF Compression:** Automatically optimizes uploaded PDF files using Ghostscript to reduce file size while maintaining readability for the AI model.
 *   **Filename Sanitization:** Automatically sanitizes uploaded filenames to strict ASCII to ensure compatibility with downstream CLI tools and cross-platform environments.
 *   **Path Traversal Protection:** Implements strict sanitization for file retrieval routes, ensuring that only files within designated upload directories are accessible and preventing directory traversal attacks.
-*   **Plan Mode:** A specialized execution mode that uses the Gemini CLI's `--approval-mode plan` to provide a read-only preview of proposed actions before they are executed.
+*   **Plan Mode:** A specialized execution mode that uses the OpenCode CLI's `--approval-mode plan` to provide a read-only preview of proposed actions before they are executed.
 *   **Integrated MCP Management:** A centralized dashboard for configuring and toggling Model Context Protocol (MCP) servers, allowing the AI to interact with local and remote services like SQL databases or web browsers.
-*   **Agent Skills:** A lifecycle for specialized agent capabilities (Skills) stored in `.gemini/skills/`. Agents can be configured to use specific skills directly from the Admin UI.
+*   **Agent Skills:** A lifecycle for specialized agent capabilities (Skills) stored in `.opencode/skills/`. Agents can be configured to use specific skills directly from the Admin UI.
 *   **Chat Export:** Export full conversation history as Markdown files for offline storage or sharing.
 * **Multi-File Attachments:** Users can attach and send multiple files (images, documents, etc.) in a single message.
 * **Automatic Document Conversion:** Automatically converts uploaded `.docx` and `.xlsx` files into Markdown format for better AI readability while excluding images to optimize token usage.
@@ -46,14 +46,14 @@ The Gemini Termux Agent is designed for:
 * **Client-Side Image Compression:** Automatically compresses and resizes uploaded photos in the browser to ensure they fit within the model's context window while saving bandwidth.
 * **Session Auto-Restoration:** Automatically reloads the last active chat session upon login, providing a seamless continuation of previous conversations.
 * **Smart History Pagination:** Efficiently handles long chat histories by lazy-loading messages, ensuring fast initial load times regardless of conversation length.
-* **High Demand User Intervention:** Automatically detects "High Demand" errors (429/503) from the Gemini CLI and presents a "Question Card" allowing the user to choose between "Retry" (re-sending the last message) or "Stop" (interrupting the session).
+* **High Demand User Intervention:** Automatically detects "High Demand" errors (429/503) from the OpenCode CLI and presents a "Question Card" allowing the user to choose between "Retry" (re-sending the last message) or "Stop" (interrupting the session).
 *   **Real-Time Streaming:** Responses are streamed chunk-by-chunk using Server-Sent Events (SSE), providing immediate feedback and preventing timeouts on complex tasks.
-*   **Interruptible Responses:** A "Stop" button that allows users to instantly interrupt Gemini during response generation or tool execution, ensuring full control over the interaction.
+*   **Interruptible Responses:** A "Stop" button that allows users to instantly interrupt OpenCode during response generation or tool execution, ensuring full control over the interaction.
 *   **Live Tool Logs:** Transparent execution of background tools (filesystem, search, etc.) with real-time logs displayed directly in the chat.
-*   **Extended CLI Tools:** Support for advanced Gemini CLI tools including `cli_help` for documentation, `ask_user` for interactive clarification, `activate_skill` for capability expansion, and `codebase_investigator` for deep repository analysis.
+*   **Extended CLI Tools:** Support for advanced OpenCode CLI tools including `cli_help` for documentation, `ask_user` for interactive clarification, `activate_skill` for capability expansion, and `codebase_investigator` for deep repository analysis.
 * **Advanced Authentication:** Support for passwordless login via Passkeys (WebAuthn) and cryptographically secure login via Ethereum wallet signatures.
-* **Per-Session Tool Security:** Granular control over Gemini CLI tools (e.g., file access, shell execution) on a per-session basis. All tools are disabled by default for maximum security, allowing users to selectively enable only the tools required for the current task.
-* **Default Model Selection:** Users can specify their preferred default AI model (e.g., Gemini 3 Pro, Gemini 2.5 Flash) from a dropdown menu in the Security Settings. This setting is persisted per-user and determines which model is used for all chat sessions.
+* **Per-Session Tool Security:** Granular control over OpenCode CLI tools (e.g., file access, shell execution) on a per-session basis. All tools are disabled by default for maximum security, allowing users to selectively enable only the tools required for the current task.
+* **Default Model Selection:** Users can specify their preferred default AI model (e.g., OpenCode 3 Pro, OpenCode 2.5 Flash) from a dropdown menu in the Security Settings. This setting is persisted per-user and determines which model is used for all chat sessions.
 * **Copy Formatted Text:** Users can choose to copy message content as raw Markdown or as rich text (preserving bold, italics, links, and code formatting) via a configurable user setting.
 * **Pattern-Based Prompting:** A template system (Patterns) that allows users to leverage expert-crafted prompts for specific tasks like Agile story creation or insightful AI analysis.
 * **Admin Dashboard:** A dedicated interface for managing users, monitoring system status, and configuring agent behavior.

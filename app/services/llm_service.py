@@ -8,20 +8,32 @@ import uuid
 import subprocess
 import threading
 from datetime import datetime, timezone
+import datetime as dt_pkg
 from typing import Optional, List, Dict, AsyncGenerator, Any
 from app.core.patterns import PATTERNS
 from app.core import config
 
 FALLBACK_MODELS = {
-    "gemini-3-pro": "gemini-3-pro-preview",
-    "gemini-3-flash": "gemini-3-flash-preview",
-    "gemini-3": "gemini-3-flash-preview",
-    "gemini-3-pro-preview": "gemini-3-flash-preview",
-    "gemini-2.5-pro": "gemini-2.5-flash",
-    "gemini-1.5-pro": "gemini-1.5-flash"
+    "google/antigravity-gemini-3.1-pro": "google/antigravity-gemini-3-flash",
+    "google/antigravity-gemini-3-flash": "google/gemini-2.5-flash",
+    "google/antigravity-claude-sonnet-4-6": "google/antigravity-gemini-3.1-pro",
+    "google/antigravity-claude-opus-4-6-thinking": "google/antigravity-gemini-3.1-pro",
+    "google/antigravity-gemini-3.1-pro": "google/antigravity-gemini-3.1-pro",
+    "google/gemini-3-flash-preview": "google/antigravity-gemini-3-flash",
+    "google/gemini-2.5-pro": "google/gemini-2.5-flash",
+    "google/gemini-1.5-pro": "google/gemini-1.5-flash",
 }
 
-CAPACITY_KEYWORDS = ["429", "capacity", "quota", "exhausted", "rate limit", "not found", "404"]
+CAPACITY_KEYWORDS = [
+    "429",
+    "capacity",
+    "quota",
+    "exhausted",
+    "rate limit",
+    "not found",
+    "404",
+]
+
 
 def global_log(msg, level="INFO", user_data=None):
     # If user_data has a 'verbose_logging' setting, we might force INFO level or something.
@@ -30,14 +42,17 @@ def global_log(msg, level="INFO", user_data=None):
         return
     if config.LOG_LEVEL == "INFO" and level == "DEBUG":
         return
-        
+
     try:
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
         print(f"[{ts}] [{level}] {msg}")
-    except: pass
+    except:
+        pass
+
 
 class ThreadedStreamReader:
     """Helper to read a pipe in a thread and provide an async interface."""
+
     def __init__(self, pipe, loop):
         self.pipe = pipe
         self.loop = loop
@@ -47,23 +62,31 @@ class ThreadedStreamReader:
 
     def _read_pipe(self):
         try:
-            for line in iter(self.pipe.readline, b''):
+            for line in iter(self.pipe.readline, b""):
                 self.loop.call_soon_threadsafe(self.queue.put_nowait, line)
         finally:
             self.loop.call_soon_threadsafe(self.queue.put_nowait, None)
 
     async def readline(self):
         line = await self.queue.get()
-        return line if line is not None else b''
+        return line if line is not None else b""
+
 
 class ThreadedProcess:
     """Minimal wrapper for subprocess.Popen to match asyncio.subprocess.Process."""
+
     def __init__(self, popen_proc, loop):
         self.proc = popen_proc
         self.loop = loop
-        self.stdout = ThreadedStreamReader(popen_proc.stdout, loop) if popen_proc.stdout else None
-        self.stderr = ThreadedStreamReader(popen_proc.stderr, loop) if popen_proc.stderr else None
-        self.stdin = popen_proc.stdin # synchronous writing usually works ok if not blocked
+        self.stdout = (
+            ThreadedStreamReader(popen_proc.stdout, loop) if popen_proc.stdout else None
+        )
+        self.stderr = (
+            ThreadedStreamReader(popen_proc.stderr, loop) if popen_proc.stderr else None
+        )
+        self.stdin = (
+            popen_proc.stdin
+        )  # synchronous writing usually works ok if not blocked
         self.returncode = None
 
     async def wait(self):
@@ -76,38 +99,45 @@ class ThreadedProcess:
         if input:
             self.proc.stdin.write(input)
             self.proc.stdin.flush()
-        
-        stdout_content = b''
-        stderr_content = b''
-        
+
+        stdout_content = b""
+        stderr_content = b""
+
         if self.stdout:
             while True:
                 line = await self.stdout.readline()
-                if not line: break
+                if not line:
+                    break
                 stdout_content += line
-        
+
         if self.stderr:
             while True:
                 line = await self.stderr.readline()
-                if not line: break
+                if not line:
+                    break
                 stderr_content += line
-                
+
         await self.wait()
         return stdout_content, stderr_content
 
     def terminate(self):
         self.proc.terminate()
 
-class GeminiAgent:
-    def __init__(self, model: str = "gemini-2.5-flash", working_dir: Optional[str] = None):
+
+class OpenCodeAgent:
+    def __init__(
+        self,
+        model: str = "google/antigravity-gemini-3.1-pro",
+        working_dir: Optional[str] = None,
+    ):
         self.model_name = model
         self.working_dir = working_dir or os.getcwd()
         self.session_file = os.path.join(self.working_dir, "user_sessions.json")
-        self.gemini_cmd = shutil.which(config.GEMINI_CMD) or config.GEMINI_CMD
+        self.opencode_cmd = shutil.which(config.OPENCODE_CMD) or config.OPENCODE_CMD
         self.user_data = self._load_user_data()
         self.yolo_mode = False
         self.active_tasks: Dict[str, asyncio.Task] = {}
-        
+
         # Ensure prompts directory exists
         prompts_dir = os.path.join(self.working_dir, "prompts")
         if not os.path.exists(prompts_dir):
@@ -118,36 +148,55 @@ class GeminiAgent:
             try:
                 with open(self.session_file, "r") as f:
                     data = json.load(f)
-                    if not data: return {}
+                    if not data:
+                        return {}
                     if isinstance(next(iter(data.values())), str):
-                        return {uid: {"active_session": suid, "sessions": [suid], "session_tools": {}} for uid, suid in data.items()}
+                        return {
+                            uid: {
+                                "active_session": suid,
+                                "sessions": [suid],
+                                "session_tools": {},
+                            }
+                            for uid, suid in data.items()
+                        }
                     for uid in data:
-                        if "sessions" not in data[uid]: data[uid]["sessions"] = []
-                        if "active_session" not in data[uid]: data[uid]["active_session"] = None
-                        if "session_tools" not in data[uid]: data[uid]["session_tools"] = {}
-                        if "session_tags" not in data[uid]: data[uid]["session_tags"] = {}
-                        if "pending_tools" not in data[uid]: data[uid]["pending_tools"] = []
-                        if "pinned_sessions" not in data[uid]: data[uid]["pinned_sessions"] = []
-                        if "session_metadata" not in data[uid]: data[uid]["session_metadata"] = {}
+                        if "sessions" not in data[uid]:
+                            data[uid]["sessions"] = []
+                        if "active_session" not in data[uid]:
+                            data[uid]["active_session"] = None
+                        if "session_tools" not in data[uid]:
+                            data[uid]["session_tools"] = {}
+                        if "session_tags" not in data[uid]:
+                            data[uid]["session_tags"] = {}
+                        if "pending_tools" not in data[uid]:
+                            data[uid]["pending_tools"] = []
+                        if "pinned_sessions" not in data[uid]:
+                            data[uid]["pinned_sessions"] = []
+                        if "session_metadata" not in data[uid]:
+                            data[uid]["session_metadata"] = {}
                         if "settings" not in data[uid]:
                             data[uid]["settings"] = {
                                 "show_mic": True,
                                 "interactive_mode": True,
                                 "copy_formatted": False,
-                                "default_model": "gemini-3-pro-preview"
+                                "default_model": "google/antigravity-gemini-3.1-pro",
                             }
                         else:
                             # Ensure defaults for existing settings objects
                             if "copy_formatted" not in data[uid]["settings"]:
                                 data[uid]["settings"]["copy_formatted"] = False
                             if "default_model" not in data[uid]["settings"]:
-                                data[uid]["settings"]["default_model"] = "gemini-3-pro-preview"
+                                data[uid]["settings"]["default_model"] = (
+                                    "google/antigravity-gemini-3.1-pro"
+                                )
                     return data
-            except: return {}
+            except:
+                return {}
         return {}
 
     def _save_user_data(self):
-        with open(self.session_file, "w") as f: json.dump(self.user_data, f, indent=2)
+        with open(self.session_file, "w") as f:
+            json.dump(self.user_data, f, indent=2)
 
     def get_user_settings(self, user_id: str) -> Dict:
         if user_id not in self.user_data:
@@ -155,14 +204,17 @@ class GeminiAgent:
                 "show_mic": True,
                 "interactive_mode": True,
                 "copy_formatted": False,
-                "default_model": "gemini-3-pro-preview"
+                "default_model": "google/antigravity-gemini-3.1-pro",
             }
-        return self.user_data[user_id].get("settings", {
-            "show_mic": True,
-            "interactive_mode": True,
-            "copy_formatted": False,
-            "default_model": "gemini-3-pro-preview"
-        })
+        return self.user_data[user_id].get(
+            "settings",
+            {
+                "show_mic": True,
+                "interactive_mode": True,
+                "copy_formatted": False,
+                "default_model": "google/antigravity-gemini-3.1-pro",
+            },
+        )
 
     def update_user_settings(self, user_id: str, settings: Dict):
         if user_id not in self.user_data:
@@ -177,18 +229,18 @@ class GeminiAgent:
                     "show_mic": True,
                     "interactive_mode": True,
                     "copy_formatted": False,
-                    "default_model": "gemini-3-pro-preview"
-                }
+                    "default_model": "google/antigravity-gemini-3.1-pro",
+                },
             }
-        
+
         if "settings" not in self.user_data[user_id]:
             self.user_data[user_id]["settings"] = {
                 "show_mic": True,
                 "interactive_mode": True,
                 "copy_formatted": False,
-                "default_model": "gemini-3-pro-preview"
+                "default_model": "google/antigravity-gemini-3.1-pro",
             }
-            
+
         self.user_data[user_id]["settings"].update(settings)
         self._save_user_data()
 
@@ -197,12 +249,16 @@ class GeminiAgent:
             # Try the standard asyncio approach first
             return await asyncio.create_subprocess_exec(*args, **kwargs)
         except NotImplementedError:
-            if sys.platform == 'win32':
+            if sys.platform == "win32":
                 # Robust fallback for Windows (works on ALL loops)
-                global_log("asyncio subprocess not implemented, using ThreadedProcess fallback", level="INFO")
+                global_log(
+                    "asyncio subprocess not implemented, using ThreadedProcess fallback",
+                    level="INFO",
+                )
                 from subprocess import Popen, PIPE
+
                 loop = asyncio.get_running_loop()
-                
+
                 # Adapt kwargs for Popen
                 popen_kwargs = {
                     "stdout": kwargs.get("stdout", PIPE),
@@ -210,10 +266,10 @@ class GeminiAgent:
                     "stdin": kwargs.get("stdin", PIPE),
                     "cwd": kwargs.get("cwd"),
                     "env": kwargs.get("env"),
-                    "bufsize": 0 # Unbuffered for streaming
+                    "bufsize": 0,  # Unbuffered for streaming
                 }
-                
-                # If it's a list, we might need list2cmdline for shell consistency, 
+
+                # If it's a list, we might need list2cmdline for shell consistency,
                 # but Popen handles lists well on Windows if NOT using shell=True.
                 proc = Popen(args, **popen_kwargs)
                 return ThreadedProcess(proc, loop)
@@ -222,41 +278,65 @@ class GeminiAgent:
 
     def toggle_pin(self, user_id: str, session_uuid: str) -> bool:
         if user_id not in self.user_data:
-            self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": [], "pinned_sessions": [], "session_metadata": {}}
-        
+            self.user_data[user_id] = {
+                "active_session": None,
+                "sessions": [],
+                "session_tools": {},
+                "pending_tools": [],
+                "pinned_sessions": [],
+                "session_metadata": {},
+            }
+
         user_info = self.user_data[user_id]
-        if "pinned_sessions" not in user_info: user_info["pinned_sessions"] = []
-        
+        if "pinned_sessions" not in user_info:
+            user_info["pinned_sessions"] = []
+
         if session_uuid in user_info["pinned_sessions"]:
             user_info["pinned_sessions"].remove(session_uuid)
             res = False
         else:
             user_info["pinned_sessions"].append(session_uuid)
             res = True
-        
+
         self._save_user_data()
         return res
 
     def get_session_tools(self, user_id: str, session_uuid: str) -> List[str]:
         user_info = self.user_data.get(user_id)
-        if not user_info: return []
-        if session_uuid == "pending": return user_info.get("pending_tools", [])
+        if not user_info:
+            return []
+        if session_uuid == "pending":
+            return user_info.get("pending_tools", [])
         return user_info.get("session_tools", {}).get(session_uuid, [])
 
     def set_session_tools(self, user_id: str, session_uuid: str, tools: List[str]):
         if user_id not in self.user_data:
-            self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": [], "session_metadata": {}}
+            self.user_data[user_id] = {
+                "active_session": None,
+                "sessions": [],
+                "session_tools": {},
+                "pending_tools": [],
+                "session_metadata": {},
+            }
         if session_uuid == "pending":
             self.user_data[user_id]["pending_tools"] = tools
         else:
-            if "session_tools" not in self.user_data[user_id]: self.user_data[user_id]["session_tools"] = {}
+            if "session_tools" not in self.user_data[user_id]:
+                self.user_data[user_id]["session_tools"] = {}
             self.user_data[user_id]["session_tools"][session_uuid] = tools
         self._save_user_data()
 
     def list_patterns(self) -> List[str]:
         return sorted([k for k in PATTERNS.keys() if k != "__explanations__"])
 
-    async def apply_pattern(self, user_id: str, pattern_name: str, input_text: str, model: Optional[str] = None, file_paths: Optional[List[str]] = None) -> str:
+    async def apply_pattern(
+        self,
+        user_id: str,
+        pattern_name: str,
+        input_text: str,
+        model: Optional[str] = None,
+        file_paths: Optional[List[str]] = None,
+    ) -> str:
         # Check if it's a custom prompt file
         prompts_dir = os.path.join(self.working_dir, "prompts")
         if os.path.exists(prompts_dir):
@@ -266,23 +346,38 @@ class GeminiAgent:
                 try:
                     with open(custom_path, "r", encoding="utf-8") as f:
                         system = f.read()
-                    return await self.generate_response(user_id, f"{system}\n\nUSER INPUT:\n{input_text}", model=model, file_paths=file_paths)
+                    return await self.generate_response(
+                        user_id,
+                        f"{system}\n\nUSER INPUT:\n{input_text}",
+                        model=model,
+                        file_paths=file_paths,
+                    )
                 except Exception as e:
                     return f"Error reading custom prompt '{pattern_name}': {str(e)}"
 
         # Fallback to system patterns
         system = PATTERNS.get(pattern_name)
-        if not system: 
+        if not system:
             # Try removing colon if present (common issue)
             clean_name = pattern_name.rstrip(":")
             system = PATTERNS.get(clean_name)
-            
-        if not system: return f"Error: Pattern '{pattern_name}' not found."
-        return await self.generate_response(user_id, f"{system}\n\nUSER INPUT:\n{input_text}", model=model, file_paths=file_paths)
+
+        if not system:
+            return f"Error: Pattern '{pattern_name}' not found."
+        return await self.generate_response(
+            user_id,
+            f"{system}\n\nUSER INPUT:\n{input_text}",
+            model=model,
+            file_paths=file_paths,
+        )
 
     def _filter_errors(self, err: str) -> str:
         err = re.sub(r".*?\[DEP0151\] DeprecationWarning:.*?(\n|$)", "", err)
-        err = re.sub(r".*?Default \"index\" lookups for the main are deprecated for ES modules..*?(\n|$)", "", err)
+        err = re.sub(
+            r".*?Default \"index\" lookups for the main are deprecated for ES modules..*?(\n|$)",
+            "",
+            err,
+        )
         return "\n".join([s for s in err.splitlines() if s.strip()]).strip()
 
     def _get_text_content(self, content: Any) -> str:
@@ -325,10 +420,10 @@ class GeminiAgent:
         # 5. Fallback and truncation
         if not text or len(text) < 3:
             return "New Conversation"
-            
+
         if len(text) > 50:
             return text[:47] + "..."
-            
+
         return text
 
     async def stop_chat(self, user_id: str):
@@ -345,23 +440,50 @@ class GeminiAgent:
 
     async def _get_latest_session_uuid(self) -> Optional[str]:
         try:
-            global_log("Executing --list-sessions...")
-            proc = await self._create_subprocess([self.gemini_cmd, "--list-sessions"], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=self.working_dir)
+            global_log("Executing session list --format json...")
+            proc = await self._create_subprocess(
+                [self.opencode_cmd, "session", "list", "--format", "json"],
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=self.working_dir,
+            )
             stdout, stderr = await proc.communicate()
-            content = (stdout.decode() + stderr.decode())
-            matches = re.findall(r"\x20\[([a-fA-F0-9-]{36})\]", content)
-            res = matches[-1] if matches else None
+            content = stdout.decode().strip()
+            if not content:
+                return None
+
+            sessions = json.loads(content)
+            if not sessions:
+                return None
+
+            sessions.sort(key=lambda x: x.get("created", 0), reverse=True)
+            res = sessions[0].get("id")
             global_log(f"Latest session ID found: {res}")
             return res
         except Exception as e:
             global_log(f"Error in _get_latest_session_uuid: {str(e)}")
             return None
 
-    async def generate_response_stream(self, user_id: str, prompt: str, model: Optional[str] = None, file_paths: Optional[List[str]] = None, resume_session: Optional[str] = "AUTO", plan_mode: bool = False) -> AsyncGenerator[Dict, None]:
-        def log_debug(msg): global_log(f"[{user_id}] {msg}", level="DEBUG")
+    async def generate_response_stream(
+        self,
+        user_id: str,
+        prompt: str,
+        model: Optional[str] = None,
+        file_paths: Optional[List[str]] = None,
+        resume_session: Optional[str] = "AUTO",
+        plan_mode: bool = False,
+    ) -> AsyncGenerator[Dict, None]:
+        def log_debug(msg):
+            global_log(f"[{user_id}] {msg}", level="DEBUG")
 
         if user_id not in self.user_data:
-            self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": [], "session_metadata": {}}
+            self.user_data[user_id] = {
+                "active_session": None,
+                "sessions": [],
+                "session_tools": {},
+                "pending_tools": [],
+                "session_metadata": {},
+            }
         else:
             self.user_data[user_id].setdefault("sessions", [])
             self.user_data[user_id].setdefault("active_session", None)
@@ -378,21 +500,40 @@ class GeminiAgent:
         current_model = model or settings.get("default_model") or self.model_name
 
         if plan_mode:
-            yield {"type": "plan_status", "status": "active", "message": "Entering Plan Mode..."}
-        
+            yield {
+                "type": "plan_status",
+                "status": "active",
+                "message": "Entering Plan Mode...",
+            }
+            # Inject Plan Mode instruction
+            plan_instruction = (
+                "\n\n[SYSTEM INSTRUCTION: PLAN MODE ACTIVE]\n"
+                "Provide a comprehensive, step-by-step plan for the user's request. "
+                "Describe exactly what tools you would use and why. "
+                "CRITICAL: Do NOT execute any modification tools (like write, edit, shell) yet. "
+                "Wait for the user to approve your plan."
+            )
+            prompt = f"{plan_instruction}\n\n{prompt}"
+
         # System Prompt Injection for Interactive Mode
         if settings.get("interactive_mode", True):
+            enabled_tools = self.get_session_tools(user_id, session_uuid or "pending")
+            if enabled_tools:
+                log_debug(f"User intended tools: {enabled_tools}")
+
             default_interactive = (
                 "You can ask interactive multiple-choice or open-ended questions to the user in their preferred language (e.g., Greek).\n"
                 "To trigger a question card, include a JSON block in your response using this format:\n"
-                "{\"type\": \"question\", \"question\": \"Your question text here\", \"options\": [\"Option 1\", \"Option 2\"], \"allow_multiple\": false}\n"
+                '{"type": "question", "question": "Your question text here", "options": ["Option 1", "Option 2"], "allow_multiple": false}\n'
                 "- The 'question' and 'options' values should match the language of the conversation.\n"
                 "- If 'allow_multiple' is true, users can select several options.\n"
                 "- If 'options' is empty [], it is an open-ended question.\n"
                 "The user's response will be sent back to you as a normal message."
             )
             global_setting = config.get_global_setting("interactive_mode_instructions")
-            interactive_instruction = global_setting if global_setting is not None else default_interactive
+            interactive_instruction = (
+                global_setting if global_setting is not None else default_interactive
+            )
             prompt = f"\n\n[SYSTEM INSTRUCTION: INTERACTIVE QUESTIONING ENABLED]\n{interactive_instruction}\n\n{prompt}"
         else:
             # Subtle instruction to avoid JSON questioning without being overly rigid about identity.
@@ -400,110 +541,194 @@ class GeminiAgent:
 
         attempt = 0
         max_attempts = 2
-        
+
+        # Prepare environment with tool permissions
+        env = os.environ.copy()
+        enabled_tools = self.get_session_tools(user_id, session_uuid or "pending")
+        if enabled_tools:
+            perms = {"*": "deny"}
+            for t in enabled_tools:
+                perms[t] = "allow"
+                # Map common aliases/guards
+                if t == "google_search":
+                    perms["websearch"] = "allow"
+                if t in ["edit", "write"]:
+                    perms["edit"] = "allow"
+
+            # Core helper tools that should generally be allowed for app integration
+            perms["question"] = "allow"
+
+            opencode_config = {"permission": perms}
+            env["OPENCODE_CONFIG_CONTENT"] = json.dumps(opencode_config)
+            log_debug(
+                f"Applying tool permissions via OPENCODE_CONFIG_CONTENT: {enabled_tools}"
+            )
+
         while attempt < max_attempts:
             attempt += 1
-            enabled_tools = self.get_session_tools(user_id, session_uuid or "pending")
-            log_debug(f"Enabled tools for this run: {enabled_tools}")
-            
-            args = [self.gemini_cmd, "--output-format", "stream-json"]
-            args.extend(["--allowed-tools", ",".join(enabled_tools) if enabled_tools else "none"])
-            
-            if plan_mode:
-                args.extend(["--approval-mode", "plan"])
-            else:
-                args.extend(["--approval-mode", "default"])
-                
-            if self.yolo_mode: args.append("--yolo")
-            if session_uuid: args.extend(["--resume", session_uuid])
-            if current_model: args.extend(["--model", current_model])
-            args.extend(["--include-directories", self.working_dir])
+
+            args = [self.opencode_cmd, "run", "--format", "json", "--thinking"]
+            if session_uuid:
+                args.extend(["-s", session_uuid])
+            if current_model:
+                args.extend(["-m", current_model])
             if file_paths:
                 for fp in file_paths:
-                    args.append(f"@{fp}")
-            
+                    args.extend(["-f", fp])
+
             log_debug(f"Attempt {attempt}: Running command {' '.join(args)}")
-            
+
             should_fallback = False
             high_demand_detected = False
             proc = None
             stderr_buffer = []
             try:
                 proc = await self._create_subprocess(
-                    args, 
-                    stdin=asyncio.subprocess.PIPE, 
-                    stdout=asyncio.subprocess.PIPE, 
-                    stderr=asyncio.subprocess.PIPE, 
-                    cwd=self.working_dir
+                    args,
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    cwd=self.working_dir,
+                    env=env,
                 )
-                
+
                 if prompt:
                     log_debug("Writing prompt to stdin...")
+
                     async def write_to_stdin(proc, data):
-                        if hasattr(proc.stdin, 'drain'): # asyncio.StreamWriter
+                        if hasattr(proc.stdin, "drain"):  # asyncio.StreamWriter
                             proc.stdin.write(data)
                             await proc.stdin.drain()
                             proc.stdin.close()
-                        else: # Synchronous pipe from Popen
+                        else:  # Synchronous pipe from Popen
+
                             def sync_write():
                                 proc.stdin.write(data)
                                 proc.stdin.flush()
                                 proc.stdin.close()
+
                             await asyncio.to_thread(sync_write)
-                    
-                    await write_to_stdin(proc, prompt.encode('utf-8'))
-                
+
+                    await write_to_stdin(proc, prompt.encode("utf-8"))
+
                 async def capture_stderr(pipe):
                     nonlocal high_demand_detected
+                    if not pipe:
+                        return
                     while True:
                         line = await pipe.readline()
-                        if not line: break
-                        line_str = line.decode(errors='replace').strip()
+                        if not line:
+                            break
+                        line_str = line.decode(errors="replace").strip()
                         log_debug(f"STDERR: {line_str}")
                         stderr_buffer.append(line_str)
-                        if "High demand. Retry?" in line_str:
+                        # OpenCode high demand signal might be different, but let's keep this for now
+                        if "High demand" in line_str or "429" in line_str:
                             log_debug("High demand detected in stderr")
                             high_demand_detected = True
-                            try: proc.terminate()
-                            except: pass
-                
+                            try:
+                                if proc:
+                                    proc.terminate()
+                            except:
+                                pass
+
                 stderr_task = asyncio.create_task(capture_stderr(proc.stderr))
 
                 log_debug("Starting to read stdout")
                 current_message_content = ""
                 json_buffer = ""
                 in_json_block = False
+                captured_session_id = False
+
+                if not proc or not proc.stdout:
+                    log_debug("No stdout to read")
+                    return
 
                 while True:
                     line = await proc.stdout.readline()
                     if not line:
                         log_debug("Stdout closed (EOF)")
                         break
-                    line_str = line.decode(errors='replace').strip()
-                    if not line_str: continue
-                    
+                    line_str = line.decode(errors="replace").strip()
+                    if not line_str:
+                        continue
+
                     log_debug(f"Received line ({len(line_str)} chars)")
+
                     if "High demand. Retry?" in line_str:
                         log_debug("High demand detected in stdout")
                         high_demand_detected = True
-                        try: proc.terminate()
-                        except: pass
+                        try:
+                            proc.terminate()
+                        except:
+                            pass
                         break
 
                     try:
                         data = json.loads(line_str)
-                        
+
+                        # Capture session ID from OpenCode event
+                        if not captured_session_id and data.get("sessionID"):
+                            new_id = data["sessionID"]
+                            if not session_uuid:
+                                log_debug(f"Captured session ID: {new_id}")
+                                self.user_data[user_id]["active_session"] = new_id
+                                if new_id not in self.user_data[user_id]["sessions"]:
+                                    self.user_data[user_id]["sessions"].append(new_id)
+
+                                # Auto-name the session based on the first prompt
+                                filtered_title = self.filter_title_text(prompt)
+                                await self.update_session_title(
+                                    user_id, new_id, filtered_title
+                                )
+                                self._save_user_data()
+                                session_uuid = new_id
+                            captured_session_id = True
+
+                        # Transform OpenCode events to Gemini format
+                        transformed_data = None
+
+                        if data.get("type") == "text":
+                            transformed_data = {
+                                "type": "message",
+                                "role": "assistant",
+                                "content": data.get("part", {}).get("text", ""),
+                            }
+                        elif data.get("type") == "reasoning":
+                            transformed_data = {
+                                "type": "message",
+                                "role": "assistant",
+                                "content": f"[Thinking]\n{data.get('part', {}).get('text', '')}\n[/Thinking]",
+                            }
+                        elif data.get("type") == "tool_use":
+                            tool_part = data.get("part", {})
+                            state = tool_part.get("state", {})
+                            if state.get("status") == "completed":
+                                transformed_data = {
+                                    "type": "tool_result",
+                                    "tool_name": tool_part.get("tool"),
+                                    "output": state.get("output", ""),
+                                }
+
+                        if not transformed_data:
+                            continue
+
+                        data = transformed_data
+
                         # Handle interactive questioning protocol
-                        if data.get("type") == "message" and data.get("role") == "assistant":
+                        if (
+                            data.get("type") == "message"
+                            and data.get("role") == "assistant"
+                        ):
                             content = data.get("content", "")
-                            
+
                             # Add to global buffer for full detection
                             current_message_content += content
-                            
+
                             # Logic to hide JSON and potential markdown backticks from the stream
                             cleaned_content = ""
                             for char in content:
-                                if (char == '{' or char == '`') and not in_json_block:
+                                if (char == "{" or char == "`") and not in_json_block:
                                     # Potential start of JSON or markdown block
                                     in_json_block = True
                                     json_buffer = char
@@ -511,65 +736,99 @@ class GeminiAgent:
                                     json_buffer += char
                                     # We check for the end of a potential JSON block or markdown block
                                     # If it ends with } or ` we might be at the end.
-                                    if char == '}' or char == '`':
+                                    if char == "}" or char == "`":
                                         # Let's see if we have a complete question JSON (potentially wrapped)
                                         # We use a greedy check in the buffer
-                                        if '"type": "question"' in json_buffer or '"type":"question"' in json_buffer:
+                                        if (
+                                            '"type": "question"' in json_buffer
+                                            or '"type":"question"' in json_buffer
+                                        ):
                                             # We need to decide if this block is COMPLETE.
                                             # If it's wrapped in backticks, we wait for the closing backticks.
                                             # For now, if we see a valid JSON question, we consider it "absorbed"
                                             # but we only clear the buffer if it's truly complete.
-                                            
+
                                             # Simple heuristic: if it's a valid JSON, it's absorbed.
                                             try:
                                                 # Try to extract JSON from the buffer (might have backticks)
-                                                inner_json_match = re.search(r"\{\s*\"type\"\s*:\s*\"question\".*?\}", json_buffer, re.DOTALL)
+                                                inner_json_match = re.search(
+                                                    r"\{\s*\"type\"\s*:\s*\"question\".*?\}",
+                                                    json_buffer,
+                                                    re.DOTALL,
+                                                )
                                                 if inner_json_match:
                                                     # Check if it's balanced (minimal check)
-                                                    json_text = inner_json_match.group(0)
+                                                    json_text = inner_json_match.group(
+                                                        0
+                                                    )
                                                     json.loads(json_text)
-                                                    
-                                                    # If it was wrapped in backticks, and we just saw a backtick, 
+
+                                                    # If it was wrapped in backticks, and we just saw a backtick,
                                                     # or it wasn't wrapped and we just saw }, then it's done.
-                                                    is_wrapped = json_buffer.startswith('```')
-                                                    if (is_wrapped and json_buffer.endswith('```')) or (not is_wrapped and json_buffer.endswith('}')):
+                                                    is_wrapped = json_buffer.startswith(
+                                                        "```"
+                                                    )
+                                                    if (
+                                                        is_wrapped
+                                                        and json_buffer.endswith("```")
+                                                    ) or (
+                                                        not is_wrapped
+                                                        and json_buffer.endswith("}")
+                                                    ):
                                                         in_json_block = False
                                                         json_buffer = ""
                                             except:
-                                                pass # Not complete yet
+                                                pass  # Not complete yet
                                         else:
-                                            # Not a question yet, or ever. 
+                                            # Not a question yet, or ever.
                                             # If the buffer is getting too large or we are sure it's not a question, release it.
                                             # For now, if it ends with ` and doesn't look like our JSON, release it.
-                                            if char == '`':
-                                                if len(json_buffer) > 10 and not ('"type"' in json_buffer):
+                                            if char == "`":
+                                                if len(json_buffer) > 10 and not (
+                                                    '"type"' in json_buffer
+                                                ):
                                                     cleaned_content += json_buffer
                                                     in_json_block = False
                                                     json_buffer = ""
-                                            elif char == '}' and not ('"type"' in json_buffer):
+                                            elif char == "}" and not (
+                                                '"type"' in json_buffer
+                                            ):
                                                 cleaned_content += json_buffer
                                                 in_json_block = False
                                                 json_buffer = ""
                                 else:
                                     cleaned_content += char
-                            
+
                             data["content"] = cleaned_content
 
                             # Global buffer handles full detection and yielding
                             # We update the regex to optionally swallow surrounding backticks and newlines
                             question_pattern = r"(?:```(?:json)?\s*)?\{\s*\"type\"\s*:\s*\"question\".*?\}(?:\s*```)?"
-                            question_match = re.search(question_pattern, current_message_content, re.DOTALL)
+                            question_match = re.search(
+                                question_pattern, current_message_content, re.DOTALL
+                            )
                             if question_match:
                                 try:
                                     full_match_text = question_match.group(0)
                                     # Extract JUST the JSON part for parsing
-                                    json_only_match = re.search(r"\{\s*\"type\"\s*:\s*\"question\".*?\}", full_match_text, re.DOTALL)
+                                    json_only_match = re.search(
+                                        r"\{\s*\"type\"\s*:\s*\"question\".*?\}",
+                                        full_match_text,
+                                        re.DOTALL,
+                                    )
                                     if json_only_match:
-                                        question_data = json.loads(json_only_match.group(0))
+                                        question_data = json.loads(
+                                            json_only_match.group(0)
+                                        )
                                         yield question_data
-                                        current_message_content = current_message_content.replace(full_match_text, "")
-                                except: pass
-                            
+                                        current_message_content = (
+                                            current_message_content.replace(
+                                                full_match_text, ""
+                                            )
+                                        )
+                                except:
+                                    pass
+
                             # If we have nothing to show yet (still buffering JSON/markdown), don't yield this chunk's message
                             if not data["content"] and in_json_block:
                                 continue
@@ -577,7 +836,7 @@ class GeminiAgent:
                         # Truncate large tool outputs
                         if data.get("type") == "tool_result" and "output" in data:
                             output = data["output"]
-                            threshold = 20 * 1024 # 20KB
+                            threshold = 20 * 1024  # 20KB
                             if len(output) > threshold:
                                 truncated = output[:threshold]
                                 # Save full output to a file
@@ -587,122 +846,110 @@ class GeminiAgent:
                                     with open(fpath, "w", encoding="utf-8") as f:
                                         f.write(output)
                                     data["full_output_path"] = f"/uploads/{fname}"
-                                    data["output"] = f"{truncated}\n\n[Output truncated. Full output available below.]"
-                                    log_debug(f"Truncated tool output and saved to {fpath}")
+                                    data["output"] = (
+                                        f"{truncated}\n\n[Output truncated. Full output available below.]"
+                                    )
+                                    log_debug(
+                                        f"Truncated tool output and saved to {fpath}"
+                                    )
                                 except Exception as e:
                                     log_debug(f"Error saving full output: {str(e)}")
-                                    data["output"] = f"{truncated}\n\n[Output truncated. Error saving full version.]"
-                                
-                                log_debug(f"Truncated tool output from {len(output)} to {len(data['output'])} bytes")
+                                    data["output"] = (
+                                        f"{truncated}\n\n[Output truncated. Error saving full version.]"
+                                    )
 
-                        # Capture session ID
-                        if data.get("type") == "init" and data.get("session_id"):
-                            new_id = data["session_id"]
-                            if not session_uuid:
-                                log_debug(f"Captured session ID: {new_id}")
-                                self.user_data[user_id]["active_session"] = new_id
-                                if new_id not in self.user_data[user_id]["sessions"]:
-                                    self.user_data[user_id]["sessions"].append(new_id)
-                                
-                                # Auto-name the session based on the first prompt
-                                filtered_title = self.filter_title_text(prompt)
-                                await self.update_session_title(user_id, new_id, filtered_title)
-                                
-                                # Promote pending tools to this new session
-                                pending = self.user_data[user_id].get("pending_tools", [])
-                                if pending:
-                                    if "session_tools" not in self.user_data[user_id]:
-                                        self.user_data[user_id]["session_tools"] = {}
-                                    self.user_data[user_id]["session_tools"][new_id] = pending
-                                    self.user_data[user_id]["pending_tools"] = []
-                                    log_debug(f"Promoted pending tools to session {new_id}")
+                                log_debug(
+                                    f"Truncated tool output from {len(output)} to {len(data['output'])} bytes"
+                                )
 
-                                # Handle pending fork
-                                pending_fork = self.user_data[user_id].get("pending_fork")
-                                if pending_fork:
-                                    if "session_forks" not in self.user_data[user_id]:
-                                        self.user_data[user_id]["session_forks"] = {}
-                                    self.user_data[user_id]["session_forks"][new_id] = {
-                                        "parent": pending_fork["parent"],
-                                        "fork_point": pending_fork["fork_point"]
-                                    }
-                                    if pending_fork.get("title"):
-                                        if "custom_titles" not in self.user_data[user_id]:
-                                            self.user_data[user_id]["custom_titles"] = {}
-                                        self.user_data[user_id]["custom_titles"][new_id] = pending_fork["title"]
-                                    if pending_fork.get("tags"):
-                                        if "session_tags" not in self.user_data[user_id]:
-                                            self.user_data[user_id]["session_tags"] = {}
-                                        self.user_data[user_id]["session_tags"][new_id] = pending_fork["tags"]
-                                    
-                                    if pending_fork.get("tools"):
-                                        if "session_tools" not in self.user_data[user_id]:
-                                            self.user_data[user_id]["session_tools"] = {}
-                                        self.user_data[user_id]["session_tools"][new_id] = pending_fork["tools"]
-                                    
-                                    del self.user_data[user_id]["pending_fork"]
-                                    log_debug(f"Applied pending fork info to session {new_id}")
-
-                                self._save_user_data()
-                                session_uuid = new_id
-                        
                         # Check for capacity error in JSON chunks
                         content_to_check = str(data).lower()
-                        if any(k in content_to_check for k in CAPACITY_KEYWORDS) and attempt < max_attempts:
+                        if (
+                            any(k in content_to_check for k in CAPACITY_KEYWORDS)
+                            and attempt < max_attempts
+                        ):
                             fallback = FALLBACK_MODELS.get(current_model)
                             if fallback:
-                                log_debug(f"Capacity error detected in stdout, falling back to {fallback}")
-                                yield {"type": "model_switch", "old_model": current_model, "new_model": fallback}
-                                yield {"type": "message", "role": "assistant", "content": f"\n\n[Model {current_model} is currently busy or quota exhausted. Switching to {fallback} for a faster response...]\n\n"}
+                                log_debug(
+                                    f"Capacity error detected in stdout, falling back to {fallback}"
+                                )
+                                yield {
+                                    "type": "model_switch",
+                                    "old_model": current_model,
+                                    "new_model": fallback,
+                                }
+                                yield {
+                                    "type": "message",
+                                    "role": "assistant",
+                                    "content": f"\n\n[Model {current_model} is currently busy or quota exhausted. Switching to {fallback} for a faster response...]\n\n",
+                                }
                                 current_model = fallback
                                 should_fallback = True
                                 break
-                        
+
                         yield data
                     except json.JSONDecodeError:
                         yield {"type": "raw", "content": line_str}
-                
+
                 if should_fallback:
                     try:
                         if proc.returncode is None:
                             proc.terminate()
                             await proc.wait()
-                    except: pass
-                    continue 
+                    except:
+                        pass
+                    continue
 
                 await proc.wait()
                 await stderr_task
                 log_debug(f"Process exited with code {proc.returncode}")
-                
+
                 if high_demand_detected:
                     yield {
                         "type": "question",
                         "question": "We are currently experiencing high demand. Should I keep trying?",
                         "options": ["Retry", "Stop"],
                         "allow_multiple": False,
-                        "is_retry": True
+                        "is_retry": True,
                     }
-                    break 
+                    break
 
                 if plan_mode:
-                    yield {"type": "plan_status", "status": "completed", "message": "Plan complete. Review proposed changes below."}
-                
+                    yield {
+                        "type": "plan_status",
+                        "status": "completed",
+                        "message": "Plan complete. Review proposed changes below.",
+                    }
+
                 # Check for capacity error in stderr if process failed
                 if proc.returncode != 0 and not should_fallback:
                     err_text = "\n".join(stderr_buffer).lower()
-                    if any(k in err_text for k in CAPACITY_KEYWORDS) and attempt < max_attempts:
+                    if (
+                        any(k in err_text for k in CAPACITY_KEYWORDS)
+                        and attempt < max_attempts
+                    ):
                         fallback = FALLBACK_MODELS.get(current_model)
                         if fallback:
-                            log_debug(f"Capacity error detected in stderr, falling back to {fallback}")
-                            yield {"type": "model_switch", "old_model": current_model, "new_model": fallback}
-                            yield {"type": "message", "role": "assistant", "content": f"\n\n[Model {current_model} is currently busy or quota exhausted. Switching to {fallback}...]\n\n"}
+                            log_debug(
+                                f"Capacity error detected in stderr, falling back to {fallback}"
+                            )
+                            yield {
+                                "type": "model_switch",
+                                "old_model": current_model,
+                                "new_model": fallback,
+                            }
+                            yield {
+                                "type": "message",
+                                "role": "assistant",
+                                "content": f"\n\n[Model {current_model} is currently busy or quota exhausted. Switching to {fallback}...]\n\n",
+                            }
                             current_model = fallback
-                            continue 
+                            continue
 
                     # If not a capacity error, yield generic exit code error
                     yield {"type": "error", "content": f"Exit code {proc.returncode}"}
-                
-                break 
+
+                break
 
             except Exception as e:
                 log_debug(f"Exception in stream: {repr(e)}")
@@ -713,20 +960,32 @@ class GeminiAgent:
                     try:
                         proc.terminate()
                         await proc.wait()
-                    except: pass
+                    except:
+                        pass
 
-    async def generate_response(self, user_id: str, prompt: str, model: Optional[str] = None, file_paths: Optional[List[str]] = None, resume_session: Optional[str] = "AUTO") -> str:
+    async def generate_response(
+        self,
+        user_id: str,
+        prompt: str,
+        model: Optional[str] = None,
+        file_paths: Optional[List[str]] = None,
+        resume_session: Optional[str] = "AUTO",
+    ) -> str:
         full_response = ""
-        async for chunk in self.generate_response_stream(user_id, prompt, model, file_paths, resume_session=resume_session):
+        async for chunk in self.generate_response_stream(
+            user_id, prompt, model, file_paths, resume_session=resume_session
+        ):
             if chunk.get("type") == "message":
                 full_response += chunk.get("content", "")
             elif chunk.get("type") == "error":
                 full_response += f"\n[Error: {chunk.get('content')}]"
             elif chunk.get("type") == "raw":
-                 full_response += chunk.get("content", "") + "\n"
+                full_response += chunk.get("content", "") + "\n"
         return full_response.strip()
 
-    async def update_session_title(self, user_id: str, uuid: str, new_title: str) -> bool:
+    async def update_session_title(
+        self, user_id: str, uuid: str, new_title: str
+    ) -> bool:
         if user_id in self.user_data and uuid in self.user_data[user_id]["sessions"]:
             if "custom_titles" not in self.user_data[user_id]:
                 self.user_data[user_id]["custom_titles"] = {}
@@ -735,7 +994,9 @@ class GeminiAgent:
             return True
         return False
 
-    async def update_session_tags(self, user_id: str, uuid: str, tags: List[str]) -> bool:
+    async def update_session_tags(
+        self, user_id: str, uuid: str, tags: List[str]
+    ) -> bool:
         if user_id in self.user_data and uuid in self.user_data[user_id]["sessions"]:
             if "session_tags" not in self.user_data[user_id]:
                 self.user_data[user_id]["session_tags"] = {}
@@ -745,7 +1006,8 @@ class GeminiAgent:
         return False
 
     def get_unique_tags(self, user_id: str) -> List[str]:
-        if user_id not in self.user_data: return []
+        if user_id not in self.user_data:
+            return []
         user_info = self.user_data[user_id]
         all_tags = set()
         for tags in user_info.get("session_tags", {}).values():
@@ -755,100 +1017,133 @@ class GeminiAgent:
 
     def is_user_session(self, user_id: str, session_uuid: str) -> bool:
         """Check if a session belongs to a user without filtering for sidebar."""
-        if user_id not in self.user_data: return False
+        if user_id not in self.user_data:
+            return False
         return session_uuid in self.user_data[user_id].get("sessions", [])
 
-    async def get_user_sessions(self, user_id: str, limit: Optional[int] = None, offset: int = 0, tags: Optional[List[str]] = None) -> Dict[str, Any]:
+    async def get_user_sessions(
+        self,
+        user_id: str,
+        limit: Optional[int] = None,
+        offset: int = 0,
+        tags: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
         if user_id not in self.user_data:
-            self.user_data[user_id] = {"active_session": None, "sessions": [], "session_tools": {}, "pending_tools": [], "pinned_sessions": [], "session_metadata": {}}
+            self.user_data[user_id] = {
+                "active_session": None,
+                "sessions": [],
+                "session_tools": {},
+                "pending_tools": [],
+                "pinned_sessions": [],
+                "session_metadata": {},
+            }
             self._save_user_data()
-        
+
         user_info = self.user_data[user_id]
         uuids = user_info.get("sessions", [])
         custom_titles = user_info.get("custom_titles", {})
         session_tags = user_info.get("session_tags", {})
         session_metadata = user_info.get("session_metadata", {})
         session_forks = user_info.get("session_forks", {})
-        
-        if not uuids: return {"pinned": [], "history": [], "total_unpinned": 0}
+
+        if not uuids:
+            return {"pinned": [], "history": [], "total_unpinned": 0}
 
         # Check if we have metadata for all sessions
         missing_metadata = [u for u in uuids if u not in session_metadata]
-        
+
         all_sessions = []
-        
+
         if not missing_metadata:
             # All metadata cached, build from cache
             pinned_uuids = user_info.get("pinned_sessions", [])
             for u in uuids:
-                meta = session_metadata.get(u, {"original_title": "Unknown", "time": "Unknown"})
-                
+                meta = session_metadata.get(
+                    u, {"original_title": "Unknown", "time": "Unknown"}
+                )
+
                 # Check tags filter
                 current_tags = session_tags.get(u, [])
                 if tags:
                     if not all(tag in current_tags for tag in tags):
                         continue
-                        
+
                 title = custom_titles.get(u, meta.get("original_title", "Unknown"))
-                
-                all_sessions.append({
-                    "uuid": u,
-                    "title": title,
-                    "time": meta.get("time", "Unknown"),
-                    "active": (u == user_info.get("active_session")),
-                    "pinned": (u in pinned_uuids),
-                    "tags": current_tags
-                })
-            
+
+                all_sessions.append(
+                    {
+                        "uuid": u,
+                        "title": title,
+                        "time": meta.get("time", "Unknown"),
+                        "active": (u == user_info.get("active_session")),
+                        "pinned": (u in pinned_uuids),
+                        "tags": current_tags,
+                    }
+                )
+
             all_sessions = all_sessions[::-1]
-            
+
         else:
             # Need to fetch from CLI
             try:
-                global_log("Executing --list-sessions...")
-                proc = await self._create_subprocess([self.gemini_cmd, "--list-sessions"], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=self.working_dir)
+                global_log("Executing session list...")
+                proc = await self._create_subprocess(
+                    [self.opencode_cmd, "session", "list", "--format", "json"],
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    cwd=self.working_dir,
+                )
                 stdout, stderr = await proc.communicate()
-                raw_content = stdout.decode() + stderr.decode()
-                content = self._filter_errors(raw_content)
-                
-                pattern = r"^\s*\d+\.\s+(?P<title>.*?)\s+\((?P<time>.*?)\)\s+\[(?P<uuid>[a-fA-F0-9-]{36})\]"
-                matches = list(re.finditer(pattern, content, re.MULTILINE))
-                
+                raw_content = stdout.decode().strip()
+
+                if not raw_content:
+                    parsed_sessions = []
+                else:
+                    parsed_sessions = json.loads(raw_content)
+
                 pinned_uuids = user_info.get("pinned_sessions", [])
                 found_uuids = set()
-                
+
                 cli_sessions = []
-                for m in matches:
-                    info = m.groupdict()
-                    u = info["uuid"]
+                for sess in parsed_sessions:
+                    u = sess.get("id")
+                    if not u:
+                        continue
                     found_uuids.add(u)
-                    
+
+                    ts = sess.get("updated", sess.get("created", 0)) / 1000.0
+                    time_str = dt_pkg.datetime.fromtimestamp(ts).strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+
                     # ONLY update metadata cache if the session belongs to this user
                     if u in uuids:
                         session_metadata[u] = {
-                            "original_title": info["title"],
-                            "time": info["time"]
+                            "original_title": sess.get("title", "Unknown"),
+                            "time": time_str,
                         }
-                        
+
                         current_tags = session_tags.get(u, [])
                         if tags:
                             if not all(tag in current_tags for tag in tags):
                                 continue
-                                
-                        title = custom_titles.get(u, info["title"])
-                        
-                        cli_sessions.append({
-                            "uuid": u,
-                            "title": title,
-                            "time": info["time"],
-                            "active": (u == user_info.get("active_session")),
-                            "pinned": (u in pinned_uuids),
-                            "tags": current_tags
-                        })
-                
+
+                        title = custom_titles.get(u, sess.get("title", "Unknown"))
+
+                        cli_sessions.append(
+                            {
+                                "uuid": u,
+                                "title": title,
+                                "time": time_str,
+                                "active": (u == user_info.get("active_session")),
+                                "pinned": (u in pinned_uuids),
+                                "tags": current_tags,
+                            }
+                        )
+
                 # Update user_data with new metadata
                 self.user_data[user_id]["session_metadata"] = session_metadata
-                
+
                 # Sync sessions list
                 valid_uuids = [u for u in uuids if u in found_uuids]
                 if len(valid_uuids) != len(uuids):
@@ -858,28 +1153,33 @@ class GeminiAgent:
                             session_metadata.pop(u, None)
                             custom_titles.pop(u, None)
                             session_tags.pop(u, None)
-                            if u in pinned_uuids: pinned_uuids.remove(u)
-                    
+                            if u in pinned_uuids:
+                                pinned_uuids.remove(u)
+
                     self.user_data[user_id]["session_metadata"] = session_metadata
                     self.user_data[user_id]["custom_titles"] = custom_titles
                     self.user_data[user_id]["session_tags"] = session_tags
                     self.user_data[user_id]["pinned_sessions"] = pinned_uuids
-                
+
                 self._save_user_data()
                 all_sessions = cli_sessions
                 all_sessions = all_sessions[::-1]
-                
+
             except Exception as e:
                 global_log(f"Error in get_user_sessions (fetching): {str(e)}")
                 return {"pinned": [], "history": [], "total_unpinned": 0}
-        
+
         # --- Grouping Logic: Display them as one (the latest fork) ---
-        
+
         def get_root(u):
             """Find the root session UUID for a given session."""
             visited = set()
             curr = u
-            while curr in session_forks and session_forks[curr].get("parent") and curr not in visited:
+            while (
+                curr in session_forks
+                and session_forks[curr].get("parent")
+                and curr not in visited
+            ):
                 visited.add(curr)
                 curr = session_forks[curr]["parent"]
             return curr
@@ -888,7 +1188,7 @@ class GeminiAgent:
         # all_sessions is already ordered by time (newest first) because of [::-1]
         grouped_sessions = []
         seen_roots = set()
-        
+
         for sess in all_sessions:
             root_uuid = get_root(sess["uuid"])
             if root_uuid not in seen_roots:
@@ -905,93 +1205,114 @@ class GeminiAgent:
         # Common Pagination Logic
         pinned = [s for s in grouped_sessions if s["pinned"]]
         unpinned = [s for s in grouped_sessions if not s["pinned"]]
-        
+
         total_unpinned = len(unpinned)
-        
+
         if limit is not None:
             paged_unpinned = unpinned[offset : offset + limit]
         else:
             paged_unpinned = unpinned[offset:]
-            
+
         return {
             "pinned": pinned if offset == 0 else [],
             "history": paged_unpinned,
-            "total_unpinned": total_unpinned
+            "total_unpinned": total_unpinned,
         }
 
     async def search_sessions(self, user_id: str, query: str) -> List[Dict]:
         sessions_data = await self.get_user_sessions(user_id)
         if not query:
             return sessions_data.get("pinned", []) + sessions_data.get("history", [])
-        
-        all_sessions = sessions_data.get("pinned", []) + sessions_data.get("history", [])
-        if not all_sessions: return []
-        
+
+        all_sessions = sessions_data.get("pinned", []) + sessions_data.get(
+            "history", []
+        )
+        if not all_sessions:
+            return []
+
         query = query.lower()
         results = []
-        
-        home = os.path.expanduser("~")
-        gemini_tmp_base = os.path.join(home, ".gemini", "tmp")
-        
+
         for sess in all_sessions:
             match = False
             # Check title
             if query in sess.get("title", "").lower():
                 match = True
-            
+
             if not match:
-                # Check messages and attachments in the JSON file
-                uuid_start = sess["uuid"].split('-')[0]
-                import glob
-                search_path = os.path.join(gemini_tmp_base, "*", "chats", f"*{uuid_start}*.json")
-                files = glob.glob(search_path)
-                if files:
-                    try:
-                        with open(files[0], 'r', encoding='utf-8') as f:
-                            data = json.load(f)
-                            for msg in data.get("messages", []):
-                                content_text = self._get_text_content(msg.get("content", ""))
-                                if query in content_text.lower():
-                                    match = True; break
-                    except: pass
-            
+                # Check messages and attachments by exporting
+                try:
+                    msgs_data = await self.get_session_messages(sess["uuid"])
+                    for msg in msgs_data.get("messages", []):
+                        if query in msg.get("content", "").lower():
+                            match = True
+                            break
+                except:
+                    pass
+
             if match:
                 results.append(sess)
-        
+
         return results
 
-    async def get_session_messages(self, session_uuid: str, limit: Optional[int] = None, offset: int = 0) -> Dict:
+    async def get_session_messages(
+        self, session_uuid: str, limit: Optional[int] = None, offset: int = 0
+    ) -> Dict:
         try:
-            uuid_start = session_uuid.split('-')[0]
-            home = os.path.expanduser("~")
-            gemini_tmp_base = os.path.join(home, ".gemini", "tmp")
-            if not os.path.exists(gemini_tmp_base): return {"messages": [], "total": 0}
-            import glob
-            search_path = os.path.join(gemini_tmp_base, "*", "chats", f"*{uuid_start}*.json")
-            files = glob.glob(search_path)
-            if not files: return {"messages": [], "total": 0}
-            files.sort(key=os.path.getmtime, reverse=True)
-            with open(files[0], 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                all_messages = data.get("messages", [])
-                total = len(all_messages)
-                if limit is not None:
-                    start = max(0, total - offset - limit); end = max(0, total - offset)
-                    messages_to_process = all_messages[start:end]
-                else: 
-                    start = 0
-                    messages_to_process = all_messages
-                messages = []
-                for idx, msg in enumerate(messages_to_process):
-                    content = msg.get("content", "")
-                    content_text = self._get_text_content(content)
-                    if not content_text or content_text.strip() == "": continue
-                    messages.append({
-                        "role": "user" if msg.get("type") == "user" else "bot", 
+            global_log(f"Exporting session {session_uuid} for messages...")
+            proc = await self._create_subprocess(
+                [self.opencode_cmd, "export", session_uuid],
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=self.working_dir,
+            )
+            stdout, stderr = await proc.communicate()
+            content = stdout.decode().strip()
+
+            # OpenCode export output starts with "Exporting session: ..."
+            # We need to find the JSON start
+            json_start = content.find("{")
+            if json_start == -1:
+                return {"messages": [], "total": 0}
+
+            data = json.loads(content[json_start:])
+            all_messages = data.get("messages", [])
+            total = len(all_messages)
+
+            if limit is not None:
+                start = max(0, total - offset - limit)
+                end = max(0, total - offset)
+                messages_to_process = all_messages[start:end]
+            else:
+                start = 0
+                messages_to_process = all_messages
+
+            messages = []
+            for idx, msg in enumerate(messages_to_process):
+                role = msg.get("info", {}).get("role", "user")
+
+                parts = msg.get("parts", [])
+                text_parts = []
+                for p in parts:
+                    if p.get("type") == "text":
+                        text_parts.append(p.get("text", ""))
+                    elif p.get("type") == "reasoning":
+                        text_parts.append(
+                            f"[Thinking]\n{p.get('text', '')}\n[/Thinking]"
+                        )
+
+                content_text = "\n".join(text_parts).strip()
+                if not content_text:
+                    continue
+
+                messages.append(
+                    {
+                        "role": "user" if role == "user" else "bot",
                         "content": content_text,
-                        "raw_index": start + idx
-                    })
-                return {"messages": messages, "total": total}
+                        "raw_index": start + idx,
+                    }
+                )
+            return {"messages": messages, "total": total}
         except Exception as e:
             print(f"Error loading session messages: {str(e)}")
             return {"messages": [], "total": 0}
@@ -1003,111 +1324,141 @@ class GeminiAgent:
             return True
         return False
 
-    async def clone_session(self, user_id: str, original_uuid: str, message_index: int) -> Optional[str]:
+    async def clone_session(
+        self, user_id: str, original_uuid: str, message_index: int
+    ) -> Optional[str]:
         """
         Clone a session up to a certain message index.
         Returns the new session UUID if successful.
         """
-        if user_id not in self.user_data or original_uuid not in self.user_data[user_id]["sessions"]:
+        if (
+            user_id not in self.user_data
+            or original_uuid not in self.user_data[user_id]["sessions"]
+        ):
             return None
 
         try:
             if message_index == -1:
                 # We want to start a new session but linked to this tree
                 user_info = self.user_data[user_id]
-                user_info["active_session"] = None # Force new session in CLI
-                
+                user_info["active_session"] = None  # Force new session in CLI
+
                 # Store pending info to apply to the NEXT session created
                 user_info["pending_fork"] = {
                     "parent": original_uuid,
                     "fork_point": -1,
                     "title": user_info.get("custom_titles", {}).get(original_uuid),
-                    "tags": list(user_info.get("session_tags", {}).get(original_uuid, [])),
-                    "tools": list(user_info.get("session_tools", {}).get(original_uuid, []))
+                    "tags": list(
+                        user_info.get("session_tags", {}).get(original_uuid, [])
+                    ),
+                    "tools": list(
+                        user_info.get("session_tools", {}).get(original_uuid, [])
+                    ),
                 }
-                
-                self._save_user_data()
-                return "pending" # Frontend will handle this
 
-            uuid_start = original_uuid.split('-')[0]
-            home = os.path.expanduser("~")
-            gemini_tmp_base = os.path.join(home, ".gemini", "tmp")
-            import glob
-            search_path = os.path.join(gemini_tmp_base, "*", "chats", f"*{uuid_start}*.json")
-            files = glob.glob(search_path)
-            if not files: return None
-            files.sort(key=os.path.getmtime, reverse=True)
-            
-            with open(files[0], 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            
-            # Truncate messages. message_index is 0-based.
-            # If message_index is 5, we keep 0, 1, 2, 3, 4, 5 (total 6 messages)
-            data["messages"] = data["messages"][:message_index + 1]
-            
-            # Generate new UUID
-            new_uuid = str(uuid.uuid4())
-            data["sessionId"] = new_uuid
-            data["startTime"] = datetime.now(timezone.utc).isoformat()
-            data["lastUpdated"] = data["startTime"]
-            
-            # Save to new file in the same directory as original
-            original_dir = os.path.dirname(files[0])
-            new_filename = f"session-{datetime.now(timezone.utc).strftime('%Y-%m-%dT%H-%M')}-{new_uuid[:8]}.json"
-            new_path = os.path.join(original_dir, new_filename)
-            
-            with open(new_path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2)
-            
-            # Update user_data
-            user_info = self.user_data[user_id]
-            user_info["sessions"].append(new_uuid)
-            user_info["active_session"] = new_uuid
-            
-            # Inherit tags and title if they exist
-            if "custom_titles" in user_info and original_uuid in user_info["custom_titles"]:
-                user_info["custom_titles"][new_uuid] = user_info["custom_titles"][original_uuid]
-            
-            if "session_tags" in user_info and original_uuid in user_info["session_tags"]:
-                user_info["session_tags"][new_uuid] = list(user_info["session_tags"][original_uuid])
-            
-            # Inherit tools
-            if "session_tools" in user_info and original_uuid in user_info["session_tools"]:
-                user_info["session_tools"][new_uuid] = list(user_info["session_tools"][original_uuid])
-            
-            # Track fork relationship
-            if "session_forks" not in user_info:
-                user_info["session_forks"] = {}
-            user_info["session_forks"][new_uuid] = {
-                "parent": original_uuid,
-                "fork_point": message_index
-            }
-            
-            # Also inherit metadata (original title etc)
-            if "session_metadata" in user_info and original_uuid in user_info["session_metadata"]:
-                user_info["session_metadata"][new_uuid] = dict(user_info["session_metadata"][original_uuid])
-            
-            self._save_user_data()
-            return new_uuid
-            
+                self._save_user_data()
+                return "pending"  # Frontend will handle this
+
+            # For specific index, we export, slice, and import
+            global_log(f"Cloning session {original_uuid} at index {message_index}...")
+            proc = await self._create_subprocess(
+                [self.opencode_cmd, "export", original_uuid],
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=self.working_dir,
+            )
+            stdout, stderr = await proc.communicate()
+            content = stdout.decode().strip()
+
+            json_start = content.find("{")
+            if json_start == -1:
+                return None
+
+            data = json.loads(content[json_start:])
+            if "messages" in data:
+                data["messages"] = data["messages"][: message_index + 1]
+
+            # Save to a temporary file for import
+            temp_file = os.path.join(
+                self.working_dir, f"temp_clone_{uuid.uuid4().hex}.json"
+            )
+            with open(temp_file, "w") as f:
+                json.dump(data, f)
+
+            try:
+                proc = await self._create_subprocess(
+                    [self.opencode_cmd, "import", temp_file],
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    cwd=self.working_dir,
+                )
+                stdout, stderr = await proc.communicate()
+                output = stdout.decode().strip()
+
+                # OpenCode import usually prints the new session ID
+                # We need to extract it
+                new_uuid_match = re.search(r"ses_[a-zA-Z0-9]+", output)
+                if not new_uuid_match:
+                    # Fallback: check latest session
+                    new_uuid = await self._get_latest_session_uuid()
+                else:
+                    new_uuid = new_uuid_match.group(0)
+
+                if new_uuid and new_uuid != original_uuid:
+                    user_info = self.user_data[user_id]
+                    if new_uuid not in user_info["sessions"]:
+                        user_info["sessions"].append(new_uuid)
+
+                    if "session_forks" not in user_info:
+                        user_info["session_forks"] = {}
+                    user_info["session_forks"][new_uuid] = {
+                        "parent": original_uuid,
+                        "fork_point": message_index,
+                    }
+
+                    # Inherit title and tags
+                    orig_title = user_info.get("custom_titles", {}).get(original_uuid)
+                    if orig_title:
+                        if "custom_titles" not in user_info:
+                            user_info["custom_titles"] = {}
+                        user_info["custom_titles"][new_uuid] = f"{orig_title} (Fork)"
+
+                    orig_tags = user_info.get("session_tags", {}).get(original_uuid)
+                    if orig_tags:
+                        if "session_tags" not in user_info:
+                            user_info["session_tags"] = {}
+                        user_info["session_tags"][new_uuid] = list(orig_tags)
+
+                    self._save_user_data()
+                    return new_uuid
+            finally:
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+
+            return None
         except Exception as e:
-            global_log(f"Error cloning session {original_uuid}: {str(e)}", level="ERROR")
+            print(f"Error cloning session: {str(e)}")
             return None
 
-    def get_session_forks(self, user_id: str, session_uuid: str) -> Dict[int, List[str]]:
+    def get_session_forks(
+        self, user_id: str, session_uuid: str
+    ) -> Dict[int, List[str]]:
         """
         Get all forks related to this session, organized by fork point.
         Returns a dict: { message_index: [uuid1, uuid2, ...] }
         """
-        if user_id not in self.user_data: return {}
+        if user_id not in self.user_data:
+            return {}
         user_info = self.user_data[user_id]
         forks_info = user_info.get("session_forks", {})
-        
+
         fork_map = {}
 
         def add_to_map(index, uid):
-            if index not in fork_map: fork_map[index] = []
-            if uid not in fork_map[index]: fork_map[index].append(uid)
+            if index not in fork_map:
+                fork_map[index] = []
+            if uid not in fork_map[index]:
+                fork_map[index].append(uid)
 
         # Current session's parent and fork point (if any)
         my_info = forks_info.get(session_uuid)
@@ -1118,20 +1469,25 @@ class GeminiAgent:
         for u, info in forks_info.items():
             if info["parent"] == session_uuid:
                 add_to_map(info["fork_point"], u)
-        
+
         # 2. If we have a parent, we are a fork at 'my_fork_point'
         # The parent is a "branch" at that point, and so are our siblings
         if parent_uuid:
             add_to_map(my_fork_point, parent_uuid)
             for u, info in forks_info.items():
-                if u != session_uuid and info["parent"] == parent_uuid and info["fork_point"] == my_fork_point:
+                if (
+                    u != session_uuid
+                    and info["parent"] == parent_uuid
+                    and info["fork_point"] == my_fork_point
+                ):
                     add_to_map(my_fork_point, u)
-            
+
         return fork_map
 
     def get_fork_graph(self, user_id: str) -> Dict[str, Dict]:
         """Get the full fork graph for all sessions of a user."""
-        if user_id not in self.user_data: return {}
+        if user_id not in self.user_data:
+            return {}
         user_info = self.user_data[user_id]
         forks_info = user_info.get("session_forks", {})
         custom_titles = user_info.get("custom_titles", {})
@@ -1143,23 +1499,30 @@ class GeminiAgent:
             info = forks_info.get(uuid, {})
             meta = session_metadata.get(uuid, {})
             title = custom_titles.get(uuid, meta.get("original_title", "Untitled Chat"))
-            
+
             graph[uuid] = {
                 "parent": info.get("parent"),
                 "fork_point": info.get("fork_point"),
-                "title": title
+                "title": title,
             }
         return graph
 
-    async def sync_session_updates(self, user_id: str, session_uuid: str, title: Optional[str] = None, tags: Optional[List[str]] = None):
+    async def sync_session_updates(
+        self,
+        user_id: str,
+        session_uuid: str,
+        title: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+    ):
         """Sync title/tags across all related forks."""
-        if user_id not in self.user_data: return
+        if user_id not in self.user_data:
+            return
         user_info = self.user_data[user_id]
         forks_info = user_info.get("session_forks", {})
-        
+
         # Find the root of the tree or just collect all related
         related_uuids = {session_uuid}
-        
+
         # Simple iterative search to find all connected nodes in the fork tree
         changed = True
         while changed:
@@ -1171,16 +1534,18 @@ class GeminiAgent:
                 if info["parent"] in related_uuids and u not in related_uuids:
                     related_uuids.add(u)
                     changed = True
-        
+
         # Apply updates
         for u in related_uuids:
             if title is not None:
-                if "custom_titles" not in user_info: user_info["custom_titles"] = {}
+                if "custom_titles" not in user_info:
+                    user_info["custom_titles"] = {}
                 user_info["custom_titles"][u] = title
             if tags is not None:
-                if "session_tags" not in user_info: user_info["session_tags"] = {}
+                if "session_tags" not in user_info:
+                    user_info["session_tags"] = {}
                 user_info["session_tags"][u] = tags
-                
+
         self._save_user_data()
 
     async def new_session(self, user_id: str):
@@ -1189,12 +1554,15 @@ class GeminiAgent:
         self._save_user_data()
 
     async def delete_specific_session(self, user_id: str, uuid: str) -> bool:
-        if user_id not in self.user_data or uuid not in self.user_data[user_id]["sessions"]:
+        if (
+            user_id not in self.user_data
+            or uuid not in self.user_data[user_id]["sessions"]
+        ):
             return False
-            
+
         user_info = self.user_data[user_id]
         forks_info = user_info.get("session_forks", {})
-        
+
         # Find all related sessions in the tree
         related_uuids = {uuid}
         changed = True
@@ -1215,38 +1583,58 @@ class GeminiAgent:
                 # 1. Check if any OTHER user still has this session
                 is_tracked_by_others = False
                 for other_user_id, other_user_info in self.user_data.items():
-                    if other_user_id == user_id: continue
+                    if other_user_id == user_id:
+                        continue
                     if target_uuid in other_user_info.get("sessions", []):
                         is_tracked_by_others = True
                         break
 
                 # 2. Only delete from CLI if no other users are tracking it
                 if not is_tracked_by_others:
-                    await (await self._create_subprocess([self.gemini_cmd, "--delete-session", target_uuid], cwd=self.working_dir)).communicate()
-                
+                    await (
+                        await self._create_subprocess(
+                            [self.opencode_cmd, "session", "delete", target_uuid],
+                            cwd=self.working_dir,
+                        )
+                    ).communicate()
+
                 # 3. Cleanup local tracking
                 if target_uuid in user_info["sessions"]:
                     user_info["sessions"].remove(target_uuid)
-                
+
                 if user_info.get("active_session") == target_uuid:
                     user_info["active_session"] = None
-                
-                if "session_metadata" in user_info and target_uuid in user_info["session_metadata"]:
+
+                if (
+                    "session_metadata" in user_info
+                    and target_uuid in user_info["session_metadata"]
+                ):
                     del user_info["session_metadata"][target_uuid]
-                
-                if "custom_titles" in user_info and target_uuid in user_info["custom_titles"]:
+
+                if (
+                    "custom_titles" in user_info
+                    and target_uuid in user_info["custom_titles"]
+                ):
                     del user_info["custom_titles"][target_uuid]
-                
-                if "session_tags" in user_info and target_uuid in user_info["session_tags"]:
+
+                if (
+                    "session_tags" in user_info
+                    and target_uuid in user_info["session_tags"]
+                ):
                     del user_info["session_tags"][target_uuid]
-                
-                if "session_forks" in user_info and target_uuid in user_info["session_forks"]:
+
+                if (
+                    "session_forks" in user_info
+                    and target_uuid in user_info["session_forks"]
+                ):
                     del user_info["session_forks"][target_uuid]
-                    
+
             except Exception as e:
-                global_log(f"Error deleting session {target_uuid}: {str(e)}", level="ERROR")
+                global_log(
+                    f"Error deleting session {target_uuid}: {str(e)}", level="ERROR"
+                )
                 success = False
-        
+
         self._save_user_data()
         return success
 
@@ -1260,13 +1648,17 @@ class GeminiAgent:
         self._save_user_data()
         return count
 
-    async def share_session(self, user_id: str, session_uuid: str, target_username: str, user_manager: Any) -> bool:
+    async def share_session(
+        self, user_id: str, session_uuid: str, target_username: str, user_manager: Any
+    ) -> bool:
         """
         Share a session with another user.
         Fails silently if target_username does not exist.
         """
         # 1. Verify user_id has access to session_uuid
-        if user_id not in self.user_data or session_uuid not in self.user_data[user_id].get("sessions", []):
+        if user_id not in self.user_data or session_uuid not in self.user_data[
+            user_id
+        ].get("sessions", []):
             return False
 
         # 2. Verify target_username exists via UserManager
@@ -1276,34 +1668,59 @@ class GeminiAgent:
         # 3. Add session_uuid to target_username's session list in user_data
         if target_username not in self.user_data:
             self.user_data[target_username] = {
-                "active_session": None, 
-                "sessions": [], 
-                "session_tools": {}, 
-                "pending_tools": [], 
-                "pinned_sessions": [], 
+                "active_session": None,
+                "sessions": [],
+                "session_tools": {},
+                "pending_tools": [],
+                "pinned_sessions": [],
                 "session_metadata": {},
-                "settings": {"show_mic": True, "interactive_mode": True, "copy_formatted": False}
+                "settings": {
+                    "show_mic": True,
+                    "interactive_mode": True,
+                    "copy_formatted": False,
+                },
             }
-        
+
         target_info = self.user_data[target_username]
-        if "sessions" not in target_info: target_info["sessions"] = []
+        if "sessions" not in target_info:
+            target_info["sessions"] = []
         if session_uuid not in target_info["sessions"]:
             target_info["sessions"].append(session_uuid)
 
         # 4. Copy custom_titles, session_tags, session_metadata, and session_tools to the target user
         source_info = self.user_data[user_id]
-        
-        if "custom_titles" in source_info and session_uuid in source_info["custom_titles"]:
-            target_info.setdefault("custom_titles", {})[session_uuid] = source_info["custom_titles"][session_uuid]
-            
-        if "session_tags" in source_info and session_uuid in source_info["session_tags"]:
-            target_info.setdefault("session_tags", {})[session_uuid] = list(source_info["session_tags"][session_uuid])
-            
-        if "session_metadata" in source_info and session_uuid in source_info["session_metadata"]:
-            target_info.setdefault("session_metadata", {})[session_uuid] = dict(source_info["session_metadata"][session_uuid])
-            
-        if "session_tools" in source_info and session_uuid in source_info["session_tools"]:
-            target_info.setdefault("session_tools", {})[session_uuid] = list(source_info["session_tools"][session_uuid])
+
+        if (
+            "custom_titles" in source_info
+            and session_uuid in source_info["custom_titles"]
+        ):
+            target_info.setdefault("custom_titles", {})[session_uuid] = source_info[
+                "custom_titles"
+            ][session_uuid]
+
+        if (
+            "session_tags" in source_info
+            and session_uuid in source_info["session_tags"]
+        ):
+            target_info.setdefault("session_tags", {})[session_uuid] = list(
+                source_info["session_tags"][session_uuid]
+            )
+
+        if (
+            "session_metadata" in source_info
+            and session_uuid in source_info["session_metadata"]
+        ):
+            target_info.setdefault("session_metadata", {})[session_uuid] = dict(
+                source_info["session_metadata"][session_uuid]
+            )
+
+        if (
+            "session_tools" in source_info
+            and session_uuid in source_info["session_tools"]
+        ):
+            target_info.setdefault("session_tools", {})[session_uuid] = list(
+                source_info["session_tools"][session_uuid]
+            )
 
         # 5. Save user_sessions.json
         self._save_user_data()
@@ -1312,6 +1729,7 @@ class GeminiAgent:
     async def reset_chat(self, user_id: str) -> str:
         uuid = self.user_data.get(user_id, {}).get("active_session")
         if uuid:
-            if await self.delete_specific_session(user_id, uuid): return "Conversation reset."
+            if await self.delete_specific_session(user_id, uuid):
+                return "Conversation reset."
             return "Error resetting."
         return "No active session."

@@ -1,4 +1,4 @@
-# Product Guidelines - Gemini Termux Agent
+# Product Guidelines - OpenCode Termux Agent
 
 ## Tone and Voice
 * **Professional and Technical:** The agent communicates with precision and conciseness. It uses technical terminology accurately and focuses on providing direct, actionable information suitable for power users and developers.

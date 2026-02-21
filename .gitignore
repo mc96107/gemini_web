@@ -38,4 +38,4 @@ prompts/
 Thumbs.db
 
 # Release Artifacts
-gemini_agent_release.py
+opencode_agent_release.py

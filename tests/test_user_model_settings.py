@@ -1,12 +1,12 @@
 import os
 import json
 import pytest
-from app.services.llm_service import GeminiAgent
+from app.services.llm_service import OpenCodeAgent
 
 def test_user_settings_default_model(tmp_path):
     # Use a temporary file for sessions
     session_file = tmp_path / "user_sessions.json"
-    agent = GeminiAgent(working_dir=str(tmp_path))
+    agent = OpenCodeAgent(working_dir=str(tmp_path))
     agent.session_file = str(session_file)
     
     user_id = "test_user"
@@ -32,7 +32,7 @@ def test_user_settings_default_model(tmp_path):
 async def test_new_chat_uses_default_model(tmp_path):
     # Use a temporary file for sessions
     session_file = tmp_path / "user_sessions.json"
-    agent = GeminiAgent(working_dir=str(tmp_path))
+    agent = OpenCodeAgent(working_dir=str(tmp_path))
     agent.session_file = str(session_file)
     
     user_id = "test_user"

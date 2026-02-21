@@ -1,16 +1,16 @@
 import pytest
 import os
 import json
-from app.services.llm_service import GeminiAgent
+from app.services.llm_service import OpenCodeAgent
 
 @pytest.mark.anyio
 async def test_get_session_messages_pagination(tmp_path):
-    agent = GeminiAgent(working_dir=str(tmp_path))
+    agent = OpenCodeAgent(working_dir=str(tmp_path))
     
     # Create a mock session file
     # We need to mimic the path structure expected by get_session_messages
     home = os.path.expanduser("~")
-    # Note: get_session_messages searches in ~/.gemini/tmp/*/chats/*uuid_start*.json
+    # Note: get_session_messages searches in ~/.opencode/tmp/*/chats/*uuid_start*.json
     # This is hard to mock perfectly without touching home dir, 
     # but we can try to mock the glob call or just test the logic if we refactor it.
     
@@ -55,7 +55,7 @@ async def test_pagination_logic():
 
 @pytest.mark.anyio
 async def test_get_user_sessions_auto_init(tmp_path):
-    agent = GeminiAgent(working_dir=str(tmp_path))
+    agent = OpenCodeAgent(working_dir=str(tmp_path))
     user_id = "new_user"
     # This should initialize the user in user_data
     sessions = await agent.get_user_sessions(user_id)

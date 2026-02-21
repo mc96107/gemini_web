@@ -15,7 +15,7 @@ async def test_interactive_chat_flow_integration():
         return "test_user"
     app.dependency_overrides[get_user] = override_get_user
     
-    # 2. Mock GeminiAgent response to return a question JSON
+    # 2. Mock OpenCodeAgent response to return a question JSON
     # We need to mock the subprocess output
     question_json = {
         "type": "question", 
@@ -24,7 +24,7 @@ async def test_interactive_chat_flow_integration():
         "allow_multiple": False
     }
     
-    # Correctly mock the streaming response from GeminiAgent
+    # Correctly mock the streaming response from OpenCodeAgent
     # We patch the _create_subprocess in the actual agent instance in app.state
     agent = app.state.agent
     

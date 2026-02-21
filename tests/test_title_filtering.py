@@ -1,9 +1,9 @@
 import pytest
-from app.services.llm_service import GeminiAgent
+from app.services.llm_service import OpenCodeAgent
 
 def test_filter_title_text_system_instruction():
     """Test filtering of [SYSTEM INSTRUCTION: ... ]"""
-    agent = GeminiAgent()
+    agent = OpenCodeAgent()
     
     # Case 1: System instruction at the start
     text = "[SYSTEM INSTRUCTION: You are a helpful assistant.] Hello there"
@@ -20,7 +20,7 @@ Line 2
 
 def test_filter_title_text_file_paths():
     """Test filtering of @path references"""
-    agent = GeminiAgent()
+    agent = OpenCodeAgent()
     
     # Case 1: Simple @ path
     text = "Analyze this file @/tmp/user_attachments/file.txt please"
@@ -34,7 +34,7 @@ def test_filter_title_text_file_paths():
 
 def test_filter_title_text_absolute_paths():
     """Test filtering of absolute and relative file paths"""
-    agent = GeminiAgent()
+    agent = OpenCodeAgent()
     
     # Case 1: Windows path
     text = r"Debug C:\Users\name\project\file.py for me"
@@ -48,7 +48,7 @@ def test_filter_title_text_absolute_paths():
 
 def test_filter_title_text_fallback():
     """Test fallback to 'New Conversation' for empty results"""
-    agent = GeminiAgent()
+    agent = OpenCodeAgent()
     
     # Case 1: Only system instruction
     text = "[SYSTEM INSTRUCTION: Secret prompt]"
@@ -67,7 +67,7 @@ def test_filter_title_text_fallback():
 
 def test_filter_title_text_truncation():
     """Test that the title is truncated to a reasonable length"""
-    agent = GeminiAgent()
+    agent = OpenCodeAgent()
     
     long_text = "This is a very long message that should be truncated because it is too long for a chat title in the sidebar"
     result = agent.filter_title_text(long_text)

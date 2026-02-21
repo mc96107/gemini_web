@@ -1,5 +1,10 @@
 from fastapi import APIRouter, Request, Form, UploadFile, File, HTTPException, Depends
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import (
+    HTMLResponse,
+    JSONResponse,
+    RedirectResponse,
+    StreamingResponse,
+)
 from typing import Optional
 import os
 import shutil
@@ -12,8 +17,10 @@ from app.core import config
 
 router = APIRouter()
 
+
 async def get_user(request: Request):
     return request.session.get("user")
+
 
 @router.get("/", response_class=HTMLResponse)
 async def index(request: Request, user=Depends(get_user)):
@@ -21,17 +28,20 @@ async def index(request: Request, user=Depends(get_user)):
     agent = request.app.state.agent
     if not user_manager.has_users():
         return RedirectResponse(str(request.url_for("setup_pg")), status_code=303)
-    if not user: return RedirectResponse(str(request.url_for("login_pg")), status_code=303)
-    
+    if not user:
+        return RedirectResponse(str(request.url_for("login_pg")), status_code=303)
+
     # Pre-load active session and initial messages for faster start
     sessions_data = await agent.get_user_sessions(user)
-    all_sessions_list = sessions_data.get("pinned", []) + sessions_data.get("history", [])
-    active_session = next((s for s in all_sessions_list if s.get('active')), None)
+    all_sessions_list = sessions_data.get("pinned", []) + sessions_data.get(
+        "history", []
+    )
+    active_session = next((s for s in all_sessions_list if s.get("active")), None)
     initial_messages = []
     has_more = False
     total_messages = 0
     if active_session:
-        msg_data = await agent.get_session_messages(active_session['uuid'], limit=20)
+        msg_data = await agent.get_session_messages(active_session["uuid"], limit=20)
         if isinstance(msg_data, dict):
             initial_messages = msg_data.get("messages", [])
             total_messages = msg_data.get("total", 0)
@@ -42,181 +52,240 @@ async def index(request: Request, user=Depends(get_user)):
         # If the total messages in the session exceeds 20, there are more older messages
         if total_messages > 20:
             has_more = True
-    
+
     user_settings = agent.get_user_settings(user)
 
     return request.app.state.render(
-        "index.html", 
-        request=request, 
-        user=user, 
+        "index.html",
+        request=request,
+        user=user,
         is_admin=(user_manager.get_role(user) == "admin"),
         initial_messages=initial_messages,
         active_session=active_session,
         has_more=has_more,
         total_messages=total_messages,
-        user_settings=user_settings
+        user_settings=user_settings,
     )
+
 
 @router.get("/settings")
 async def get_settings(request: Request, user=Depends(get_user)):
     agent = request.app.state.agent
-    if not user: raise HTTPException(401)
+    if not user:
+        raise HTTPException(401)
     return agent.get_user_settings(user)
+
 
 @router.post("/settings")
 async def update_settings(request: Request, user=Depends(get_user)):
     agent = request.app.state.agent
-    if not user: raise HTTPException(401)
+    if not user:
+        raise HTTPException(401)
     data = await request.json()
     agent.update_user_settings(user, data)
     return {"success": True}
 
+
 @router.get("/sessions")
-async def get_sess(request: Request, limit: Optional[int] = None, offset: int = 0, tags: Optional[str] = None, user=Depends(get_user)):
+async def get_sess(
+    request: Request,
+    limit: Optional[int] = None,
+    offset: int = 0,
+    tags: Optional[str] = None,
+    user=Depends(get_user),
+):
     agent = request.app.state.agent
-    if not user: raise HTTPException(401)
+    if not user:
+        raise HTTPException(401)
     tag_list = tags.split(",") if tags else None
-    return await agent.get_user_sessions(user, limit=limit, offset=offset, tags=tag_list)
+    return await agent.get_user_sessions(
+        user, limit=limit, offset=offset, tags=tag_list
+    )
+
 
 @router.get("/sessions/search")
 async def search_sess(request: Request, q: str = "", user=Depends(get_user)):
     agent = request.app.state.agent
-    if not user: raise HTTPException(401)
+    if not user:
+        raise HTTPException(401)
     return await agent.search_sessions(user, q)
 
+
 @router.get("/sessions/{session_uuid}/messages")
-async def get_sess_messages(session_uuid: str, request: Request, limit: Optional[int] = None, offset: int = 0, user=Depends(get_user)):
+async def get_sess_messages(
+    session_uuid: str,
+    request: Request,
+    limit: Optional[int] = None,
+    offset: int = 0,
+    user=Depends(get_user),
+):
     agent = request.app.state.agent
-    if not user: raise HTTPException(401)
+    if not user:
+        raise HTTPException(401)
     # Security: check if this session belongs to the user
     if not agent.is_user_session(user, session_uuid):
         raise HTTPException(403, "Access denied")
     return await agent.get_session_messages(session_uuid, limit=limit, offset=offset)
 
+
 @router.post("/sessions/switch")
-async def sw_sess(request: Request, session_uuid: str = Form(...), user=Depends(get_user)):
+async def sw_sess(
+    request: Request, session_uuid: str = Form(...), user=Depends(get_user)
+):
     agent = request.app.state.agent
-    if not user: raise HTTPException(401)
+    if not user:
+        raise HTTPException(401)
     return {"success": await agent.switch_session(user, session_uuid)}
+
 
 @router.post("/sessions/new")
 async def nw_sess(request: Request, user=Depends(get_user)):
     agent = request.app.state.agent
-    if not user: raise HTTPException(401)
+    if not user:
+        raise HTTPException(401)
     await agent.new_session(user)
     return {"success": True}
 
+
 @router.post("/sessions/delete")
-async def dl_sess(request: Request, session_uuid: str = Form(...), user=Depends(get_user)):
+async def dl_sess(
+    request: Request, session_uuid: str = Form(...), user=Depends(get_user)
+):
     agent = request.app.state.agent
-    if not user: raise HTTPException(401)
+    if not user:
+        raise HTTPException(401)
     return {"success": await agent.delete_specific_session(user, session_uuid)}
+
 
 @router.post("/sessions/{session_uuid}/share")
 async def share_sess(session_uuid: str, request: Request, user=Depends(get_user)):
     agent = request.app.state.agent
     user_manager = request.app.state.user_manager
-    if not user: raise HTTPException(401)
-    
+    if not user:
+        raise HTTPException(401)
+
     # 1. Verify session ownership (or participation)
     if not agent.is_user_session(user, session_uuid):
         raise HTTPException(403, "Access denied")
-    
+
     data = await request.json()
     target_username = data.get("username")
     if not target_username:
         raise HTTPException(400, "Username is required")
-        
+
     # 2. Call agent.share_session
-    success = await agent.share_session(user, session_uuid, target_username, user_manager)
+    success = await agent.share_session(
+        user, session_uuid, target_username, user_manager
+    )
     return {"success": success}
+
 
 @router.post("/sessions/{session_uuid}/pin")
 async def pin_sess(session_uuid: str, request: Request, user=Depends(get_user)):
     agent = request.app.state.agent
-    if not user: raise HTTPException(401)
+    if not user:
+        raise HTTPException(401)
     # Security: check if this session belongs to the user
     if not agent.is_user_session(user, session_uuid):
         raise HTTPException(403, "Access denied")
     return {"pinned": agent.toggle_pin(user, session_uuid)}
 
+
 @router.post("/sessions/{session_uuid}/clone")
 async def clone_sess(session_uuid: str, request: Request, user=Depends(get_user)):
     agent = request.app.state.agent
-    if not user: raise HTTPException(401)
+    if not user:
+        raise HTTPException(401)
     data = await request.json()
     message_index = data.get("message_index")
     if message_index is None:
         raise HTTPException(400, "message_index is required")
-    
+
     new_uuid = await agent.clone_session(user, session_uuid, message_index)
     if not new_uuid:
         raise HTTPException(500, "Failed to clone session")
     return {"success": True, "new_uuid": new_uuid}
 
+
 @router.get("/sessions/{session_uuid}/forks")
 async def get_forks(session_uuid: str, request: Request, user=Depends(get_user)):
     agent = request.app.state.agent
-    if not user: raise HTTPException(401)
+    if not user:
+        raise HTTPException(401)
     return {"forks": agent.get_session_forks(user, session_uuid)}
+
 
 @router.get("/sessions/fork-graph")
 async def get_fork_graph(request: Request, user=Depends(get_user)):
     agent = request.app.state.agent
-    if not user: raise HTTPException(401)
+    if not user:
+        raise HTTPException(401)
     return {"graph": agent.get_fork_graph(user)}
+
 
 @router.post("/sessions/{session_uuid}/title")
 async def rename_sess(session_uuid: str, request: Request, user=Depends(get_user)):
     agent = request.app.state.agent
-    if not user: raise HTTPException(401)
+    if not user:
+        raise HTTPException(401)
     data = await request.json()
     new_title = data.get("title")
     if not new_title:
         raise HTTPException(400, "Title is required")
-    
+
     # Update and sync forks
     await agent.sync_session_updates(user, session_uuid, title=new_title)
     return {"success": True}
 
+
 @router.get("/sessions/tags")
 async def get_all_tags(request: Request, user=Depends(get_user)):
     agent = request.app.state.agent
-    if not user: raise HTTPException(401)
+    if not user:
+        raise HTTPException(401)
     return {"tags": agent.get_unique_tags(user)}
+
 
 @router.post("/sessions/{session_uuid}/tags")
 async def set_sess_tags(session_uuid: str, request: Request, user=Depends(get_user)):
     agent = request.app.state.agent
-    if not user: raise HTTPException(401)
+    if not user:
+        raise HTTPException(401)
     data = await request.json()
     tags = data.get("tags", [])
     if not isinstance(tags, list):
         raise HTTPException(400, "Tags must be a list of strings")
-    
+
     # Update and sync forks
     await agent.sync_session_updates(user, session_uuid, tags=tags)
     return {"success": True}
 
+
 @router.get("/sessions/{session_uuid}/tools")
 async def get_sess_tools(session_uuid: str, request: Request, user=Depends(get_user)):
     agent = request.app.state.agent
-    if not user: raise HTTPException(401)
+    if not user:
+        raise HTTPException(401)
     if session_uuid != "pending":
         if not agent.is_user_session(user, session_uuid):
             raise HTTPException(403, "Access denied")
     return {"tools": agent.get_session_tools(user, session_uuid)}
 
+
 @router.post("/sessions/{session_uuid}/tools")
-async def set_sess_tools(session_uuid: str, request: Request, data: dict, user=Depends(get_user)):
+async def set_sess_tools(
+    session_uuid: str, request: Request, data: dict, user=Depends(get_user)
+):
     agent = request.app.state.agent
-    if not user: raise HTTPException(401)
+    if not user:
+        raise HTTPException(401)
     if session_uuid != "pending":
         if not agent.is_user_session(user, session_uuid):
             raise HTTPException(403, "Access denied")
     tools = data.get("tools", [])
     agent.set_session_tools(user, session_uuid, tools)
     return {"success": True}
+
 
 @router.get("/patterns")
 async def get_pats(request: Request):
@@ -225,45 +294,57 @@ async def get_pats(request: Request):
     # I'll simplify or copy it.
     from app.core.patterns import PATTERNS
     import re
+
     expl = PATTERNS.get("__explanations__", "")
     res = []
-    
+
     # Custom Prompts
     prompts_dir = "prompts"
     if os.path.exists(prompts_dir):
         for filename in os.listdir(prompts_dir):
             if filename.endswith(".md") or filename.endswith(".txt"):
-                res.append({
-                    "name": filename,
-                    "description": "User generated prompt",
-                    "type": "user"
-                })
+                res.append(
+                    {
+                        "name": filename,
+                        "description": "User generated prompt",
+                        "type": "user",
+                    }
+                )
 
     for line in expl.splitlines():
-        m = re.match(r"^\d+\.\s+\*\*(?P<name>.*?)\*\*: (?P<description>.*)", line.strip())
-        if m: 
+        m = re.match(
+            r"^\d+\.\s+\*\*(?P<name>.*?)\*\*: (?P<description>.*)", line.strip()
+        )
+        if m:
             item = m.groupdict()
             item["type"] = "system"
             res.append(item)
         elif "suggest_pattern" in line:
-            m = re.search(r"\*\*(?P<name>suggest_pattern)\*\*, (?P<description>.*)", line)
-            if m: 
+            m = re.search(
+                r"\*\*(?P<name>suggest_pattern)\*\*, (?P<description>.*)", line
+            )
+            if m:
                 item = m.groupdict()
                 item["type"] = "system"
                 res.append(item)
-    
-    if not res: 
-        res = [{"name": k, "description": "", "type": "system"} for k in agent.list_patterns()]
-        
+
+    if not res:
+        res = [
+            {"name": k, "description": "", "type": "system"}
+            for k in agent.list_patterns()
+        ]
+
     return res
+
 
 @router.get("/prompts/{filename}")
 async def get_prompt_content(filename: str, request: Request, user=Depends(get_user)):
     agent = request.app.state.agent
-    if not user: raise HTTPException(401)
+    if not user:
+        raise HTTPException(401)
     if ".." in filename or "/" in filename or "\\" in filename:
         raise HTTPException(400, "Invalid filename")
-        
+
     filepath = os.path.join(agent.working_dir, "prompts", filename)
     if os.path.exists(filepath):
         try:
@@ -275,14 +356,16 @@ async def get_prompt_content(filename: str, request: Request, user=Depends(get_u
     else:
         raise HTTPException(404, "Prompt not found")
 
+
 @router.delete("/prompts/{filename}")
 async def delete_prompt(filename: str, request: Request, user=Depends(get_user)):
     agent = request.app.state.agent
-    if not user: raise HTTPException(401)
+    if not user:
+        raise HTTPException(401)
     # Security check: filename should be simple to avoid path traversal
     if ".." in filename or "/" in filename or "\\" in filename:
         raise HTTPException(400, "Invalid filename")
-    
+
     filepath = os.path.join(agent.working_dir, "prompts", filename)
     if os.path.exists(filepath):
         try:
@@ -293,13 +376,15 @@ async def delete_prompt(filename: str, request: Request, user=Depends(get_user))
     else:
         raise HTTPException(404, "Prompt not found")
 
+
 @router.put("/prompts/{filename}")
 async def update_prompt(filename: str, request: Request, user=Depends(get_user)):
     agent = request.app.state.agent
-    if not user: raise HTTPException(401)
+    if not user:
+        raise HTTPException(401)
     if ".." in filename or "/" in filename or "\\" in filename:
         raise HTTPException(400, "Invalid filename")
-        
+
     data = await request.form()
     content = data.get("content")
     if content is None:
@@ -316,24 +401,26 @@ async def update_prompt(filename: str, request: Request, user=Depends(get_user))
     else:
         raise HTTPException(404, "Prompt not found")
 
+
 @router.post("/prompts/new")
 async def create_prompt(request: Request, user=Depends(get_user)):
     agent = request.app.state.agent
-    if not user: raise HTTPException(401)
-    
+    if not user:
+        raise HTTPException(401)
+
     data = await request.form()
     title = data.get("title", "New Prompt")
     content = data.get("content", "")
-    
+
     # Save to prompts/ directory
     prompts_dir = os.path.join(agent.working_dir, "prompts")
     os.makedirs(prompts_dir, exist_ok=True)
-    
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     safe_title = "".join([c if c.isalnum() else "_" for c in title])
     filename = f"prompt_{timestamp}_{safe_title}.md"
     filepath = os.path.join(prompts_dir, filename)
-    
+
     try:
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)
@@ -341,12 +428,21 @@ async def create_prompt(request: Request, user=Depends(get_user)):
     except Exception as e:
         raise HTTPException(500, f"Failed to create file: {e}")
 
+
 @router.post("/chat")
-async def chat(request: Request, message: str = Form(...), file: Optional[list[UploadFile]] = File(None), model: Optional[str] = Form(None), plan_mode: Optional[str] = Form(None), user=Depends(get_user)):
+async def chat(
+    request: Request,
+    message: str = Form(...),
+    file: Optional[list[UploadFile]] = File(None),
+    model: Optional[str] = Form(None),
+    plan_mode: Optional[str] = Form(None),
+    user=Depends(get_user),
+):
     agent = request.app.state.agent
     UPLOAD_DIR = request.app.state.UPLOAD_DIR
-    if not user: raise HTTPException(401)
-    
+    if not user:
+        raise HTTPException(401)
+
     file_paths = []
     if file:
         conversion_service = request.app.state.conversion_service
@@ -355,51 +451,64 @@ async def chat(request: Request, message: str = Form(...), file: Optional[list[U
             if f_upload.filename:
                 # Sanitize filename to ensure ASCII-only for CLI compatibility
                 base_name = os.path.basename(f_upload.filename)
-                safe_name = re.sub(r'[^a-zA-Z0-9._-]', '_', base_name)
-                
+                safe_name = re.sub(r"[^a-zA-Z0-9._-]", "_", base_name)
+
                 # Fallback if sanitization leaves it empty
                 if not safe_name or safe_name.replace("_", "") == "":
                     ext = os.path.splitext(base_name)[1]
                     safe_name = f"upload_{uuid.uuid4().hex}{ext}"
 
                 fpath = os.path.join(UPLOAD_DIR, safe_name)
-                with open(fpath, "wb") as f: 
+                with open(fpath, "wb") as f:
                     shutil.copyfileobj(f_upload.file, f)
-                
+
                 # Perform conversion if needed
                 if fpath.lower().endswith((".docx", ".xlsx")):
                     try:
                         old_fpath = fpath
                         fpath = conversion_service.convert_to_markdown(fpath)
                         import logging
-                        logging.getLogger(__name__).info(f"Converted {old_fpath} to {fpath}")
+
+                        logging.getLogger(__name__).info(
+                            f"Converted {old_fpath} to {fpath}"
+                        )
                     except Exception as e:
                         # Fallback to original file on error
                         import logging
-                        from app.services.conversion_service import PandocMissingError, ConversionServiceError
-                        
+                        from app.services.conversion_service import (
+                            PandocMissingError,
+                            ConversionServiceError,
+                        )
+
                         log = logging.getLogger(__name__)
                         if isinstance(e, PandocMissingError):
                             log.warning(f"Pandoc missing, using original file: {e}")
                         else:
-                            log.error(f"Conversion failed, falling back to original: {e}")
+                            log.error(
+                                f"Conversion failed, falling back to original: {e}"
+                            )
                 elif fpath.lower().endswith(".pdf"):
                     try:
                         # Compress PDF
-                        compressed_path = os.path.join(UPLOAD_DIR, f"compressed_{os.path.basename(fpath)}")
+                        compressed_path = os.path.join(
+                            UPLOAD_DIR, f"compressed_{os.path.basename(fpath)}"
+                        )
                         # We use a distinct name for output to avoid issues during processing
                         fpath = await pdf_service.compress_pdf(fpath, compressed_path)
                     except Exception as e:
                         import logging
-                        logging.getLogger(__name__).error(f"PDF compression failed: {e}")
-                
+
+                        logging.getLogger(__name__).error(
+                            f"PDF compression failed: {e}"
+                        )
+
                 file_paths.append(os.path.relpath(fpath))
-    
+
     # Handle model selection
     m_override = None
     if model:
         if model == "pro":
-            m_override = "gemini-3-pro-preview"
+            m_override = "google/antigravity-gemini-3.1-pro"
         else:
             m_override = model
 
@@ -407,28 +516,53 @@ async def chat(request: Request, message: str = Form(...), file: Optional[list[U
     await agent.stop_chat(user)
 
     msg = message.strip()
-    is_plan = (plan_mode == "true")
+    is_plan = plan_mode == "true"
     if msg.startswith("/"):
         parts = msg.split(maxsplit=2)
         cmd = parts[0].lower()
-        if cmd in ["/reset", "/clear"]: return {"response": await agent.reset_chat(user)}
+        if cmd in ["/reset", "/clear"]:
+            return {"response": await agent.reset_chat(user)}
         if cmd == "/pro":
-            m_override = "gemini-3-pro-preview"
-            if len(parts) > 1: return {"response": await agent.generate_response(user, parts[1] + (f" {parts[2]}" if len(parts) > 2 else ""), model=m_override, file_paths=file_paths)}
+            m_override = "google/antigravity-gemini-3.1-pro"
+            if len(parts) > 1:
+                return {
+                    "response": await agent.generate_response(
+                        user,
+                        parts[1] + (f" {parts[2]}" if len(parts) > 2 else ""),
+                        model=m_override,
+                        file_paths=file_paths,
+                    )
+                }
             return {"response": "Model set to Pro."}
         if cmd == "/plan":
             is_plan = True
             if len(parts) > 1:
                 message = parts[1] + (f" {parts[2]}" if len(parts) > 2 else "")
             else:
-                return {"response": "Plan mode requires a prompt. Usage: /plan <your prompt>"}
+                return {
+                    "response": "Plan mode requires a prompt. Usage: /plan <your prompt>"
+                }
         if cmd == "/p" or cmd == "/pattern":
-            if len(parts) >= 2: return {"response": await agent.apply_pattern(user, parts[1], parts[2] if len(parts) > 2 else "", model=m_override, file_paths=file_paths)}
+            if len(parts) >= 2:
+                return {
+                    "response": await agent.apply_pattern(
+                        user,
+                        parts[1],
+                        parts[2] if len(parts) > 2 else "",
+                        model=m_override,
+                        file_paths=file_paths,
+                    )
+                }
         if cmd == "/yolo":
             agent.yolo_mode = not agent.yolo_mode
-            return {"response": f"YOLO Mode {'ENABLED' if agent.yolo_mode else 'DISABLED'}."}
-        if cmd == "/help": return {"response": "Commands: /reset, /pro, /plan, /p [pattern], /yolo, /help"}
-    
+            return {
+                "response": f"YOLO Mode {'ENABLED' if agent.yolo_mode else 'DISABLED'}."
+            }
+        if cmd == "/help":
+            return {
+                "response": "Commands: /reset, /pro, /plan, /p [pattern], /yolo, /help"
+            }
+
     async def event_generator():
         def log_sse(msg, level="DEBUG"):
             if config.LOG_LEVEL == "NONE":
@@ -438,39 +572,52 @@ async def chat(request: Request, message: str = Form(...), file: Optional[list[U
             try:
                 ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
                 print(f"[{ts}] [{level}][SSE][{user}] {msg}")
-            except: pass
+            except:
+                pass
 
         log_sse("Starting event_generator")
         try:
-            stream = agent.generate_response_stream(user, message, model=m_override, file_paths=file_paths, plan_mode=is_plan)
+            stream = agent.generate_response_stream(
+                user,
+                message,
+                model=m_override,
+                file_paths=file_paths,
+                plan_mode=is_plan,
+            )
             it = stream.__aiter__()
-            
+
             while True:
                 # Create a task for the next chunk
                 log_sse("Waiting for chunk (next_task)...")
                 next_task = asyncio.create_task(it.__anext__())
-                
+
                 while True:
                     # Wait for next chunk or timeout
                     done, pending = await asyncio.wait([next_task], timeout=15.0)
-                    
+
                     if next_task in done:
                         try:
                             chunk = next_task.result()
                             log_sse(f"Yielding chunk: {json.dumps(chunk)[:50]}...")
                             yield f"data: {json.dumps(chunk)}\n\n"
-                            break # Go to next task
+                            break  # Go to next task
                         except StopAsyncIteration:
                             log_sse("Stream finished (StopAsyncIteration)")
-                            return # Exit event_generator
+                            return  # Exit event_generator
                         except asyncio.CancelledError:
                             log_sse("Stream cancelled (CancelledError)")
-                            stop_msg = json.dumps({'type': 'message', 'role': 'assistant', 'content': '\n\n[Response stopped by user.]'})
+                            stop_msg = json.dumps(
+                                {
+                                    "type": "message",
+                                    "role": "assistant",
+                                    "content": "\n\n[Response stopped by user.]",
+                                }
+                            )
                             yield f"data: {stop_msg}\n\n"
                             return
                         except Exception as e:
                             log_sse(f"Error in stream result: {str(e)}")
-                            err_msg = json.dumps({'type': 'error', 'content': str(e)})
+                            err_msg = json.dumps({"type": "error", "content": str(e)})
                             yield f"data: {err_msg}\n\n"
                             return
                     else:
@@ -480,16 +627,22 @@ async def chat(request: Request, message: str = Form(...), file: Optional[list[U
                         # Continue inner while loop to keep waiting for next_task
         except asyncio.CancelledError:
             log_sse("event_generator task cancelled")
-            stop_msg = json.dumps({'type': 'message', 'role': 'assistant', 'content': '\n\n[Response stopped by user.]'})
+            stop_msg = json.dumps(
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": "\n\n[Response stopped by user.]",
+                }
+            )
             yield f"data: {stop_msg}\n\n"
         except Exception as e:
             log_sse(f"Fatal error in event_generator: {str(e)}")
-            err_msg = json.dumps({'type': 'error', 'content': str(e)})
+            err_msg = json.dumps({"type": "error", "content": str(e)})
             yield f"data: {err_msg}\n\n"
-        
+
         log_sse("Yielding [DONE]")
         yield "data: [DONE]\n\n"
-    
+
     async def wrapped_generator():
         # Capture the current task
         current_task = asyncio.current_task()
@@ -503,15 +656,19 @@ async def chat(request: Request, message: str = Form(...), file: Optional[list[U
 
     return StreamingResponse(wrapped_generator(), media_type="text/event-stream")
 
+
 @router.post("/stop")
 async def stop_chat(request: Request, user=Depends(get_user)):
     agent = request.app.state.agent
-    if not user: raise HTTPException(401)
+    if not user:
+        raise HTTPException(401)
     success = await agent.stop_chat(user)
     return {"success": success}
+
 
 @router.post("/reset")
 async def reset(request: Request, user=Depends(get_user)):
     agent = request.app.state.agent
-    if not user: raise HTTPException(401)
+    if not user:
+        raise HTTPException(401)
     return {"response": await agent.reset_chat(user)}

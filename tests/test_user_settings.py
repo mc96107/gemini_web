@@ -1,12 +1,12 @@
 import os
 import json
 import pytest
-from app.services.llm_service import GeminiAgent
+from app.services.llm_service import OpenCodeAgent
 
 def test_user_settings_interactive_mode(tmp_path):
     # Use a temporary file for sessions
     session_file = tmp_path / "user_sessions.json"
-    agent = GeminiAgent(working_dir=str(tmp_path))
+    agent = OpenCodeAgent(working_dir=str(tmp_path))
     agent.session_file = str(session_file)
     
     user_id = "test_user"
@@ -32,7 +32,7 @@ def test_user_settings_interactive_mode(tmp_path):
 def test_user_settings_copy_formatted(tmp_path):
     # Use a temporary file for sessions
     session_file = tmp_path / "user_sessions.json"
-    agent = GeminiAgent(working_dir=str(tmp_path))
+    agent = OpenCodeAgent(working_dir=str(tmp_path))
     agent.session_file = str(session_file)
     
     user_id = "test_user"
@@ -56,7 +56,7 @@ def test_user_settings_copy_formatted(tmp_path):
 
 @pytest.mark.asyncio
 async def test_system_prompt_injection(tmp_path):
-    agent = GeminiAgent(working_dir=str(tmp_path))
+    agent = OpenCodeAgent(working_dir=str(tmp_path))
     user_id = "test_user"
     
     # 1. Enabled (Default)
@@ -106,7 +106,7 @@ async def test_system_prompt_injection(tmp_path):
 
 @pytest.mark.asyncio
 async def test_interactive_instruction_customization(tmp_path):
-    agent = GeminiAgent(working_dir=str(tmp_path))
+    agent = OpenCodeAgent(working_dir=str(tmp_path))
     user_id = "test_user"
     
     # 1. Default

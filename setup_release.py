@@ -10,7 +10,7 @@ def run_command(args, cwd=None):
     subprocess.check_call(args, cwd=cwd)
 
 def setup():
-    app_file = "gemini_agent_release.py"
+    app_file = "opencode_agent_release.py"
     
     # ALWAYS Regenerate bundle
     print(f"Regenerating {app_file}...")

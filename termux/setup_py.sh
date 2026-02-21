@@ -11,13 +11,13 @@ pip install python-dotenv fastapi uvicorn python-multipart jinja2 bcrypt itsdang
 export SVDIR="$PREFIX/var/service"
 
 # Create directory for the service
-SERVICE_NAME="gemini-agent"
+SERVICE_NAME="opencode-agent"
 SERVICE_DIR="$SVDIR/$SERVICE_NAME"
 mkdir -p "$SERVICE_DIR"
 
 # Get current directory
 CUR_DIR=$(pwd)
-APP_FILE="gemini_agent_release.py"
+APP_FILE="opencode_agent_release.py"
 
 # Sanity checks
 if [ ! -f "$CUR_DIR/$APP_FILE" ]; then
