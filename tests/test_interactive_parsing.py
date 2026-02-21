@@ -278,3 +278,42 @@ async def test_greek_language_support(tmp_path):
     message_content = "".join([e["content"] for e in events if e["type"] == "message"])
     assert "Ορίστε μια ερώτηση:" in message_content
     assert "type" not in message_content # Ensure JSON didn't leak
+
+@pytest.mark.asyncio
+async def test_high_demand_detection_flow(tmp_path):
+    agent = GeminiAgent(working_dir=str(tmp_path))
+    user_id = "test_user"
+    
+    from unittest.mock import AsyncMock, MagicMock
+    agent._create_subprocess = AsyncMock()
+    mock_proc = AsyncMock()
+    mock_proc.stdin = AsyncMock()
+    mock_proc.stdout = AsyncMock()
+    mock_proc.stderr = AsyncMock()
+    mock_proc.wait = AsyncMock(return_value=0)
+    mock_proc.terminate = MagicMock()
+    agent._create_subprocess.return_value = mock_proc
+
+    # Simulate "High demand. Retry?" in stdout
+    chunks = [
+        b"Some output\n",
+        b"High demand. Retry?\n",
+    ]
+    
+    queue = asyncio.Queue()
+    for c in chunks: queue.put_nowait(c)
+    queue.put_nowait(b"")
+    mock_proc.stdout.readline = queue.get
+    mock_proc.stderr.readline = AsyncMock(return_value=b"")
+
+    events = []
+    async for chunk in agent.generate_response_stream(user_id, "Hello"):
+        events.append(chunk)
+            
+    # Check for question chunk
+    questions = [e for e in events if e.get("type") == "question" and e.get("is_retry")]
+    assert len(questions) == 1
+    assert "high demand" in questions[0]["question"].lower()
+    
+    # Ensure process was terminated
+    mock_proc.terminate.assert_called()
