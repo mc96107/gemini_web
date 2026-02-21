@@ -33,3 +33,6 @@
     - [x] Verify the end-to-end flow: Login -> Set Default Model -> New Chat -> Confirm Model Used.
     - [x] Ensure mobile responsiveness of the new dropdown.
 - [x] Task: Conductor - User Manual Verification 'Phase 3: Integration & New Chat Logic' (Protocol in workflow.md) [cf98fcd]
+
+## Phase: Review Fixes
+- [x] Task: Apply review suggestions [4a590bf]
