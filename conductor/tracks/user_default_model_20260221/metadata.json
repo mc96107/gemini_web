@@ -1,8 +1,0 @@
-{
-  "track_id": "user_default_model_20260221",
-  "type": "feature",
-  "status": "new",
-  "created_at": "2026-02-21T10:24:00Z",
-  "updated_at": "2026-02-21T10:24:00Z",
-  "description": "in user settings each user should be able to select his default model from a dropdown menu"
-}
