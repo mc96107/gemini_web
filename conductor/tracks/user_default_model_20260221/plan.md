@@ -1,15 +1,15 @@
 # Implementation Plan: User Default Model Selection
 
-## Phase 1: Backend Infrastructure & Persistence
-- [ ] Task: Update `GeminiAgent` to support `default_model` setting
-    - [ ] Modify `GeminiAgent._load_user_data` to ensure `default_model` has a default value (e.g., `gemini-3-pro-preview`).
-    - [ ] Verify `get_user_settings` and `update_user_settings` correctly handle the new field.
-- [ ] Task: Red Phase - Write unit tests for user settings persistence
-    - [ ] Create `tests/test_user_model_settings.py`.
-    - [ ] Write tests to verify saving and retrieving `default_model` per user.
-- [ ] Task: Green Phase - Implement backend changes
-    - [ ] Run tests and ensure they pass.
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Backend Infrastructure & Persistence' (Protocol in workflow.md)
+## Phase 1: Backend Infrastructure & Persistence [checkpoint: 975f25c]
+- [x] Task: Update `GeminiAgent` to support `default_model` setting [bf7237b]
+    - [x] Modify `GeminiAgent._load_user_data` to ensure `default_model` has a default value (e.g., `gemini-3-pro-preview`).
+    - [x] Verify `get_user_settings` and `update_user_settings` correctly handle the new field.
+- [x] Task: Red Phase - Write unit tests for user settings persistence [bf7237b]
+    - [x] Create `tests/test_user_model_settings.py`.
+    - [x] Write tests to verify saving and retrieving `default_model` per user.
+- [x] Task: Green Phase - Implement backend changes [bf7237b]
+    - [x] Run tests and ensure they pass.
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Backend Infrastructure & Persistence' (Protocol in workflow.md) [975f25c]
 
 ## Phase 2: Frontend UI - Settings & Interaction
 - [ ] Task: Update `index.html` with Model Dropdown
