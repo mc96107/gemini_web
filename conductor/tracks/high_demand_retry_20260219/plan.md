@@ -3,13 +3,13 @@
 This plan covers the implementation of a user-facing "Retry/Stop" interaction when the Gemini CLI signals high demand.
 
 ## Phase 1: Research and Backend Detection
-- [ ] Task: Identify the exact "High Demand" output string from Gemini CLI.
-    - [ ] Sub-task: Check Gemini CLI help or simulated runs to see the message text.
-- [ ] Task: Update `GeminiAgent.generate_response_stream` to detect the high demand signal.
-    - [ ] Sub-task: Add detection logic in the `stdout`/`stderr` reading loop.
-    - [ ] Sub-task: Yield a `{"type": "question", ...}` chunk when detected.
-    - [ ] Sub-task: If detected, terminate the current CLI process to avoid hanging on `stdin`.
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Research and Backend Detection' (Protocol in workflow.md)
+- [x] Task: Identify the exact "High Demand" output string from Gemini CLI. d5a14f9
+    - [x] Sub-task: Check Gemini CLI help or simulated runs to see the message text.
+- [x] Task: Update `GeminiAgent.generate_response_stream` to detect the high demand signal. d5a14f9
+    - [x] Sub-task: Add detection logic in the `stdout`/`stderr` reading loop.
+    - [x] Sub-task: Yield a `{"type": "question", ...}` chunk when detected.
+    - [x] Sub-task: If detected, terminate the current CLI process to avoid hanging on `stdin`.
+- [~] Task: Conductor - User Manual Verification 'Phase 1: Research and Backend Detection' (Protocol in workflow.md)
 
 ## Phase 2: Frontend Interaction
 - [ ] Task: Enhance `script.js` to handle the "Retry/Stop" question card specially.
