@@ -47,6 +47,7 @@ git push;
 
 ### 5. Create GitHub Release
 Create a new formal release on GitHub using the calculated version.
+Include release docs and gemini_agent_release.py
 
 ```powershell
 # Continued from previous step
