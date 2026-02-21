@@ -2102,6 +2102,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return card;
     }
 
+    /**
+     * Retries the last sent message and its attachments.
+     * @return {Promise<void>}
+     */
     async function retryLastTask() {
         if (window.LAST_SENT_MESSAGE !== undefined) {
             messageInput.value = window.LAST_SENT_MESSAGE;
@@ -2112,6 +2116,11 @@ document.addEventListener('DOMContentLoaded', () => {
         chatForm.dispatchEvent(new Event('submit'));
     }
 
+    /**
+     * Submits a text answer to the current chat session.
+     * @param {string} text The answer text to submit.
+     * @return {Promise<void>}
+     */
     async function submitAnswer(text) {
         // Send answer as a normal user message
         messageInput.value = text;
