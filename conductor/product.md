@@ -46,6 +46,7 @@ The Gemini Termux Agent is designed for:
 * **Client-Side Image Compression:** Automatically compresses and resizes uploaded photos in the browser to ensure they fit within the model's context window while saving bandwidth.
 * **Session Auto-Restoration:** Automatically reloads the last active chat session upon login, providing a seamless continuation of previous conversations.
 * **Smart History Pagination:** Efficiently handles long chat histories by lazy-loading messages, ensuring fast initial load times regardless of conversation length.
+* **High Demand User Intervention:** Automatically detects "High Demand" errors (429/503) from the Gemini CLI and presents a "Question Card" allowing the user to choose between "Retry" (re-sending the last message) or "Stop" (interrupting the session).
 *   **Real-Time Streaming:** Responses are streamed chunk-by-chunk using Server-Sent Events (SSE), providing immediate feedback and preventing timeouts on complex tasks.
 *   **Interruptible Responses:** A "Stop" button that allows users to instantly interrupt Gemini during response generation or tool execution, ensuring full control over the interaction.
 *   **Live Tool Logs:** Transparent execution of background tools (filesystem, search, etc.) with real-time logs displayed directly in the chat.
