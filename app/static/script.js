@@ -1785,6 +1785,10 @@ document.addEventListener('DOMContentLoaded', () => {
         messageInput.style.height = '';
         const filesToSend = [...queuedFiles]; 
         attachments.clear();
+        
+        // Save for potential retry
+        window.LAST_SENT_MESSAGE = message;
+        window.LAST_SENT_FILES = [...filesToSend];
 
         // Show loading state
         const loadingId = appendLoading();
@@ -2049,6 +2053,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.className = 'option-btn';
                 btn.innerText = opt;
                 btn.onclick = () => {
+                    // Special handling for high demand retry/stop
+                    if (data.is_retry) {
+                        if (opt === 'Stop') {
+                            fetch('/stop', { method: 'POST' });
+                            dismissCard();
+                            return;
+                        }
+                        if (opt === 'Retry') {
+                            retryLastTask();
+                            dismissCard();
+                            return;
+                        }
+                    }
+
                     if (allow_multiple) {
                         if (selected.has(opt)) {
                             selected.delete(opt);
@@ -2082,6 +2100,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         return card;
+    }
+
+    async function retryLastTask() {
+        if (window.LAST_SENT_MESSAGE !== undefined) {
+            messageInput.value = window.LAST_SENT_MESSAGE;
+        }
+        if (window.LAST_SENT_FILES && window.LAST_SENT_FILES.length > 0) {
+            await attachments.addFiles(window.LAST_SENT_FILES);
+        }
+        chatForm.dispatchEvent(new Event('submit'));
     }
 
     async function submitAnswer(text) {
