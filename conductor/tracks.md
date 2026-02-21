@@ -6,6 +6,9 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ## Completed Tracks
 
+- [x] **Track: in user settings each user should be able to select his default model from a dropdown menu**
+*Link: [./archive/user_default_model_20260221/](./archive/user_default_model_20260221/)*
+
 - [x] **Track: add a way to copy formatted text to clipboard**
 *Link: [./archive/copy_formatted_text_20260214/](./archive/copy_formatted_text_20260214/)*
 
@@ -45,9 +48,6 @@ This file tracks all major tracks for the project. Each track has its own detail
 ---
 
 ## Current Tracks
-
-- [x] **Track: in user settings each user should be able to select his default model from a dropdown menu**
-*Link: [./tracks/user_default_model_20260221/](./tracks/user_default_model_20260221/)*
 
 ---
 
