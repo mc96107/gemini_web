@@ -49,6 +49,6 @@ This file tracks all major tracks for the project. Each track has its own detail
 ---
 
 - [x] **Track: High Demand Retry/Stop UI**
-*Link: [./tracks/high_demand_retry_20260219/](./tracks/high_demand_retry_20260219/)*
+*Link: [./archive/high_demand_retry_20260219/](./archive/high_demand_retry_20260219/)*
 
 
