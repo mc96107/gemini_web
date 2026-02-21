@@ -298,6 +298,54 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    const defaultModelSetting = document.getElementById('setting-default-model');
+    if (defaultModelSetting && window.USER_SETTINGS) {
+        if (window.USER_SETTINGS.default_model) {
+            defaultModelSetting.value = window.USER_SETTINGS.default_model;
+        }
+        
+        defaultModelSetting.onchange = async () => {
+            const model = defaultModelSetting.value;
+            try {
+                const response = await fetch('/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ default_model: model })
+                });
+                if (response.ok) {
+                    window.USER_SETTINGS.default_model = model;
+                    updateActiveModelUI(model);
+                }
+            } catch (err) {
+                console.error('Error saving setting:', err);
+            }
+        };
+    }
+
+    function updateActiveModelUI(model) {
+        if (!modelInput) return;
+        modelInput.value = model;
+        
+        let found = false;
+        modelLinks.forEach(link => {
+            if (link.dataset.model === model) {
+                link.classList.add('active');
+                let modelName = link.innerText;
+                // Clean up badges from text for the label
+                modelName = modelName.replace('Stable (v0.28+)', '').replace('Preview', '').trim();
+                modelLabel.textContent = modelName;
+                found = true;
+            } else {
+                link.classList.remove('active');
+            }
+        });
+
+        // Fallback if model not in dropdown list (e.g. customized in backend but not UI)
+        if (!found) {
+            modelLabel.textContent = model.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        }
+    }
+
     function updateDriveModeVisibility() {
         if (!driveModeBtn) return;
         const isEnabled = window.USER_SETTINGS && window.USER_SETTINGS.show_mic !== false;
@@ -322,6 +370,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     updateDriveModeVisibility();
     updatePlanModeVisibility();
+
+    // Initialize model from settings if it's a new chat or on load
+    if (window.USER_SETTINGS && window.USER_SETTINGS.default_model) {
+        // Only override if we are not in an active session with messages?
+        // Actually, let's always use default model for new chats.
+        if (!window.INITIAL_MESSAGES || window.INITIAL_MESSAGES.length === 0) {
+            updateActiveModelUI(window.USER_SETTINGS.default_model);
+        }
+    }
 
     driveModeBtn?.addEventListener('click', () => {
         if (!driveMode.isActive) {
@@ -1490,6 +1547,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 chatContainer.innerHTML = '<div class="text-center text-muted mt-5"><p>New conversation started.</p></div>';
                 bootstrap.Offcanvas.getInstance(historySidebar).hide();
                 loadSessions();
+
+                // Reset model to default for new chat
+                if (window.USER_SETTINGS && window.USER_SETTINGS.default_model) {
+                    updateActiveModelUI(window.USER_SETTINGS.default_model);
+                }
             }
         } catch (error) {
             console.error('Error starting new chat:', error);
