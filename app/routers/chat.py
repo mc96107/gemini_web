@@ -432,14 +432,15 @@ async def update_prompt(filename: str, request: Request, user=Depends(get_user))
     filepath = os.path.join(workspace, "prompts", filename)
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
 
+    if not os.path.exists(filepath):
+        raise HTTPException(404, "Prompt not found")
+
     try:
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)
         return {"success": True}
     except Exception as e:
         raise HTTPException(500, f"Failed to update file: {e}")
-    else:
-        raise HTTPException(404, "Prompt not found")
 
 
 @router.post("/prompts/new")

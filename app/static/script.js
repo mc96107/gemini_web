@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let allUniqueTags = [];
     let currentForkMap = {}; // index -> [uuids]
     let allPatterns = [];
+    let sessionGeneration = 0; // Bug 9: generation counter to prevent init race
 
     // --- DOM Elements ---
     const chatForm = document.getElementById('chat-form');
@@ -68,6 +69,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnSavePrompt = document.getElementById('btn-save-prompt');
 
     const sidebarLoadMoreBtn = document.getElementById('sidebar-load-more-btn');
+    // Bug 7: Wire sidebar "Load More" button
+    if (sidebarLoadMoreBtn) {
+        sidebarLoadMoreBtn.onclick = () => {
+            sidebarOffset += SIDEBAR_PAGE_LIMIT;
+            loadSessions(true);
+        };
+    }
+
+    // Bug 8: Wire session search input with debounce
+    if (sessionSearch) {
+        let searchTimer;
+        sessionSearch.oninput = () => {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => loadSessions(), 300);
+        };
+    }
 
     // --- Managers ---
     const driveMode = (typeof DriveModeManager !== 'undefined') ? new DriveModeManager() : { isSupported: () => false };
@@ -140,9 +157,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (updateWorkspaceBtn && workspaceInput) {
         updateWorkspaceBtn.onclick = async () => {
-            const uuid = currentActiveUUID;
+            const uuid = currentActiveUUID || 'pending';
             const path = workspaceInput.value.trim();
-            if (!uuid || !path) { showToast('Select a chat first'); return; }
+            if (!path) { showToast('Enter a workspace path'); return; }
             workspaceStatus.textContent = 'Updating...';
             try {
                 const res = await fetch('/session/workspace', {
@@ -303,6 +320,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function handleNewChat() {
         try {
+            sessionGeneration++;
             const res = await fetch('/sessions/new', { method: 'POST' });
             if (res.ok) {
                 currentActiveUUID = null;
@@ -330,6 +348,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (sidebar) bootstrap.Offcanvas.getInstance(sidebar)?.hide(); 
             return; 
         }
+        sessionGeneration++;
         chatContainer.innerHTML = '<div class="text-center text-muted mt-5"><p>Loading conversation...</p></div>';
         try {
             const res = await fetch('/sessions/switch', { method: 'POST', body: new URLSearchParams({ session_uuid: uuid }) });
@@ -343,21 +362,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 loadSessionWorkspace(uuid);
                 loadPatterns();
             }
-        } catch (e) { console.error('switchSession error:', e); }
+        } catch (e) {
+            console.error('switchSession error:', e);
+            chatContainer.innerHTML = '<div class="text-center text-danger mt-5"><p>Failed to load conversation. Please try again.</p></div>';
+        }
     }
 
     async function loadMessages(uuid, limit = PAGE_LIMIT, offset = 0) {
         if (isLoadingHistory) return;
+        isLoadingHistory = true;
         if (offset === 0) { 
             currentActiveUUID = uuid; 
             chatContainer.innerHTML = '<div id="scroll-sentinel" style="height: 10px; width: 100%;"></div>'; 
             currentOffset = 0; 
             if (chatWelcome) chatWelcome.classList.add('d-none'); 
+            // Re-observe the new sentinel element
+            const newSentinel = document.getElementById('scroll-sentinel');
+            if (newSentinel) observer.observe(newSentinel);
             await fetchForks(uuid); 
-        } else isLoadingHistory = true;
+        }
 
         try {
             const res = await fetch(`/sessions/${uuid}/messages?limit=${limit}&offset=${offset}`);
+            // Stale session guard: abort if user switched away during fetch
+            if (uuid !== currentActiveUUID) return;
             const data = await res.json();
             const messages = data.messages || [];
             window.TOTAL_MESSAGES = data.total || 0;
@@ -395,7 +423,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function fetchUniqueTags() {
         try {
-            const res = await fetch('/tags/unique');
+            const res = await fetch('/sessions/tags');
             const data = await res.json();
             allUniqueTags = data.tags || [];
             const container = document.getElementById('tag-filter-container');
@@ -443,6 +471,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let messageDiv = null, fullText = "", toolLogs = [], buffer = "";
+        const streamGeneration = sessionGeneration;
         try {
             while (true) {
                 const { done, value } = await reader.read();
@@ -458,7 +487,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         const data = JSON.parse(dataStr);
                         if (data.type === 'message') fullText += data.content;
                         else if (data.type === 'init') {
-                            currentActiveUUID = data.session_id;
+                            if (streamGeneration === sessionGeneration) {
+                                currentActiveUUID = data.session_id;
+                            }
                         }
                         else if (data.type === 'question') { 
                             const card = createQuestionCard(data); 
@@ -653,13 +684,22 @@ document.addEventListener('DOMContentLoaded', () => {
     loadWorkspaces(); loadSessions(); loadPatterns(); fetchUniqueTags();
     if (currentActiveUUID) { 
         loadSessionWorkspace(currentActiveUUID); 
-        // If we have initial messages rendered by server, don't load again
-        if (!window.INITIAL_MESSAGES || window.INITIAL_MESSAGES.length === 0) {
-            loadMessages(currentActiveUUID); 
-        } else {
+        if (window.INITIAL_MESSAGES && window.INITIAL_MESSAGES.length > 0) {
+            // Render server-provided initial messages into the DOM
+            if (chatWelcome) chatWelcome.classList.add('d-none');
+            chatContainer.innerHTML = '<div id="scroll-sentinel" style="height: 10px; width: 100%;"></div>';
+            const sentinel = document.getElementById('scroll-sentinel');
+            if (sentinel) observer.observe(sentinel);
+            window.INITIAL_MESSAGES.forEach((msg, idx) => {
+                const index = (msg.raw_index !== undefined) ? msg.raw_index : idx;
+                const div = createMessageDiv(msg.role, msg.content, null, null, index);
+                if (div) chatContainer.appendChild(div);
+            });
             currentOffset = window.INITIAL_MESSAGES.length;
-            // The template passes window.TOTAL_MESSAGES
-            // window.TOTAL_MESSAGES = window.TOTAL_MESSAGES || currentOffset;
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            fetchForks(currentActiveUUID);
+        } else {
+            loadMessages(currentActiveUUID); 
         }
     }
 
