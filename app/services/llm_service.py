@@ -1146,8 +1146,9 @@ class OpenCodeAgent:
         limit: Optional[int] = None,
         offset: int = 0,
         tags: Optional[List[str]] = None,
+        force_sync: bool = False,
     ) -> Dict[str, Any]:
-        global_log(f"get_user_sessions for {user_id}, limit={limit}, offset={offset}")
+        global_log(f"get_user_sessions for {user_id}, limit={limit}, offset={offset}, force_sync={force_sync}")
         if user_id not in self.user_data:
             self.user_data[user_id] = {
                 "active_session": None,
@@ -1168,49 +1169,17 @@ class OpenCodeAgent:
 
         global_log(f"User has {len(uuids)} session UUIDs")
 
-        if not uuids:
-            return {"pinned": [], "history": [], "total_unpinned": 0}
-
         # Check if we have metadata for all sessions
         missing_metadata = [u for u in uuids if u not in session_metadata]
         global_log(f"Missing metadata for {len(missing_metadata)} sessions")
 
         all_sessions = []
 
-        if not missing_metadata:
-            # All metadata cached, build from cache
-            pinned_uuids = user_info.get("pinned_sessions", [])
-            for u in uuids:
-                meta = session_metadata.get(
-                    u, {"original_title": "Unknown", "time": "Unknown"}
-                )
-
-                # Check tags filter
-                current_tags = session_tags.get(u, [])
-                if tags:
-                    if not all(tag in current_tags for tag in tags):
-                        continue
-
-                title = custom_titles.get(u, meta.get("original_title", "Unknown"))
-
-                all_sessions.append(
-                    {
-                        "uuid": u,
-                        "title": title,
-                        "time": meta.get("time", "Unknown"),
-                        "active": (u == user_info.get("active_session")),
-                        "pinned": (u in pinned_uuids),
-                        "tags": current_tags,
-                        "model": meta.get("model"),
-                    }
-                )
-
-            all_sessions = all_sessions[::-1]
-
-        else:
+        # Force sync if list is empty or explicitly requested
+        if not uuids or missing_metadata or force_sync:
             # Need to fetch from CLI
             try:
-                global_log("Executing session list --format json -n 1000...")
+                global_log("Executing session list --format json...")
                 proc = await self._create_subprocess(
                     [
                         self.opencode_cmd,
@@ -1218,8 +1187,6 @@ class OpenCodeAgent:
                         "list",
                         "--format",
                         "json",
-                        "-n",
-                        "1000",
                     ],
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
@@ -1234,7 +1201,11 @@ class OpenCodeAgent:
                     # Find start of JSON array
                     json_start = raw_content.find("[")
                     if json_start != -1:
-                        parsed_sessions = json.loads(raw_content[json_start:])
+                        try:
+                            parsed_sessions = json.loads(raw_content[json_start:])
+                        except json.JSONDecodeError as e:
+                            global_log(f"Failed to parse session list JSON: {e}")
+                            parsed_sessions = []
                     else:
                         parsed_sessions = []
 
@@ -1255,46 +1226,40 @@ class OpenCodeAgent:
                         "%Y-%m-%d %H:%M:%S"
                     )
 
-                    # ONLY update metadata cache if the session belongs to this user
-                    if u in uuids:
-                        session_metadata[u] = {
-                            "original_title": sess.get("title", "Unknown"),
+                    # Update metadata cache and ensure it's in user's session list
+                    session_metadata[u] = {
+                        "original_title": sess.get("title", "Unknown"),
+                        "time": time_str,
+                    }
+                    
+                    if u not in uuids:
+                        uuids.append(u)
+                        global_log(f"Auto-synced missing session {u} to user {user_id}")
+
+                    current_tags = session_tags.get(u, [])
+                    if tags:
+                        if not all(tag in current_tags for tag in tags):
+                            continue
+
+                    title = custom_titles.get(u, sess.get("title", "Unknown"))
+
+                    cli_sessions.append(
+                        {
+                            "uuid": u,
+                            "title": title,
                             "time": time_str,
+                            "active": (u == user_info.get("active_session")),
+                            "pinned": (u in pinned_uuids),
+                            "tags": current_tags,
+                            "model": session_metadata[u].get(
+                                "model"
+                            ),  # Include model
                         }
-
-                        current_tags = session_tags.get(u, [])
-                        if tags:
-                            if not all(tag in current_tags for tag in tags):
-                                continue
-
-                        title = custom_titles.get(u, sess.get("title", "Unknown"))
-
-                        cli_sessions.append(
-                            {
-                                "uuid": u,
-                                "title": title,
-                                "time": time_str,
-                                "active": (u == user_info.get("active_session")),
-                                "pinned": (u in pinned_uuids),
-                                "tags": current_tags,
-                                "model": session_metadata[u].get(
-                                    "model"
-                                ),  # Include model
-                            }
-                        )
+                    )
 
                 # Update user_data with new metadata
                 self.user_data[user_id]["session_metadata"] = session_metadata
-
-                # Sync sessions list
-                # Only ADD new metadata, do NOT delete local sessions just because they aren't in the recent list
-                for u in list(uuids):
-                    if u not in found_uuids and u in session_metadata:
-                        # Keep it, it might just be older than the list limit
-                        pass
-
-                # Check for any local sessions that are totally unknown (never seen in metadata and not in CLI list)
-                # But even then, let's be conservative.
+                self.user_data[user_id]["sessions"] = uuids
 
                 self._save_user_data()
                 all_sessions = list(cli_sessions)
@@ -1335,6 +1300,36 @@ class OpenCodeAgent:
                     f"Error in get_user_sessions (fetching): {str(e)}", level="ERROR"
                 )
                 return {"pinned": [], "history": [], "total_unpinned": 0}
+
+        else:
+            # All metadata cached, build from cache
+            pinned_uuids = user_info.get("pinned_sessions", [])
+            for u in uuids:
+                meta = session_metadata.get(
+                    u, {"original_title": "Unknown", "time": "Unknown"}
+                )
+
+                # Check tags filter
+                current_tags = session_tags.get(u, [])
+                if tags:
+                    if not all(tag in current_tags for tag in tags):
+                        continue
+
+                title = custom_titles.get(u, meta.get("original_title", "Unknown"))
+
+                all_sessions.append(
+                    {
+                        "uuid": u,
+                        "title": title,
+                        "time": meta.get("time", "Unknown"),
+                        "active": (u == user_info.get("active_session")),
+                        "pinned": (u in pinned_uuids),
+                        "tags": current_tags,
+                        "model": meta.get("model"),
+                    }
+                )
+
+            all_sessions.sort(key=lambda x: x.get("time", ""), reverse=True)
 
         global_log(f"Processing grouping for {len(all_sessions)} sessions")
         # --- Grouping Logic: Display them as one (the latest fork) ---
@@ -1439,12 +1434,17 @@ class OpenCodeAgent:
             content = stdout.decode().strip()
 
             # OpenCode export output starts with "Exporting session: ..."
-            # We need to find the JSON start
-            json_start = content.find("{")
-            if json_start == -1:
+            # We need to find the JSON start securely
+            json_match = re.search(r'\{.*\}', content, re.DOTALL)
+            if not json_match:
+                global_log(f"No JSON found in export output: {content[:100]}...")
                 return {"messages": [], "total": 0}
 
-            data = json.loads(content[json_start:])
+            try:
+                data = json.loads(json_match.group(0))
+            except json.JSONDecodeError as e:
+                global_log(f"Failed to parse session messages JSON: {e}")
+                return {"messages": [], "total": 0}
             all_messages = data.get("messages", [])
             total = len(all_messages)
 
@@ -1487,10 +1487,38 @@ class OpenCodeAgent:
             return {"messages": [], "total": 0}
 
     async def switch_session(self, user_id: str, uuid: str) -> bool:
-        if user_id in self.user_data and uuid in self.user_data[user_id]["sessions"]:
-            self.user_data[user_id]["active_session"] = uuid
+        if user_id not in self.user_data:
+            return False
+            
+        user_info = self.user_data[user_id]
+        
+        # More permissive switch: if it's in our metadata or we just found it
+        if uuid in user_info.get("sessions", []) or uuid in user_info.get("session_metadata", {}):
+            user_info["active_session"] = uuid
+            if uuid not in user_info.setdefault("sessions", []):
+                user_info["sessions"].append(uuid)
             self._save_user_data()
             return True
+            
+        # Last resort: check if it exists in CLI
+        try:
+            proc = await self._create_subprocess(
+                [self.opencode_cmd, "session", "list", "--format", "json"],
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=self.working_dir,
+            )
+            stdout, _ = await proc.communicate()
+            sessions = json.loads(stdout.decode())
+            if any(s.get("id") == uuid for s in sessions):
+                user_info["active_session"] = uuid
+                if uuid not in user_info.setdefault("sessions", []):
+                    user_info["sessions"].append(uuid)
+                self._save_user_data()
+                return True
+        except:
+            pass
+
         return False
 
     async def clone_session(
@@ -1539,11 +1567,15 @@ class OpenCodeAgent:
             stdout, stderr = await proc.communicate()
             content = stdout.decode().strip()
 
-            json_start = content.find("{")
-            if json_start == -1:
+            json_match = re.search(r'\{.*\}', content, re.DOTALL)
+            if not json_match:
                 return None
 
-            data = json.loads(content[json_start:])
+            try:
+                data = json.loads(json_match.group(0))
+            except json.JSONDecodeError as e:
+                global_log(f"Failed to parse clone session JSON: {e}")
+                return None
             if "messages" in data:
                 data["messages"] = data["messages"][: message_index + 1]
 

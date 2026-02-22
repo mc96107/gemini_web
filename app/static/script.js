@@ -389,6 +389,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
             const messages = data.messages || [];
             window.TOTAL_MESSAGES = data.total || 0;
+            if (messages.length === 0 && offset === 0) {
+                chatContainer.innerHTML = '<div class="text-center text-muted mt-5"><p>No messages found or failed to load chat.</p></div>';
+            } else {
+                if (chatContainer.querySelector('.text-muted') && chatContainer.querySelector('.text-muted').innerText.includes('No messages found')) {
+                    chatContainer.innerHTML = '<div id="scroll-sentinel" style="height: 10px; width: 100%;"></div>';
+                    if (observer && document.getElementById('scroll-sentinel')) observer.observe(document.getElementById('scroll-sentinel'));
+                }
+            }
             messages.forEach((msg, idx) => {
                 const index = (msg.raw_index !== undefined) ? msg.raw_index : (window.TOTAL_MESSAGES - offset - messages.length + idx);
                 const div = createMessageDiv(msg.role, msg.content, null, null, index);
@@ -489,12 +497,25 @@ document.addEventListener('DOMContentLoaded', () => {
                         else if (data.type === 'init') {
                             if (streamGeneration === sessionGeneration) {
                                 currentActiveUUID = data.session_id;
+                                window.ACTIVE_SESSION_UUID = data.session_id;
                             }
+                        }
+                        else if (data.type === 'plan_status') {
+                            if (data.status === 'active') {
+                                const loadingEl = document.getElementById(loadingId);
+                                if (loadingEl) loadingEl.innerHTML = `<div class="spinner-border spinner-border-sm"></div> ${data.message || 'Thinking...'}`;
+                            } else if (data.status === 'completed') {
+                                if (!fullText.trim() && !toolLogs.length) removeLoading(loadingId);
+                            }
+                        }
+                        else if (data.type === 'raw') {
+                            fullText += data.content + '\n';
                         }
                         else if (data.type === 'question') { 
                             const card = createQuestionCard(data); 
                             chatContainer.appendChild(card); 
                             chatContainer.scrollTop = chatContainer.scrollHeight; 
+                            if (!fullText.trim() && !toolLogs.length) removeLoading(loadingId);
                         }
                         else if (data.type === 'tool_use') toolLogs.push({ type: 'call', name: data.tool_name, input: data.parameters });
                         else if (data.type === 'tool_result') toolLogs.push({ type: 'output', output: data.output, full_path: data.full_output_path });
@@ -509,8 +530,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     } catch (e) {}
                 }
             }
-            if (messageDiv) updateStreamingMessage(messageDiv, fullText, toolLogs, true);
-            else removeLoading(loadingId);
+            if (messageDiv) {
+                updateStreamingMessage(messageDiv, fullText, toolLogs, true);
+            } else {
+                removeLoading(loadingId);
+                if (!fullText.trim() && toolLogs.length === 0) {
+                    appendMessage('bot', '[System Error] The agent exited without responding. Check backend logs or try again.');
+                }
+            }
         } catch (e) { console.error('processStream error:', e); }
     }
 

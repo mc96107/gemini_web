@@ -640,7 +640,7 @@ async def chat(
                     if next_task in done:
                         try:
                             chunk = next_task.result()
-                            log_sse(f"Yielding chunk: {json.dumps(chunk)[:50]}...")
+                            log_sse(f"Yielding chunk: {json.dumps(chunk)[:100]}...")
                             yield f"data: {json.dumps(chunk)}\n\n"
                             break  # Go to next task
                         except StopAsyncIteration:
@@ -658,8 +658,10 @@ async def chat(
                             yield f"data: {stop_msg}\n\n"
                             return
                         except Exception as e:
-                            log_sse(f"Error in stream result: {str(e)}")
-                            err_msg = json.dumps({"type": "error", "content": str(e)})
+                            import traceback
+                            error_trace = traceback.format_exc()
+                            log_sse(f"Error in stream result: {str(e)}\n{error_trace}", level="ERROR")
+                            err_msg = json.dumps({"type": "error", "content": f"Stream error: {str(e)}"})
                             yield f"data: {err_msg}\n\n"
                             return
                     else:

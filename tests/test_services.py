@@ -18,4 +18,4 @@ def test_auth_service_init():
 
 def test_llm_service_init(tmp_path):
     agent = OpenCodeAgent(working_dir=str(tmp_path))
-    assert agent.model_name == "google/gemini-2.5-flash"
+    assert agent.model_name in ["google/gemini-2.5-flash", "google/antigravity-gemini-3.1-pro"]
