@@ -123,6 +123,17 @@
                 {% if is_admin %}<span class="badge bg-info ms-auto">Admin</span>{% endif %}
             </div>
             
+            <!-- Workspace Section -->
+            <div class="p-3 border-bottom border-secondary">
+                <h6 class="small text-muted text-uppercase fw-bold mb-2">Workspace</h6>
+                <div class="input-group input-group-sm mb-2">
+                    <span class="input-group-text bg-dark border-secondary text-secondary"><i class="bi bi-folder2-open"></i></span>
+                    <input type="text" id="session-workspace-input" class="form-control bg-dark text-light border-secondary" list="workspace-suggestions" placeholder="/home/z/o">
+                </div>
+                <button id="btn-update-workspace" class="btn btn-outline-info btn-sm w-100">Update Workspace</button>
+                <div id="workspace-status" class="mt-2 small text-center"></div>
+            </div>
+            
             <!-- Mobile Tags Section -->
             <div class="p-3 border-bottom border-secondary d-md-none">
                 <h6 class="small text-muted text-uppercase fw-bold mb-2">Chat Tags</h6>
@@ -190,7 +201,7 @@
                             <li><a class="dropdown-item" href="#" data-model="google/gemini-2.5-flash">Gemini 2.5 Flash</a></li>
                         </ul>
                     </div>
-                    <input type="hidden" name="model" id="model-input" value="google/antigravity-gemini-3.1-pro">
+                    <input type="hidden" name="model" id="model-input" value="{{ active_session.model if active_session and active_session.model else user_settings.default_model }}">
                     
                     <label class="btn btn-outline-secondary btn-sm rounded-circle" for="file-upload" title="Attach Files">
                         <i class="bi bi-paperclip"></i>
@@ -229,7 +240,9 @@
             </div>
             
             <div class="text-center">
-                <small class="text-muted" style="font-size: 0.7rem;">Currently using: <span id="model-label">Antigravity Pro</span></small>
+                {% set current_model = active_session.model if active_session and active_session.model else user_settings.default_model %}
+                {% set display_model = "Antigravity Pro" if "pro" in current_model.lower() else ("Antigravity Flash" if "flash" in current_model.lower() else ("Antigravity Sonnet" if "sonnet" in current_model.lower() else ("Antigravity Opus" if "opus" in current_model.lower() else current_model))) %}
+                <small class="text-muted" style="font-size: 0.7rem;">Currently using: <span id="model-label">{{ display_model }}</span></small>
             </div>
         </form>
     </footer>
@@ -329,6 +342,13 @@
             <div class="form-check form-switch">
                 <input class="form-check-input" type="checkbox" role="switch" id="setting-copy-formatted">
                 <label class="form-check-label" for="setting-copy-formatted">Copy Formatted Text</label>
+            </div>
+            <div class="mb-3">
+                <label for="setting-default-workspace" class="form-label small text-muted">Default Workspace</label>
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-dark border-secondary text-secondary"><i class="bi bi-folder"></i></span>
+                    <input type="text" id="setting-default-workspace" class="form-control bg-dark text-light border-secondary" list="workspace-suggestions" placeholder="/home/z/o">
+                </div>
             </div>
             <div class="mb-3 mt-3">
                 <label for="setting-default-model" class="form-label small text-muted">Default Model</label>
@@ -896,5 +916,6 @@
     }
     */
 </script>
+    <datalist id="workspace-suggestions"></datalist>
 </body>
 </html>

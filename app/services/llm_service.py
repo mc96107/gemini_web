@@ -13,6 +13,8 @@ from typing import Optional, List, Dict, AsyncGenerator, Any
 from app.core.patterns import PATTERNS
 from app.core import config
 
+WORKSPACE_ROOT = "/home/z/o"
+
 FALLBACK_MODELS = {
     "google/antigravity-gemini-3.1-pro": "google/antigravity-gemini-3-flash",
     "google/antigravity-gemini-3-flash": "google/gemini-2.5-flash",
@@ -125,6 +127,8 @@ class ThreadedProcess:
 
 
 class OpenCodeAgent:
+    WORKSPACE_ROOT = WORKSPACE_ROOT
+
     def __init__(
         self,
         model: str = "google/antigravity-gemini-3.1-pro",
@@ -199,22 +203,22 @@ class OpenCodeAgent:
             json.dump(self.user_data, f, indent=2)
 
     def get_user_settings(self, user_id: str) -> Dict:
+        default_settings = {
+            "show_mic": True,
+            "interactive_mode": True,
+            "copy_formatted": False,
+            "default_model": "google/antigravity-gemini-3.1-pro",
+            "default_workspace": WORKSPACE_ROOT,
+        }
         if user_id not in self.user_data:
-            return {
-                "show_mic": True,
-                "interactive_mode": True,
-                "copy_formatted": False,
-                "default_model": "google/antigravity-gemini-3.1-pro",
-            }
-        return self.user_data[user_id].get(
-            "settings",
-            {
-                "show_mic": True,
-                "interactive_mode": True,
-                "copy_formatted": False,
-                "default_model": "google/antigravity-gemini-3.1-pro",
-            },
-        )
+            return default_settings
+
+        settings = self.user_data[user_id].get("settings", default_settings)
+        # Ensure all keys exist
+        for k, v in default_settings.items():
+            if k not in settings:
+                settings[k] = v
+        return settings
 
     def update_user_settings(self, user_id: str, settings: Dict):
         if user_id not in self.user_data:
@@ -230,6 +234,7 @@ class OpenCodeAgent:
                     "interactive_mode": True,
                     "copy_formatted": False,
                     "default_model": "google/antigravity-gemini-3.1-pro",
+                    "default_workspace": WORKSPACE_ROOT,
                 },
             }
 
@@ -239,7 +244,12 @@ class OpenCodeAgent:
                 "interactive_mode": True,
                 "copy_formatted": False,
                 "default_model": "google/antigravity-gemini-3.1-pro",
+                "default_workspace": WORKSPACE_ROOT,
             }
+
+        if "default_workspace" in settings:
+            if not settings["default_workspace"].startswith(WORKSPACE_ROOT):
+                del settings["default_workspace"]
 
         self.user_data[user_id]["settings"].update(settings)
         self._save_user_data()
@@ -550,10 +560,13 @@ class OpenCodeAgent:
             for t in enabled_tools:
                 perms[t] = "allow"
                 # Map common aliases/guards
-                if t == "google_search":
+                if t == "google_search" or t == "google_web_search":
                     perms["websearch"] = "allow"
-                if t in ["edit", "write"]:
+                if t in ["edit", "write", "replace", "write_file"]:
                     perms["edit"] = "allow"
+                if t in ["read", "read_file", "list", "list_directory"]:
+                    perms["read"] = "allow"
+                    perms["list"] = "allow"
 
             # Core helper tools that should generally be allowed for app integration
             perms["question"] = "allow"
@@ -564,10 +577,29 @@ class OpenCodeAgent:
                 f"Applying tool permissions via OPENCODE_CONFIG_CONTENT: {enabled_tools}"
             )
 
+        # Resolve Workspace
+        workspace = self.get_session_workspace(user_id, session_uuid or "pending")
+        log_debug(f"Resolved workspace: {workspace}")
+        if not os.path.exists(workspace) and workspace.startswith(WORKSPACE_ROOT):
+            try:
+                os.makedirs(workspace, exist_ok=True)
+                global_log(f"Created missing workspace: {workspace}")
+            except Exception as e:
+                global_log(f"Error creating workspace {workspace}: {e}", level="ERROR")
+                workspace = WORKSPACE_ROOT  # Fallback
+
         while attempt < max_attempts:
             attempt += 1
 
-            args = [self.opencode_cmd, "run", "--format", "json", "--thinking"]
+            args = [
+                self.opencode_cmd,
+                "run",
+                "--format",
+                "json",
+                "--thinking",
+                "--dir",
+                workspace,
+            ]
             if session_uuid:
                 args.extend(["-s", session_uuid])
             if current_model:
@@ -588,7 +620,7 @@ class OpenCodeAgent:
                     stdin=asyncio.subprocess.PIPE,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
-                    cwd=self.working_dir,
+                    cwd=workspace,
                     env=env,
                 )
 
@@ -681,7 +713,25 @@ class OpenCodeAgent:
                                 await self.update_session_title(
                                     user_id, new_id, filtered_title
                                 )
+
+                                if "session_metadata" not in self.user_data[user_id]:
+                                    self.user_data[user_id]["session_metadata"] = {}
+
+                                # Store model in metadata for persistence
+                                if (
+                                    new_id
+                                    not in self.user_data[user_id]["session_metadata"]
+                                ):
+                                    self.user_data[user_id]["session_metadata"][
+                                        new_id
+                                    ] = {}
+
+                                self.user_data[user_id]["session_metadata"][new_id][
+                                    "model"
+                                ] = current_model
+
                                 self._save_user_data()
+                                yield {"type": "init", "session_id": new_id}
                                 session_uuid = new_id
                             captured_session_id = True
 
@@ -1015,6 +1065,75 @@ class OpenCodeAgent:
                 all_tags.add(t)
         return sorted(list(all_tags))
 
+    def get_session_workspace(self, user_id: str, session_uuid: str) -> str:
+        if user_id not in self.user_data:
+            return WORKSPACE_ROOT
+        user_info = self.user_data[user_id]
+        workspaces = user_info.get("session_workspaces", {})
+        path = workspaces.get(session_uuid)
+        if not path:
+            settings = user_info.get("settings", {})
+            path = settings.get("default_workspace", WORKSPACE_ROOT)
+        return path
+
+    def update_session_workspace(
+        self, user_id: str, session_uuid: str, workspace_path: str
+    ):
+        # Security check: must be within root
+        if not workspace_path.startswith(WORKSPACE_ROOT):
+            return False
+
+        if user_id not in self.user_data:
+            return False
+
+        if "session_workspaces" not in self.user_data[user_id]:
+            self.user_data[user_id]["session_workspaces"] = {}
+        self.user_data[user_id]["session_workspaces"][session_uuid] = workspace_path
+        self._save_user_data()
+        return True
+
+    def get_available_workspaces(self) -> List[str]:
+        workspaces = []
+        if not os.path.exists(WORKSPACE_ROOT):
+            return [WORKSPACE_ROOT]
+
+        workspaces.append(WORKSPACE_ROOT)
+        try:
+            # Walk with limited depth and ignore common massive folders
+            ignore_dirs = {
+                "node_modules",
+                ".git",
+                ".venv",
+                "venv",
+                "__pycache__",
+                ".opencode",
+                "tmp",
+                "data",
+            }
+            for root, dirs, files in os.walk(WORKSPACE_ROOT):
+                # Modify dirs in-place to prune the walk
+                dirs[:] = [
+                    d for d in dirs if d not in ignore_dirs and not d.startswith(".")
+                ]
+
+                # Limit total count to prevent UI lag
+                if len(workspaces) > 500:
+                    break
+
+                for d in dirs:
+                    full_path = os.path.join(root, d)
+                    workspaces.append(full_path)
+
+                # Limit depth by checking relative path
+                rel_path = os.path.relpath(root, WORKSPACE_ROOT)
+                if rel_path != "." and rel_path.count(os.sep) >= 2:
+                    dirs[:] = []  # Don't go deeper than 3 levels
+
+        except Exception as e:
+            global_log(f"Error walking workspaces: {e}")
+
+        return sorted(list(set(workspaces)))
+
     def is_user_session(self, user_id: str, session_uuid: str) -> bool:
         """Check if a session belongs to a user without filtering for sidebar."""
         if user_id not in self.user_data:
@@ -1028,6 +1147,7 @@ class OpenCodeAgent:
         offset: int = 0,
         tags: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
+        global_log(f"get_user_sessions for {user_id}, limit={limit}, offset={offset}")
         if user_id not in self.user_data:
             self.user_data[user_id] = {
                 "active_session": None,
@@ -1046,11 +1166,14 @@ class OpenCodeAgent:
         session_metadata = user_info.get("session_metadata", {})
         session_forks = user_info.get("session_forks", {})
 
+        global_log(f"User has {len(uuids)} session UUIDs")
+
         if not uuids:
             return {"pinned": [], "history": [], "total_unpinned": 0}
 
         # Check if we have metadata for all sessions
         missing_metadata = [u for u in uuids if u not in session_metadata]
+        global_log(f"Missing metadata for {len(missing_metadata)} sessions")
 
         all_sessions = []
 
@@ -1078,6 +1201,7 @@ class OpenCodeAgent:
                         "active": (u == user_info.get("active_session")),
                         "pinned": (u in pinned_uuids),
                         "tags": current_tags,
+                        "model": meta.get("model"),
                     }
                 )
 
@@ -1086,9 +1210,17 @@ class OpenCodeAgent:
         else:
             # Need to fetch from CLI
             try:
-                global_log("Executing session list...")
+                global_log("Executing session list --format json -n 1000...")
                 proc = await self._create_subprocess(
-                    [self.opencode_cmd, "session", "list", "--format", "json"],
+                    [
+                        self.opencode_cmd,
+                        "session",
+                        "list",
+                        "--format",
+                        "json",
+                        "-n",
+                        "1000",
+                    ],
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                     cwd=self.working_dir,
@@ -1099,7 +1231,14 @@ class OpenCodeAgent:
                 if not raw_content:
                     parsed_sessions = []
                 else:
-                    parsed_sessions = json.loads(raw_content)
+                    # Find start of JSON array
+                    json_start = raw_content.find("[")
+                    if json_start != -1:
+                        parsed_sessions = json.loads(raw_content[json_start:])
+                    else:
+                        parsed_sessions = []
+
+                global_log(f"CLI returned {len(parsed_sessions)} sessions")
 
                 pinned_uuids = user_info.get("pinned_sessions", [])
                 found_uuids = set()
@@ -1138,6 +1277,9 @@ class OpenCodeAgent:
                                 "active": (u == user_info.get("active_session")),
                                 "pinned": (u in pinned_uuids),
                                 "tags": current_tags,
+                                "model": session_metadata[u].get(
+                                    "model"
+                                ),  # Include model
                             }
                         )
 
@@ -1145,31 +1287,58 @@ class OpenCodeAgent:
                 self.user_data[user_id]["session_metadata"] = session_metadata
 
                 # Sync sessions list
-                valid_uuids = [u for u in uuids if u in found_uuids]
-                if len(valid_uuids) != len(uuids):
-                    self.user_data[user_id]["sessions"] = valid_uuids
-                    for u in uuids:
-                        if u not in valid_uuids:
-                            session_metadata.pop(u, None)
-                            custom_titles.pop(u, None)
-                            session_tags.pop(u, None)
-                            if u in pinned_uuids:
-                                pinned_uuids.remove(u)
+                # Only ADD new metadata, do NOT delete local sessions just because they aren't in the recent list
+                for u in list(uuids):
+                    if u not in found_uuids and u in session_metadata:
+                        # Keep it, it might just be older than the list limit
+                        pass
 
-                    self.user_data[user_id]["session_metadata"] = session_metadata
-                    self.user_data[user_id]["custom_titles"] = custom_titles
-                    self.user_data[user_id]["session_tags"] = session_tags
-                    self.user_data[user_id]["pinned_sessions"] = pinned_uuids
+                # Check for any local sessions that are totally unknown (never seen in metadata and not in CLI list)
+                # But even then, let's be conservative.
 
                 self._save_user_data()
-                all_sessions = cli_sessions
-                all_sessions = all_sessions[::-1]
+                all_sessions = list(cli_sessions)
 
+                # If we have local sessions NOT in cli_sessions (e.g. older ones), we should probably add them from cache
+                cached_ids = set(session_metadata.keys())
+                cli_ids = {s["uuid"] for s in cli_sessions}
+
+                for u in uuids:
+                    if u not in cli_ids:
+                        meta = session_metadata.get(
+                            u, {"original_title": "Unknown Chat", "time": "Unknown"}
+                        )
+                        # Check tags filter
+                        current_tags = session_tags.get(u, [])
+                        if tags:
+                            if not all(tag in current_tags for tag in tags):
+                                continue
+
+                        all_sessions.append(
+                            {
+                                "uuid": u,
+                                "title": custom_titles.get(
+                                    u, meta.get("original_title", "Unknown Chat")
+                                ),
+                                "time": meta.get("time", "Unknown"),
+                                "active": (u == user_info.get("active_session")),
+                                "pinned": (u in pinned_uuids),
+                                "tags": current_tags,
+                                "model": meta.get("model"),
+                            }
+                        )
+
+                # Sort combined list by time descending
+                all_sessions.sort(key=lambda x: x.get("time", ""), reverse=True)
             except Exception as e:
-                global_log(f"Error in get_user_sessions (fetching): {str(e)}")
+                global_log(
+                    f"Error in get_user_sessions (fetching): {str(e)}", level="ERROR"
+                )
                 return {"pinned": [], "history": [], "total_unpinned": 0}
 
+        global_log(f"Processing grouping for {len(all_sessions)} sessions")
         # --- Grouping Logic: Display them as one (the latest fork) ---
+        # ... rest of function ...
 
         def get_root(u):
             """Find the root session UUID for a given session."""

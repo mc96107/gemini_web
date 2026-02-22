@@ -10,6 +10,7 @@ import os
 from app.core import config
 from app.services.pattern_sync_service import PatternSyncService
 from app.models.agent import AgentModel
+from app.routers.chat import get_effective_workspace
 
 router = APIRouter()
 
@@ -112,52 +113,172 @@ async def toggle_mcp(request: Request, user=Depends(get_user)):
     return {"success": "Error" not in output, "output": output}
 
 
+# Agent Management Routes
+
+
+@router.get("/admin/agents")
+async def list_agents(request: Request, user=Depends(get_user)):
+    user_manager = request.app.state.user_manager
+    if user_manager.get_role(user) != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    agent_manager = request.app.state.agent_manager
+    agent = request.app.state.agent
+    workspace = await get_effective_workspace(agent, user)
+    agents = agent_manager.list_agents(project_root=workspace)
+    return agents
+
+
+@router.get("/admin/agents/{category}/{name}")
+async def get_agent_details(
+    request: Request, category: str, name: str, user=Depends(get_user)
+):
+    user_manager = request.app.state.user_manager
+    if user_manager.get_role(user) != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    agent_manager = request.app.state.agent_manager
+    agent = request.app.state.agent
+    workspace = await get_effective_workspace(agent, user)
+    agent_data = agent_manager.get_agent(category, name, project_root=workspace)
+    if not agent_data:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    return agent_data
+
+
+@router.post("/admin/agents")
+async def save_agent(request: Request, agent_data: AgentModel, user=Depends(get_user)):
+    user_manager = request.app.state.user_manager
+    if user_manager.get_role(user) != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    agent_manager = request.app.state.agent_manager
+    agent = request.app.state.agent
+    workspace = await get_effective_workspace(agent, user)
+    success = agent_manager.save_agent(agent_data, project_root=workspace)
+    return {"success": success}
+
+
+@router.get("/admin/agents/root")
+async def get_root_agent(request: Request, user=Depends(get_user)):
+    user_manager = request.app.state.user_manager
+    if user_manager.get_role(user) != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    agent_manager = request.app.state.agent_manager
+    agent = request.app.state.agent
+    workspace = await get_effective_workspace(agent, user)
+    agent_data = agent_manager.get_root_orchestrator(project_root=workspace)
+    if not agent_data:
+        agent_manager.initialize_root_orchestrator(project_root=workspace)
+        agent_data = agent_manager.get_root_orchestrator(project_root=workspace)
+    return agent_data
+
+
+@router.post("/admin/agents/root")
+async def save_root_agent(
+    request: Request, agent_data: AgentModel, user=Depends(get_user)
+):
+    user_manager = request.app.state.user_manager
+    if user_manager.get_role(user) != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    agent_manager = request.app.state.agent_manager
+    agent = request.app.state.agent
+    workspace = await get_effective_workspace(agent, user)
+    success = agent_manager.save_root_orchestrator(agent_data, project_root=workspace)
+    return {"success": success}
+
+
+@router.delete("/admin/agents/{category}/{name}")
+async def delete_agent(
+    request: Request, category: str, name: str, user=Depends(get_user)
+):
+    user_manager = request.app.state.user_manager
+    if user_manager.get_role(user) != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    agent_manager = request.app.state.agent_manager
+    agent = request.app.state.agent
+    workspace = await get_effective_workspace(agent, user)
+    success = agent_manager.delete_agent(category, name, project_root=workspace)
+    return {"success": success}
+
+
+@router.post("/admin/agents/{category}/{name}/toggle-enabled")
+async def toggle_agent_enabled(
+    request: Request, category: str, name: str, user=Depends(get_user)
+):
+    user_manager = request.app.state.user_manager
+    if user_manager.get_role(user) != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    data = await request.json()
+    enabled = data.get("enabled", False)
+
+    agent_manager = request.app.state.agent_manager
+    agent = request.app.state.agent
+    workspace = await get_effective_workspace(agent, user)
+    success = agent_manager.set_agent_enabled(
+        category, name, enabled, project_root=workspace
+    )
+    return {"success": success}
+
+
+@router.get("/admin/agents/validate")
+async def validate_orchestration(request: Request, user=Depends(get_user)):
+    user_manager = request.app.state.user_manager
+    if user_manager.get_role(user) != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    agent_manager = request.app.state.agent_manager
+    agent = request.app.state.agent
+    workspace = await get_effective_workspace(agent, user)
+    warnings = agent_manager.validate_orchestration(project_root=workspace)
+    return {"warnings": warnings}
+
+
 @router.get("/admin/skills")
 async def list_skills(request: Request, user=Depends(get_user)):
     user_manager = request.app.state.user_manager
     if user_manager.get_role(user) != "admin":
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    skills_dir = config.SKILLS_BASE_DIR
+    agent = request.app.state.agent
+    workspace = await get_effective_workspace(agent, user)
+    skills_dir = os.path.join(workspace, ".opencode", "skills")
+
     skills = []
     if os.path.exists(skills_dir):
-        for d in os.listdir(skills_dir):
-            d_path = os.path.join(skills_dir, d)
-            if os.path.isdir(d_path) and os.path.exists(
-                os.path.join(d_path, "SKILL.md")
-            ):
-                skills.append(d)
+        for name in os.listdir(skills_dir):
+            if os.path.isdir(os.path.join(skills_dir, name)):
+                skills.append(name)
     return sorted(skills)
 
 
 @router.get("/admin/skills/{name}")
-async def get_skill(request: Request, name: str, user=Depends(get_user)):
+async def get_skill(name: str, request: Request, user=Depends(get_user)):
     user_manager = request.app.state.user_manager
     if user_manager.get_role(user) != "admin":
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    skill_path = os.path.join(config.SKILLS_BASE_DIR, name, "SKILL.md")
-    if not os.path.exists(skill_path):
+    agent = request.app.state.agent
+    workspace = await get_effective_workspace(agent, user)
+    skill_md = os.path.join(workspace, ".opencode", "skills", name, "SKILL.md")
+
+    if os.path.exists(skill_md):
+        with open(skill_md, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Try to extract description
+        description = ""
+        first_line = content.splitlines()[0] if content else ""
+        if first_line.startswith("#"):
+            description = first_line.lstrip("#").strip()
+
+        return {"name": name, "content": content, "description": description}
+    else:
         raise HTTPException(status_code=404, detail="Skill not found")
-
-    with open(skill_path, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    # Parse YAML frontmatter
-    description = ""
-    instructions = content
-    if content.startswith("---"):
-        parts = content.split("---", 2)
-        if len(parts) >= 3:
-            frontmatter = parts[1]
-            instructions = parts[2].strip()
-            # Simple line-by-line parsing for name/description
-            for line in frontmatter.splitlines():
-                if line.startswith("description:"):
-                    description = line.split(":", 1)[1].strip()
-                    # Handle multi-line if needed, but keeping it simple for now
-
-    return {"name": name, "description": description, "content": instructions}
 
 
 @router.post("/admin/skills")
@@ -168,39 +289,36 @@ async def save_skill(request: Request, user=Depends(get_user)):
 
     data = await request.json()
     name = data.get("name")
-    description = data.get("description", "")
-    content = data.get("content")  # This is now just the instructions
-
+    content = data.get("content")
     if not name or not content:
         raise HTTPException(status_code=400, detail="Name and content are required")
 
-    # Sanitize name
-    name = re.sub(r"[^a-zA-Z0-9_-]", "_", name)
-
-    skill_dir = os.path.join(config.SKILLS_BASE_DIR, name)
+    agent = request.app.state.agent
+    workspace = await get_effective_workspace(agent, user)
+    skill_dir = os.path.join(workspace, ".opencode", "skills", name)
     os.makedirs(skill_dir, exist_ok=True)
 
-    # Serialize with YAML frontmatter
-    skill_md = f"---\nname: {name}\ndescription: {description}\n---\n\n{content}"
-
-    skill_path = os.path.join(skill_dir, "SKILL.md")
-    with open(skill_path, "w", encoding="utf-8") as f:
-        f.write(skill_md)
+    with open(os.path.join(skill_dir, "SKILL.md"), "w", encoding="utf-8") as f:
+        f.write(content)
 
     return {"success": True}
 
 
 @router.delete("/admin/skills/{name}")
-async def delete_skill(request: Request, name: str, user=Depends(get_user)):
+async def delete_skill(name: str, request: Request, user=Depends(get_user)):
     user_manager = request.app.state.user_manager
     if user_manager.get_role(user) != "admin":
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    skill_dir = os.path.join(config.SKILLS_BASE_DIR, name)
+    agent = request.app.state.agent
+    workspace = await get_effective_workspace(agent, user)
+    skill_dir = os.path.join(workspace, ".opencode", "skills", name)
+
     if os.path.exists(skill_dir):
         shutil.rmtree(skill_dir)
         return {"success": True}
-    return {"success": False, "error": "Skill not found"}
+    else:
+        raise HTTPException(status_code=404, detail="Skill not found")
 
 
 @router.post("/admin/patterns/sync")
@@ -209,44 +327,17 @@ async def sync_patterns(request: Request, user=Depends(get_user)):
     if user_manager.get_role(user) != "admin":
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    sync_service = PatternSyncService()
+    service = PatternSyncService()
     try:
-        count = await sync_service.sync_all()
+        count = await service.sync_all()
         return {"success": True, "count": count}
     except Exception as e:
         return {"success": False, "error": str(e)}
     finally:
-        await sync_service.close()
+        await service.close()
 
 
-@router.post("/admin/system/restart-setup")
-async def restart_setup(request: Request, user=Depends(get_user)):
-    user_manager = request.app.state.user_manager
-    if user_manager.get_role(user) != "admin":
-        raise HTTPException(status_code=403, detail="Forbidden")
-
-    user_manager.clear_all_users()
-    request.session.clear()
-    return {"success": True}
-
-
-@router.post("/admin/system/log-level")
-async def set_log_level(request: Request, user=Depends(get_user)):
-    user_manager = request.app.state.user_manager
-    if user_manager.get_role(user) != "admin":
-        raise HTTPException(status_code=403, detail="Forbidden")
-
-    data = await request.json()
-    level = data.get("level", "NONE").upper()
-    if level not in ["NONE", "INFO", "DEBUG"]:
-        raise HTTPException(status_code=400, detail="Invalid log level")
-
-    config.update_env("LOG_LEVEL", level)
-    config.LOG_LEVEL = level
-    return {"success": True}
-
-
-@router.post("/admin/sessions/cleartags")
+@router.post("/admin/tags/clear")
 async def clear_all_tags(request: Request, user=Depends(get_user)):
     user_manager = request.app.state.user_manager
     agent = request.app.state.agent
@@ -288,6 +379,7 @@ async def admin_db(request: Request, user=Depends(get_user)):
     return request.app.state.render(
         "admin.html",
         request=request,
+        user=user,
         users=user_manager.get_all_users(),
         log_level=config.LOG_LEVEL,
     )
@@ -357,110 +449,3 @@ async def adm_upd(
     if user_manager.get_role(user) == "admin":
         user_manager.update_password(username, new_password)
     return RedirectResponse("/admin", status_code=303)
-
-
-# Agent Management Routes
-
-
-@router.get("/admin/agents")
-async def list_agents(request: Request, user=Depends(get_user)):
-    user_manager = request.app.state.user_manager
-    if user_manager.get_role(user) != "admin":
-        raise HTTPException(status_code=403, detail="Forbidden")
-
-    agent_manager = request.app.state.agent_manager
-    agents = agent_manager.list_agents()
-    return agents
-
-
-@router.get("/admin/agents/{category}/{name}")
-async def get_agent_details(
-    request: Request, category: str, name: str, user=Depends(get_user)
-):
-    user_manager = request.app.state.user_manager
-    if user_manager.get_role(user) != "admin":
-        raise HTTPException(status_code=403, detail="Forbidden")
-
-    agent_manager = request.app.state.agent_manager
-    agent = agent_manager.get_agent(category, name)
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent not found")
-    return agent
-
-
-@router.post("/admin/agents")
-async def save_agent(request: Request, agent_data: AgentModel, user=Depends(get_user)):
-    user_manager = request.app.state.user_manager
-    if user_manager.get_role(user) != "admin":
-        raise HTTPException(status_code=403, detail="Forbidden")
-
-    agent_manager = request.app.state.agent_manager
-    success = agent_manager.save_agent(agent_data)
-    return {"success": success}
-
-
-@router.get("/admin/agents/root")
-async def get_root_agent(request: Request, user=Depends(get_user)):
-    user_manager = request.app.state.user_manager
-    if user_manager.get_role(user) != "admin":
-        raise HTTPException(status_code=403, detail="Forbidden")
-
-    agent_manager = request.app.state.agent_manager
-    agent = agent_manager.get_root_orchestrator()
-    if not agent:
-        agent_manager.initialize_root_orchestrator()
-        agent = agent_manager.get_root_orchestrator()
-    return agent
-
-
-@router.post("/admin/agents/root")
-async def save_root_agent(
-    request: Request, agent_data: AgentModel, user=Depends(get_user)
-):
-    user_manager = request.app.state.user_manager
-    if user_manager.get_role(user) != "admin":
-        raise HTTPException(status_code=403, detail="Forbidden")
-
-    agent_manager = request.app.state.agent_manager
-    success = agent_manager.save_root_orchestrator(agent_data)
-    return {"success": success}
-
-
-@router.delete("/admin/agents/{category}/{name}")
-async def delete_agent(
-    request: Request, category: str, name: str, user=Depends(get_user)
-):
-    user_manager = request.app.state.user_manager
-    if user_manager.get_role(user) != "admin":
-        raise HTTPException(status_code=403, detail="Forbidden")
-
-    agent_manager = request.app.state.agent_manager
-    success = agent_manager.delete_agent(category, name)
-    return {"success": success}
-
-
-@router.post("/admin/agents/{category}/{name}/toggle-enabled")
-async def toggle_agent_enabled(
-    request: Request, category: str, name: str, user=Depends(get_user)
-):
-    user_manager = request.app.state.user_manager
-    if user_manager.get_role(user) != "admin":
-        raise HTTPException(status_code=403, detail="Forbidden")
-
-    data = await request.json()
-    enabled = data.get("enabled", False)
-
-    agent_manager = request.app.state.agent_manager
-    success = agent_manager.set_agent_enabled(category, name, enabled)
-    return {"success": success}
-
-
-@router.get("/admin/agents/validate")
-async def validate_orchestration(request: Request, user=Depends(get_user)):
-    user_manager = request.app.state.user_manager
-    if user_manager.get_role(user) != "admin":
-        raise HTTPException(status_code=403, detail="Forbidden")
-
-    agent_manager = request.app.state.agent_manager
-    warnings = agent_manager.validate_orchestration()
-    return {"warnings": warnings}

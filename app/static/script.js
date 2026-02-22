@@ -1,819 +1,95 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // --- Global State ---
+    let currentActiveUUID = window.ACTIVE_SESSION_UUID || null;
+    let currentOffset = 0;
+    let sidebarOffset = 0;
+    const PAGE_LIMIT = 20;
+    const SIDEBAR_PAGE_LIMIT = 15;
+    let isLoadingHistory = false;
+    let isLoadingSidebar = false;
+    let planModeActive = false;
+    let activeTags = new Set();
+    let allUniqueTags = [];
+    let currentForkMap = {}; // index -> [uuids]
+    let allPatterns = [];
+
+    // --- DOM Elements ---
     const chatForm = document.getElementById('chat-form');
     const messageInput = document.getElementById('message-input');
     const chatContainer = document.getElementById('chat-container');
-    const fileUpload = document.getElementById('file-upload');
-    const filePreviewArea = document.getElementById('file-preview-area');
-    const fileNameDisplay = document.getElementById('file-name');
-    const clearFileBtn = document.getElementById('clear-file-btn');
+    const sendBtn = document.getElementById('send-btn');
+    const stopBtn = document.getElementById('stop-btn');
+    const chatWelcome = document.getElementById('chat-welcome');
+    
+    const modelInput = document.getElementById('model-input');
+    const modelLabel = document.getElementById('model-label');
+    const modelLinks = document.querySelectorAll('[data-model]');
+    
+    const workspaceInput = document.getElementById('session-workspace-input');
+    const updateWorkspaceBtn = document.getElementById('btn-update-workspace');
+    const workspaceStatus = document.getElementById('workspace-status');
+    const workspaceSuggestions = document.getElementById('workspace-suggestions');
+    const defaultWorkspaceSetting = document.getElementById('setting-default-workspace');
+    const defaultModelSetting = document.getElementById('setting-default-model');
+
+    const historySidebar = document.getElementById('historySidebar');
+    const sessionSearch = document.getElementById('session-search');
+    const newChatBtn = document.getElementById('new-chat-btn');
+    
+    const patternsModalEl = document.getElementById('patternsModal');
+    const patternsList = document.getElementById('patterns-list');
+    
+    const toolsModalEl = document.getElementById('toolsModal');
+    
+    const planModeBtn = document.getElementById('plan-mode-btn');
+    const driveModeBtn = document.getElementById('drive-mode-btn');
+
+    const treeViewModalEl = document.getElementById('treeViewModal');
+    const treeContainer = document.getElementById('tree-container');
+
     const exportBtn = document.getElementById('export-btn');
     const exportBtnMobile = document.getElementById('export-btn-mobile');
     const resetBtn = document.getElementById('reset-btn');
     const resetBtnMobile = document.getElementById('reset-btn-mobile');
 
-    const shareModalEl = document.getElementById('shareModal');
-    const shareUsernameInput = document.getElementById('share-username-input');
-    const shareStatus = document.getElementById('share-status');
-    const btnConfirmShare = document.getElementById('btn-confirm-share');
-    let shareModal = null;
+    const renameModalEl = document.getElementById('renameSessionModal');
+    const renameInput = document.getElementById('rename-input');
+    const btnSaveRename = document.getElementById('btn-save-rename');
+    let currentRenameUUID = null;
 
-    if (shareModalEl) {
-        shareModal = new bootstrap.Modal(shareModalEl);
-        
-        shareModalEl.addEventListener('shown.bs.modal', () => {
-            shareUsernameInput.focus();
-            shareStatus.textContent = '';
-        });
-
-        if (btnConfirmShare) {
-            btnConfirmShare.addEventListener('click', async () => {
-                const username = shareUsernameInput.value.trim();
-                if (!username) return;
-                
-                const uuid = currentActiveUUID;
-                if (!uuid) return;
-
-                shareStatus.textContent = 'Sharing...';
-                shareStatus.className = 'small mt-2 text-muted';
-                
-                try {
-                    const response = await fetch(`/sessions/${uuid}/share`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ username })
-                    });
-                    const data = await response.json();
-                    
-                    // Fail silently or with simple success per spec
-                    if (data.success) {
-                        shareStatus.textContent = 'Chat shared successfully!';
-                        shareStatus.className = 'small mt-2 text-success';
-                        setTimeout(() => {
-                            shareModal.hide();
-                            shareUsernameInput.value = '';
-                        }, 1000);
-                    } else {
-                        // Per spec: fail silently if target does not exist.
-                        // We close the modal as if nothing happened or show a subtle message.
-                        shareModal.hide();
-                        shareUsernameInput.value = '';
-                        showToast('Sharing operation finished.');
-                    }
-                } catch (error) {
-                    console.error('Error sharing session:', error);
-                    shareStatus.textContent = 'Network error. Try again.';
-                    shareStatus.className = 'small mt-2 text-danger';
-                }
-            });
-        }
-    }
-
-    async function handleReset() {
-        if (confirm('Are you sure you want to clear the conversation history?')) {
-            try {
-                const response = await fetch('/reset', { method: 'POST' });
-                const data = await response.json();
-                chatContainer.innerHTML = `<div class="text-center text-muted mt-5"><p>${data.response}</p></div>`;
-            } catch (error) {
-                console.error('Error resetting chat:', error);
-                alert('Failed to reset chat.');
-            }
-        }
-    }
-
-    async function handleClone(uuid, messageIndex, showAlert = true) {
-        try {
-            const response = await fetch(`/sessions/${uuid}/clone`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message_index: messageIndex })
-            });
-            const data = await response.json();
-            if (data.success) {
-                if (showAlert) showToast('Conversation forked!');
-                
-                if (data.new_uuid === "pending") {
-                    // For -1 forks, the next message sent will establish the session.
-                    // We just need to clear the current chat display.
-                    chatContainer.innerHTML = '<div class="text-center text-muted mt-5"><p>Type your edited question to start the branch.</p></div>';
-                    currentOffset = 0;
-                    window.TOTAL_MESSAGES = 0;
-                    loadSessions();
-                } else {
-                    // The backend sets the new session as active, so we just need to reload.
-                    chatContainer.innerHTML = '<div class="text-center text-muted mt-5"><p>Loading forked conversation...</p></div>';
-                    await loadMessages(data.new_uuid);
-                    loadSessions();
-                }
-            } else {
-                alert('Failed to fork conversation.');
-            }
-        } catch (error) {
-            console.error('Error cloning chat:', error);
-            alert('Failed to fork chat.');
-        }
-    }
-
-    async function handleExport() {
-        const uuid = currentActiveUUID;
-        if (!uuid) {
-            alert('No active session to export.');
-            return;
-        }
-
-        let title = "chat_export";
-        const activeSessionItem = document.querySelector(`.session-item[data-uuid="${uuid}"]`);
-        if (activeSessionItem) {
-            const titleEl = activeSessionItem.querySelector('.session-title');
-            if (titleEl) title = titleEl.textContent.trim();
-        }
-
-        try {
-            const response = await fetch(`/sessions/${uuid}/messages`);
-            if (!response.ok) throw new Error('Network response was not ok');
-            const data = await response.json();
-            const messages = data.messages || [];
-
-            let markdown = `# Chat Export: ${title}\n\n`;
-            messages.forEach(msg => {
-                const role = msg.role === 'user' ? 'User' : 'OpenCode';
-                markdown += `## ${role}\n\n${msg.content}\n\n---\n\n`;
-            });
-
-            const blob = new Blob([markdown], { type: 'text/markdown' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            const safeTitle = title.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
-            a.download = `${safeTitle}.md`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        } catch (e) {
-            console.error('Export failed:', e);
-            alert('Failed to export chat.');
-        }
-    }
-
-    if (exportBtn) exportBtn.onclick = handleExport;
-    if (exportBtnMobile) exportBtnMobile.onclick = handleExport;
-    if (resetBtn) resetBtn.onclick = handleReset;
-    if (resetBtnMobile) resetBtnMobile.onclick = handleReset;
-    const modelLinks = document.querySelectorAll('[data-model]');
-    const modelInput = document.getElementById('model-input');
-    const modelLabel = document.getElementById('model-label');
-    const patternsList = document.getElementById('patterns-list');
-    const patternSearch = document.getElementById('pattern-search');
-    const patternsModal = document.getElementById('patternsModal');
-    const sessionsList = document.getElementById('sessions-list');
-    const newChatBtn = document.getElementById('new-chat-btn');
-    const historySidebar = document.getElementById('historySidebar');
-    const toolsModal = document.getElementById('toolsModal');
-    const toolsStatus = document.getElementById('tools-status');
-    const btnApplyTools = document.getElementById('btn-apply-tools');
-    const btnDeselectAllTools = document.getElementById('btn-deselect-all-tools');
-    const toolToggles = document.querySelectorAll('.tool-toggle');
-    
-    const liveToast = document.getElementById('liveToast');
-    const toastBody = document.getElementById('toast-body');
-    const loadMoreContainer = document.getElementById('load-more-container');
-    const loadMoreBtn = document.getElementById('load-more-btn');
-    const chatWelcome = document.getElementById('chat-welcome');
-    const sessionSearch = document.getElementById('session-search');
-    const sidebarLoadMoreContainer = document.getElementById('sidebar-load-more-container');
-    const sidebarLoadMoreBtn = document.getElementById('sidebar-load-more-btn');
-    const sendBtn = document.getElementById('send-btn');
-    const stopBtn = document.getElementById('stop-btn');
-    const tagFilterContainer = document.getElementById('tag-filter-container');
-    const chatTagsHeader = document.getElementById('chat-tags-header');
-
-    // --- Plan Mode ---
-    const planModeBtn = document.getElementById('plan-mode-btn');
-    let planModeActive = false;
-
-    planModeBtn?.addEventListener('click', () => {
-        planModeActive = !planModeActive;
-        if (planModeActive) {
-            planModeBtn.classList.replace('btn-outline-warning', 'btn-warning');
-            messageInput.placeholder = "Message OpenCode in Plan Mode...";
-            messageInput.classList.add('border-warning');
-        } else {
-            planModeBtn.classList.replace('btn-warning', 'btn-outline-warning');
-            messageInput.placeholder = "Message OpenCode...";
-            messageInput.classList.remove('border-warning');
-        }
-    });
-
-    const taggingModal = document.getElementById('taggingModal');
+    const taggingModalEl = document.getElementById('taggingModal');
     const modalCurrentTags = document.getElementById('modal-current-tags');
     const modalExistingTags = document.getElementById('modal-existing-tags');
     const tagInput = document.getElementById('tag-input');
     const btnAddTag = document.getElementById('btn-add-tag');
     const btnSaveTags = document.getElementById('btn-save-tags');
 
-    const renameModalEl = document.getElementById('renameSessionModal');
-    const renameInput = document.getElementById('rename-input');
-    const btnSaveRename = document.getElementById('btn-save-rename');
-    let renameModal = null;
-    let currentRenameUUID = null;
-    let currentRenameTitleEl = null; // To update UI immediately
+    const editPromptModalEl = document.getElementById('editPromptModal');
+    const btnSavePrompt = document.getElementById('btn-save-prompt');
 
-    const treeViewModalEl = document.getElementById('treeViewModal');
-    const treeContainer = document.getElementById('tree-container');
-    const treeViewBtn = document.getElementById('tree-view-btn');
-    const treeViewBtnMobile = document.getElementById('tree-view-btn-mobile');
-    let treeViewModal = null;
+    const sidebarLoadMoreBtn = document.getElementById('sidebar-load-more-btn');
 
-    // --- Attachment Management ---
-    const attachmentQueue = document.getElementById('attachment-queue');
-    const dragDropOverlay = document.getElementById('drag-drop-overlay');
-    
-    // --- Drive Mode ---
-    const driveModeBtn = document.getElementById('drive-mode-btn');
-    const driveMode = new DriveModeManager();
-
-    const showMicSetting = document.getElementById('setting-show-mic');
-    if (showMicSetting && window.USER_SETTINGS) {
-        showMicSetting.checked = window.USER_SETTINGS.show_mic !== false;
-        
-        showMicSetting.onchange = async () => {
-            const enabled = showMicSetting.checked;
-            try {
-                const response = await fetch('/settings', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ show_mic: enabled })
-                });
-                if (response.ok) {
-                    window.USER_SETTINGS.show_mic = enabled;
-                    updateDriveModeVisibility();
-                }
-            } catch (err) {
-                console.error('Error saving setting:', err);
-            }
-        };
-    }
-
-    const showPlanSetting = document.getElementById('setting-show-plan');
-    if (showPlanSetting && window.USER_SETTINGS) {
-        showPlanSetting.checked = window.USER_SETTINGS.show_plan === true;
-        
-        showPlanSetting.onchange = async () => {
-            const enabled = showPlanSetting.checked;
-            try {
-                const response = await fetch('/settings', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ show_plan: enabled })
-                });
-                if (response.ok) {
-                    window.USER_SETTINGS.show_plan = enabled;
-                    updatePlanModeVisibility();
-                }
-            } catch (err) {
-                console.error('Error saving setting:', err);
-            }
-        };
-    }
-
-    const copyFormattedSetting = document.getElementById('setting-copy-formatted');
-    if (copyFormattedSetting && window.USER_SETTINGS) {
-        copyFormattedSetting.checked = window.USER_SETTINGS.copy_formatted === true;
-        
-        copyFormattedSetting.onchange = async () => {
-            const enabled = copyFormattedSetting.checked;
-            try {
-                const response = await fetch('/settings', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ copy_formatted: enabled })
-                });
-                if (response.ok) {
-                    window.USER_SETTINGS.copy_formatted = enabled;
-                }
-            } catch (err) {
-                console.error('Error saving setting:', err);
-            }
-        };
-    }
-
-    const defaultModelSetting = document.getElementById('setting-default-model');
-    if (defaultModelSetting && window.USER_SETTINGS) {
-        if (window.USER_SETTINGS.default_model) {
-            defaultModelSetting.value = window.USER_SETTINGS.default_model;
-        }
-        
-        defaultModelSetting.onchange = async () => {
-            const model = defaultModelSetting.value;
-            try {
-                const response = await fetch('/settings', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ default_model: model })
-                });
-                if (response.ok) {
-                    window.USER_SETTINGS.default_model = model;
-                    updateActiveModelUI(model);
-                }
-            } catch (err) {
-                console.error('Error saving setting:', err);
-            }
-        };
-    }
-
-    function updateActiveModelUI(model) {
-        if (!modelInput) return;
-        modelInput.value = model;
-        
-        let found = false;
-        modelLinks.forEach(link => {
-            if (link.dataset.model === model) {
-                link.classList.add('active');
-                let modelName = link.innerText;
-                // Clean up badges from text for the label
-                modelName = modelName.replace('Stable (v0.28+)', '').replace('Preview', '').trim();
-                modelLabel.textContent = modelName;
-                found = true;
-            } else {
-                link.classList.remove('active');
-            }
-        });
-
-        // Fallback if model not in dropdown list (e.g. customized in backend but not UI)
-        if (!found) {
-            modelLabel.textContent = model.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-        }
-    }
-
-    function updateDriveModeVisibility() {
-        if (!driveModeBtn) return;
-        const isEnabled = window.USER_SETTINGS && window.USER_SETTINGS.show_mic !== false;
-        if (driveMode.isSupported() && isEnabled) {
-            driveModeBtn.classList.remove('d-none');
-        } else {
-            driveModeBtn.classList.add('d-none');
-        }
-    }
-    window.updateDriveModeVisibility = updateDriveModeVisibility;
-
-    function updatePlanModeVisibility() {
-        if (!planModeBtn) return;
-        const isEnabled = window.USER_SETTINGS && window.USER_SETTINGS.show_plan === true;
-        if (isEnabled) {
-            planModeBtn.classList.remove('d-none');
-        } else {
-            planModeBtn.classList.add('d-none');
-        }
-    }
-    window.updatePlanModeVisibility = updatePlanModeVisibility;
-
-    updateDriveModeVisibility();
-    updatePlanModeVisibility();
-
-    // Initialize model from settings if it's a new chat or on load
-    if (window.USER_SETTINGS && window.USER_SETTINGS.default_model) {
-        // Only override if we are not in an active session with messages?
-        // Actually, let's always use default model for new chats.
-        if (!window.INITIAL_MESSAGES || window.INITIAL_MESSAGES.length === 0) {
-            updateActiveModelUI(window.USER_SETTINGS.default_model);
-        }
-    }
-
-    driveModeBtn?.addEventListener('click', () => {
-        if (!driveMode.isActive) {
-            startDriveMode();
-        } else {
-            stopDriveMode();
-        }
-    });
-
-    async function startDriveMode() {
-        driveMode.isActive = true;
-        driveModeBtn.classList.replace('btn-outline-info', 'btn-info');
-        driveModeBtn.innerHTML = '<i class="bi bi-stop-circle-fill"></i>';
-        await driveMode.requestWakeLock();
-        runDriveModeLoop();
-    }
-
-    function stopDriveMode() {
-        driveMode.isActive = false;
-        driveMode.stopListening();
-        driveMode.stopSpeaking();
-        driveMode.releaseWakeLock();
-        driveModeBtn.classList.replace('btn-info', 'btn-outline-info');
-        driveModeBtn.innerHTML = '<i class="bi bi-mic-fill"></i>';
-        driveMode.state = 'idle';
-        updateDriveModeUI();
-    }
-
-    function updateDriveModeUI() {
-        const state = driveMode.state;
-        const btn = document.getElementById('drive-mode-btn');
-        if (!btn) return;
-
-        // Reset icon and animation
-        btn.innerHTML = driveMode.isActive ? '<i class="bi bi-stop-circle-fill"></i>' : '<i class="bi bi-mic-fill"></i>';
-        btn.classList.remove('pulse-animation');
-
-        if (driveMode.isActive) {
-            if (state === 'listening') {
-                btn.classList.add('pulse-animation');
-                btn.style.color = '#fff';
-            } else if (state === 'processing') {
-                btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
-            } else if (state === 'speaking') {
-                btn.innerHTML = '<i class="bi bi-volume-up-fill"></i>';
-            }
-        }
-    }
-
-    function runDriveModeLoop() {
-        if (!driveMode.isActive) return;
-
-        updateDriveModeUI();
-        driveMode.state = 'listening';
-        updateDriveModeUI();
-
-        driveMode.startListening(
-            async (transcript) => {
-                const cmd = transcript.toLowerCase().trim();
-                // Check for stop words
-                if (cmd === 'stop' || cmd === 'σταμάτα' || cmd === 'σταμάτα.') {
-                    console.log('Voice Command: Stop detected.');
-                    stopDriveMode();
-                    driveMode.speak(cmd === 'stop' ? 'Stopping drive mode.' : 'Τερματισμός drive mode.');
-                    return;
-                }
-
-                // onResult
-                driveMode.state = 'processing';
-                updateDriveModeUI();
-                
-                // Add user message to chat UI using standard method
-                const userMsgIndex = window.TOTAL_MESSAGES || 0;
-                appendMessage('user', transcript, null, null, userMsgIndex);
-                window.TOTAL_MESSAGES = userMsgIndex + 1;
-
-                // Send to AI
-                try {
-                    const loadingObj = appendLoading();
-                    toggleStopButton(true);
-
-                    const formData = new FormData();
-                    formData.append('message', transcript);
-                    formData.append('model', document.getElementById('model-input').value);
-
-                    const response = await fetch('/chat', {
-                        method: 'POST',
-                        body: formData
-                    });
-
-                    if (!response.ok) throw new Error('Chat request failed');
-
-                    // Process stream using NATIVE function for reliability
-                    await processStream(response, loadingObj.id);
-                    
-                    if (!driveMode.isActive) return;
-
-                    // Capture the text from the message we just created
-                    const lastBotMsg = chatContainer.querySelector('.message.bot:last-child .message-content');
-                    const aiResponse = lastBotMsg ? lastBotMsg.innerText : "";
-
-                    driveMode.state = 'speaking';
-                    updateDriveModeUI();
-
-                    driveMode.speak(aiResponse, () => {
-                        // onEnd
-                        if (driveMode.isActive) {
-                            setTimeout(runDriveModeLoop, 500); // Small delay before restart
-                        }
-                    });
-                } catch (err) {
-                    console.error('Drive Mode AI Error:', err);
-                    if (driveMode.isActive) {
-                        driveMode.speak('Σφάλμα επικοινωνίας. Ξαναπροσπαθώ.', () => {
-                            setTimeout(runDriveModeLoop, 2000);
-                        });
-                    }
-                } finally {
-                    toggleStopButton(false);
-                }
-            },
-            (error) => {
-                // onError
-                console.warn('Drive Mode STT Error:', error);
-                if (driveMode.isActive) {
-                    if (error === 'no-speech') {
-                        // Silent retry
-                        setTimeout(runDriveModeLoop, 1000);
-                    } else {
-                        driveMode.state = 'idle';
-                        updateDriveModeUI();
-                        // Possible permanent error, but let's try to recover once
-                        setTimeout(runDriveModeLoop, 3000);
-                    }
-                }
-            }
-        );
-    }
-
-    // Remove the redundant processStreamWithCapture to prevent scope issues
-    async function sendToAI(text) {
-        // Prepare data
-        const formData = new FormData();
-        formData.append('message', text);
-        formData.append('model', document.getElementById('model-input').value);
-
-        const response = await fetch('/chat', {
-            method: 'POST',
-            body: formData
-        });
-
-        if (!response.ok) throw new Error('Chat request failed');
-
-        // Since it's a streaming response usually, we need to handle it.
-        // For Drive Mode, we want the FULL text to speak it.
-        // We'll use a modified logic or wait for completion.
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let fullText = '';
-
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            const chunk = decoder.decode(value, { stream: true });
-            
-            // Extract text from SSE format "data: ..."
-            const lines = chunk.split('\n');
-            for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    try {
-                        const data = JSON.parse(line.substring(6));
-                        if (data.type === 'text') {
-                            fullText += data.content;
-                        } else if (data.type === 'error') {
-                            throw new Error(data.content);
-                        }
-                    } catch (e) {
-                        // Ignore partial JSON or other types
-                    }
-                }
-            }
-        }
-        return fullText;
-    }
-
-    const attachments = new AttachmentManager({
-        maxTotalSize: 20 * 1024 * 1024, // 20MB
+    // --- Managers ---
+    const driveMode = (typeof DriveModeManager !== 'undefined') ? new DriveModeManager() : { isSupported: () => false };
+    const attachments = (typeof AttachmentManager !== 'undefined') ? new AttachmentManager({
+        maxTotalSize: 20 * 1024 * 1024,
         onQueueChange: (items) => renderAttachmentQueue(items),
-        onSizeLimitExceeded: (fileName) => {
-            showToast(`Size limit exceeded: ${fileName} was not added.`);
-        }
-    });
+        onSizeLimitExceeded: (name) => showToast(`Size limit exceeded: ${name}`)
+    }) : { getFiles: () => [], clear: () => {} };
 
-    function renderAttachmentQueue(items) {
-        if (!attachmentQueue) return;
-        attachmentQueue.innerHTML = items.map(item => {
-            const isImage = item.type.startsWith('image/');
-            return `
-                <div class="attachment-item position-relative bg-secondary bg-opacity-25 rounded p-1 d-flex align-items-center gap-2" style="max-width: 200px; border: 1px solid rgba(255,255,255,0.1);">
-                    ${isImage ? 
-                        `<img src="${item.previewUrl}" class="rounded" style="width: 40px; height: 40px; object-fit: cover;">` :
-                        `<div class="bg-dark rounded d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;"><i class="bi bi-file-earmark"></i></div>`
-                    }
-                    <div class="flex-grow-1 overflow-hidden">
-                        <div class="small text-truncate" title="${item.name}">${item.name}</div>
-                        <div class="text-muted" style="font-size: 0.6rem;">${(item.size / 1024).toFixed(1)} KB</div>
-                    </div>
-                    <button type="button" class="btn-close btn-close-white small p-1" style="font-size: 0.5rem;" onclick="window.removeAttachment('${item.id}')"></button>
-                </div>
-            `;
-        }).join('');
-    }
-
-    window.removeAttachment = (id) => {
-        attachments.removeAttachment(id);
-    };
-
-    // --- Drag and Drop ---
-    if (chatContainer && dragDropOverlay) {
-        let dragCounter = 0;
-
-        window.addEventListener('dragenter', (e) => {
-            e.preventDefault();
-            dragCounter++;
-            dragDropOverlay.classList.remove('d-none');
-        });
-
-        window.addEventListener('dragleave', (e) => {
-            e.preventDefault();
-            dragCounter--;
-            if (dragCounter === 0) {
-                dragDropOverlay.classList.add('d-none');
-            }
-        });
-
-        window.addEventListener('dragover', (e) => {
-            e.preventDefault();
-        });
-
-        window.addEventListener('drop', async (e) => {
-            e.preventDefault();
-            dragCounter = 0;
-            dragDropOverlay.classList.add('d-none');
-            
-            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                await attachments.addFiles(e.dataTransfer.files);
-                // Auto-switch to Gemini 3 Flash Preview for better vision support
-                switchToFlashModel();
-            }
-        });
-    }
-
-    function switchToFlashModel() {
-        const flashModel = "google/antigravity-gemini-3-flash";
-        modelInput.value = flashModel;
-        modelLinks.forEach(link => {
-            if (link.dataset.model === flashModel) {
-                link.classList.add('active');
-                let modelName = link.innerText;
-                modelName = modelName.replace('Fast', '').replace('Smart', '').trim();
-                modelLabel.textContent = modelName + " (Auto-switched)";
-            } else {
-                link.classList.remove('active');
-            }
-        });
-    }
-
-    if (treeViewModalEl) {
-        treeViewModal = new bootstrap.Modal(treeViewModalEl);
-        
-        const openTree = async () => {
-            treeContainer.innerHTML = '<div class="text-center p-5"><div class="spinner-border text-info" role="status"></div><p class="mt-2">Building conversation tree...</p></div>';
-            treeViewModal.show();
-            
-            try {
-                // Fetch full fork graph for the user
-                const graphRes = await fetch(`/sessions/fork-graph`);
-                const graphData = await graphRes.json();
-                const graph = graphData.graph; // { uuid: { parent, fork_point, title } }
-
-                renderGraph(graph, currentActiveUUID);
-
-            } catch (error) {
-                console.error('Error building tree:', error);
-                treeContainer.innerHTML = `<div class="alert alert-danger">Failed to build tree: ${error.message}</div>`;
-            }
-        };
-
-        if (treeViewBtn) treeViewBtn.onclick = openTree;
-        if (treeViewBtnMobile) treeViewBtnMobile.onclick = openTree;
-    }
-
-    function renderGraph(graph, activeUUID) {
-        treeContainer.innerHTML = '';
-        
-        if (!activeUUID || !graph[activeUUID]) {
-            treeContainer.innerHTML = '<div class="alert alert-info">No related forks found for this conversation.</div>';
-            return;
-        }
-
-        // Find the root of the current session's tree
-        let rootUUID = activeUUID;
-        let visited = new Set();
-        while (graph[rootUUID] && graph[rootUUID].parent && !visited.has(rootUUID)) {
-            visited.add(rootUUID);
-            rootUUID = graph[rootUUID].parent;
-        }
-
-        const treeRoot = document.createElement('div');
-        treeRoot.className = 'tree-view';
-        treeRoot.appendChild(createTreeNode(rootUUID, graph, activeUUID));
-
-        treeContainer.appendChild(treeRoot);
-    }
-
-    function createTreeNode(uuid, graph, activeUUID) {
-        const node = graph[uuid];
-        const div = document.createElement('div');
-        div.className = 'tree-node-wrapper';
-        
-        const content = document.createElement('div');
-        content.className = `tree-node p-2 mb-3 rounded border ${uuid === activeUUID ? 'bg-primary text-white shadow-lg border-light' : 'bg-dark text-light border-secondary'}`;
-        content.style.cursor = 'pointer';
-        content.style.maxWidth = '280px';
-        content.style.transition = 'all 0.2s';
-        content.style.borderRadius = '15px';
-        
-        const header = document.createElement('div');
-        header.className = 'tree-node-header mb-1 small text-info d-flex align-items-center gap-1';
-        
-        const forkIcon = `<svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16" style="margin-top: -2px;"><path d="M5 5.372v.878c0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75v-.878a2.25 2.25 0 1 1 1.5 0v.878a2.25 2.25 0 0 1-2.25 2.25h-1.5v2.128a2.251 2.251 0 1 1-1.5 0V8.5h-1.5A2.25 2.25 0 0 1 3.5 6.25v-.878a2.25 2.25 0 1 1 1.5 0ZM5 3.25a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0Zm6.75.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm-3 8.75a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0Z"></path></svg>`;
-        header.innerHTML = node.parent ? forkIcon : `<i class="bi bi-chat-left-text"></i>`;
-        
-        const title = document.createElement('div');
-        title.className = 'fw-bold text-truncate flex-grow-1';
-        title.style.fontSize = '0.85rem';
-        title.textContent = node.title || 'Untitled Chat';
-        header.appendChild(title);
-        
-        const meta = document.createElement('div');
-        meta.className = `small ${uuid === activeUUID ? 'text-white-50' : 'text-muted'}`;
-        meta.style.fontSize = '0.7rem';
-        if (node.parent) {
-            meta.textContent = `Forked at msg #${node.fork_point + 1}`;
-        } else {
-            meta.textContent = 'Root Conversation';
-        }
-        
-        content.appendChild(header);
-        content.appendChild(meta);
-        
-        content.onclick = () => {
-            if (uuid !== activeUUID) {
-                switchSession(uuid);
-                treeViewModal.hide();
-            }
-        };
-
-        // Hover effect
-        content.onmouseover = () => { 
-            content.style.transform = 'scale(1.02)';
-            if (uuid !== activeUUID) content.classList.add('border-primary'); 
-        };
-        content.onmouseout = () => { 
-            content.style.transform = 'scale(1)';
-            if (uuid !== activeUUID) content.classList.remove('border-primary'); 
-        };
-
-        div.appendChild(content);
-
-        // Children - sort them by fork point
-        const children = Object.keys(graph).filter(u => graph[u].parent === uuid);
-        children.sort((a, b) => (graph[a].fork_point || 0) - (graph[b].fork_point || 0));
-
-        if (children.length > 0) {
-            const childrenContainer = document.createElement('div');
-            childrenContainer.className = 'tree-children ms-4 ps-3 border-start border-secondary';
-            children.forEach(childUUID => {
-                childrenContainer.appendChild(createTreeNode(childUUID, graph, activeUUID));
-            });
-            div.appendChild(childrenContainer);
-        }
-
-        return div;
-    }
-
-    if (renameModalEl) {
-        renameModal = new bootstrap.Modal(renameModalEl);
-        
-        renameModalEl.addEventListener('shown.bs.modal', () => {
-            renameInput.focus();
-        });
-
-        if (btnSaveRename) {
-            btnSaveRename.addEventListener('click', async () => {
-                const newTitle = renameInput.value.trim();
-                if (!newTitle || !currentRenameUUID) return;
-                
-                try {
-                    const response = await fetch(`/sessions/${currentRenameUUID}/title`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ title: newTitle })
-                    });
-                    const data = await response.json();
-                    if (data.success) {
-                        if (currentRenameTitleEl) currentRenameTitleEl.textContent = newTitle;
-                        showToast('Chat renamed');
-                        renameModal.hide();
-                    } else {
-                        alert('Failed to rename chat: ' + (data.error || 'Unknown error'));
-                    }
-                } catch (error) {
-                    console.error('Error renaming session:', error);
-                    alert('Failed to rename chat.');
-                }
-            });
+    // --- UI Helpers ---
+    function showToast(message) {
+        const toastEl = document.getElementById('liveToast');
+        const toastBody = document.getElementById('toast-body');
+        if (toastEl && toastBody) {
+            toastBody.textContent = message;
+            const toast = new bootstrap.Toast(toastEl);
+            toast.show();
         }
     }
-
-    let currentFile = null;
-    let allPatterns = [];
-    let currentOffset = 0;
-    let sidebarOffset = 0;
-    const PAGE_LIMIT = 20;
-    const SIDEBAR_PAGE_LIMIT = 10;
-    let isLoadingHistory = false;
-    let isLoadingSidebar = false;
-
-    let activeTags = new Set();
-    let allUniqueTags = [];
-    let currentForkMap = {}; // index -> [uuids]
-    let currentActiveUUID = window.ACTIVE_SESSION_UUID || null;
 
     function toggleStopButton(show) {
+        if (!sendBtn || !stopBtn) return;
         if (show) {
             sendBtn.classList.add('d-none');
             stopBtn.classList.remove('d-none');
@@ -823,1818 +99,580 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    if (stopBtn) {
-        stopBtn.addEventListener('click', async () => {
-            if (driveMode.isActive) {
-                stopDriveMode();
+    function updateActiveModelUI(model) {
+        if (!modelInput) return;
+        modelInput.value = model;
+        let found = false;
+        modelLinks.forEach(link => {
+            if (link.dataset.model === model) {
+                link.classList.add('active');
+                let modelName = link.innerText;
+                modelName = modelName.replace('Stable (v0.28+)', '').replace('Preview', '').trim();
+                if (modelLabel) modelLabel.textContent = modelName;
+                found = true;
+            } else link.classList.remove('active');
+        });
+        if (!found && modelLabel) {
+            modelLabel.textContent = model.split('/').pop().replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        }
+    }
+
+    // --- Workspace Management ---
+    async function loadWorkspaces() {
+        try {
+            const res = await fetch('/workspaces');
+            const data = await res.json();
+            if (data.workspaces && workspaceSuggestions) {
+                workspaceSuggestions.innerHTML = data.workspaces.map(w => `<option value="${w}">`).join('');
+                window.WORKSPACE_ROOT = data.root;
             }
+        } catch (err) { console.error('loadWorkspaces error:', err); }
+    }
+
+    async function loadSessionWorkspace(uuid) {
+        if (!workspaceInput || !uuid) return;
+        try {
+            const res = await fetch(`/session/workspace/${uuid}`);
+            const data = await res.json();
+            if (data.path) workspaceInput.value = data.path;
+        } catch (err) { console.error('loadSessionWorkspace error:', err); }
+    }
+
+    if (updateWorkspaceBtn && workspaceInput) {
+        updateWorkspaceBtn.onclick = async () => {
+            const uuid = currentActiveUUID;
+            const path = workspaceInput.value.trim();
+            if (!uuid || !path) { showToast('Select a chat first'); return; }
+            workspaceStatus.textContent = 'Updating...';
             try {
-                const response = await fetch('/stop', { method: 'POST' });
-                if (response.ok) {
-                    toggleStopButton(false);
+                const res = await fetch('/session/workspace', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ uuid, path })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    workspaceStatus.textContent = 'Workspace updated!';
+                    workspaceStatus.className = 'mt-2 small text-center text-success';
+                    setTimeout(() => { workspaceStatus.textContent = ''; }, 2000);
+                    loadPatterns();
+                } else {
+                    workspaceStatus.textContent = 'Error: Path must be within root';
+                    workspaceStatus.className = 'mt-2 small text-center text-danger';
                 }
-            } catch (error) {
-                console.error('Error stopping chat:', error);
-            }
-        });
-    }
-
-    function showToast(message) {
-        if (!liveToast) return;
-        toastBody.textContent = message;
-        const toast = new bootstrap.Toast(liveToast);
-        toast.show();
-    }
-
-    async function fetchUniqueTags() {
-        try {
-            const response = await fetch('/sessions/tags');
-            const data = await response.json();
-            allUniqueTags = data.tags || [];
-            renderTagFilters();
-        } catch (error) {
-            console.error('Error fetching tags:', error);
-        }
-    }
-
-    async function fetchForks(uuid) {
-        try {
-            const response = await fetch(`/sessions/${uuid}/forks`);
-            const data = await response.json();
-            currentForkMap = data.forks || {};
-        } catch (error) {
-            console.error('Error fetching forks:', error);
-            currentForkMap = {};
-        }
-    }
-
-    function renderTagFilters() {
-        if (!tagFilterContainer) return;
-        if (!allUniqueTags || allUniqueTags.length === 0) {
-            tagFilterContainer.innerHTML = '';
-            return;
-        }
-
-        tagFilterContainer.innerHTML = allUniqueTags.map(tag => `
-            <span class="tag-badge ${activeTags.has(tag) ? 'selected' : ''}" data-tag="${tag}">${tag}</span>
-        `).join('');
-
-        tagFilterContainer.querySelectorAll('.tag-badge').forEach(badge => {
-            badge.onclick = () => toggleTagFilter(badge.dataset.tag);
-        });
-    }
-
-    function toggleTagFilter(tag) {
-        if (activeTags.has(tag)) {
-            activeTags.delete(tag);
-        } else {
-            activeTags.add(tag);
-        }
-        renderTagFilters();
-        sidebarOffset = 0;
-        loadSessions(false);
-    }
-
-    async function updateSessionTags(uuid, tags) {
-        try {
-            const response = await fetch(`/sessions/${uuid}/tags`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tags })
-            });
-            const data = await response.json();
-            if (data.success) {
-                fetchUniqueTags();
-                loadSessions(false);
-                return true;
-            }
-        } catch (error) {
-            console.error('Error updating tags:', error);
-        }
-        return false;
-    }
-
-    function renderChatTags(session) {
-        const headerContainer = document.getElementById('chat-tags-header');
-        const sidebarContainer = document.getElementById('chat-tags-sidebar');
-        if (!headerContainer || !sidebarContainer) return;
-
-        if (!session || !session.uuid) {
-            headerContainer.innerHTML = '';
-            sidebarContainer.innerHTML = '';
-            return;
-        }
-
-        const tags = session.tags || [];
-        const isMobile = window.innerWidth < 768;
-
-        let html = tags.map(tag => `<span class="tag-badge selected">${tag}</span>`).join('');
-        html += `<span class="tag-badge add-tag-btn" title="Edit Tags"><i class="bi bi-plus"></i> Tags</span>`;
-
-        if (isMobile) {
-            headerContainer.innerHTML = '';
-            sidebarContainer.innerHTML = html;
-        } else {
-            sidebarContainer.innerHTML = '';
-            headerContainer.innerHTML = html;
-        }
-
-        // Clicking on tags or the add button opens the modal
-        const targetContainer = isMobile ? sidebarContainer : headerContainer;
-        const allBadges = targetContainer.querySelectorAll('.tag-badge');
-        allBadges.forEach(badge => {
-            badge.onclick = () => {
-                let modalInstance = bootstrap.Modal.getInstance(taggingModal);
-                if (!modalInstance) {
-                    modalInstance = new bootstrap.Modal(taggingModal);
-                }
-
-                let workingTags = [...tags];
-
-                function renderModalTags() {
-                    modalCurrentTags.innerHTML = workingTags.map(t => `
-                        <span class="tag-badge selected" data-tag="${t}">${t} <i class="bi bi-x ms-1 remove-tag"></i></span>
-                    `).join('');
-
-                    modalCurrentTags.querySelectorAll('.remove-tag').forEach(btn => {
-                        btn.onclick = (e) => {
-                            e.stopPropagation();
-                            const tagToRemove = btn.parentElement.dataset.tag;
-                            workingTags = workingTags.filter(t => t !== tagToRemove);
-                            renderModalTags();
-                        };
-                    });
-
-                    // Render existing tags suggestions
-                    modalExistingTags.innerHTML = allUniqueTags
-                        .filter(t => !workingTags.includes(t))
-                        .map(t => `<span class="tag-badge" data-tag="${t}">${t}</span>`)
-                        .join('');
-
-                    modalExistingTags.querySelectorAll('.tag-badge').forEach(badge => {
-                        badge.onclick = () => {
-                            workingTags.push(badge.dataset.tag);
-                            renderModalTags();
-                        };
-                    });
-                }
-
-                renderModalTags();
-                tagInput.value = '';
-
-                function addTagFromInput() {
-                    const rawVal = tagInput.value.trim();
-                    if (!rawVal) return;
-
-                    // Support comma-separated tags
-                    const newTags = rawVal.split(',').map(t => t.trim()).filter(t => t !== '');
-                    let added = false;
-
-                    newTags.forEach(val => {
-                        if (!workingTags.includes(val)) {
-                            workingTags.push(val);
-                            added = true;
-                        }
-                    });
-
-                    if (added) {
-                        tagInput.value = '';
-                        renderModalTags();
-                    }
-                }
-
-                tagInput.onkeydown = (e) => {
-                    if (e.key === 'Enter' || e.key === ',') {
-                        e.preventDefault();
-                        addTagFromInput();
-                    }
-                };
-
-                if (btnAddTag) {
-                    btnAddTag.onclick = (e) => {
-                        e.preventDefault();
-                        addTagFromInput();
-                    };
-                }
-
-                btnSaveTags.onclick = async () => {
-                    if (await updateSessionTags(session.uuid, workingTags)) {
-                        session.tags = workingTags;
-                        renderChatTags(session);
-                        modalInstance.hide();
-                    }
-                };
-
-                modalInstance.show();
-            };
-        });
-    }
-
-    function debounce(func, timeout = 300) {
-        let timer;
-        return (...args) => {
-            clearTimeout(timer);
-            timer = setTimeout(() => { func.apply(this, args); }, timeout);
+            } catch (err) { workspaceStatus.textContent = 'Network error'; }
         };
     }
 
-    // Handle Tools Modal show
-    toolsModal.addEventListener('show.bs.modal', async () => {
-        // Find the active session UUID
-        const activeSessionItem = document.querySelector('.session-item.active-session');
-        let uuid = "pending";
-        if (activeSessionItem) {
-            uuid = activeSessionItem.dataset.uuid;
-        }
-
-        toolsStatus.textContent = 'Loading settings...';
-        toolsStatus.className = 'mt-2 small text-muted';
-
-        // Reset toggles first
-        toolToggles.forEach(t => t.checked = false);
-
-        try {
-            const response = await fetch(`/sessions/${uuid}/tools`);
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const data = await response.json();
-            
-            if (data.tools) {
-                data.tools.forEach(toolName => {
-                    const toggle = document.querySelector(`.tool-toggle[value="${toolName}"]`);
-                    if (toggle) toggle.checked = true;
-                });
-            }
-            toolsStatus.textContent = '';
-        } catch (error) {
-            console.error('Error loading tool settings:', error);
-            toolsStatus.textContent = 'Failed to load settings.';
-            toolsStatus.className = 'mt-2 small text-danger';
-        }
-    });
-
-    btnApplyTools.addEventListener('click', async () => {
-        const activeSessionItem = document.querySelector('.session-item.active-session');
-        let uuid = "pending";
-        if (activeSessionItem) {
-            uuid = activeSessionItem.dataset.uuid;
-        }
-
-        const selectedTools = Array.from(toolToggles)
-            .filter(t => t.checked)
-            .map(t => t.value);
-
-        toolsStatus.textContent = 'Saving settings...';
-        toolsStatus.className = 'mt-2 small text-muted';
-
-        try {
-            const response = await fetch(`/sessions/${uuid}/tools`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tools: selectedTools })
-            });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const data = await response.json();
-            if (data.success) {
-                toolsStatus.textContent = 'Settings applied successfully!';
-                toolsStatus.className = 'mt-2 small text-success';
-                setTimeout(() => {
-                    const modalInstance = bootstrap.Modal.getInstance(toolsModal);
-                    if (modalInstance) modalInstance.hide();
-                }, 1000);
-            }
-        } catch (error) {
-            console.error('Error saving tool settings:', error);
-            toolsStatus.textContent = 'Failed to save settings.';
-            toolsStatus.className = 'mt-2 small text-danger';
-        }
-    });
-
-    btnDeselectAllTools.addEventListener('click', () => {
-        toolToggles.forEach(t => t.checked = false);
-    });
-
-    const btnSafeToolsOnly = document.getElementById('btn-safe-tools-only');
-    const btnAllExceptMemory = document.getElementById('btn-all-except-memory');
-
-    const safeToolNames = [
-        'list_directory', 'read_file', 'glob', 'grep_search', 
-        'google_web_search', 'web_fetch', 'cli_help', 'ask_user', 'confirm_output'
-    ];
-
-    btnSafeToolsOnly?.addEventListener('click', () => {
-        toolToggles.forEach(t => {
-            t.checked = safeToolNames.includes(t.value);
-        });
-    });
-
-    btnAllExceptMemory?.addEventListener('click', () => {
-        toolToggles.forEach(t => {
-            t.checked = (t.value !== 'save_memory');
-        });
-    });
-
-    if (loadMoreBtn) {
-        loadMoreBtn.addEventListener('click', () => {
-            const activeSessionItem = document.querySelector('.session-item.active-session');
-            if (activeSessionItem) {
-                loadMessages(activeSessionItem.dataset.uuid, PAGE_LIMIT, currentOffset);
-            }
-        });
+    // --- Settings ---
+    if (defaultModelSetting && window.USER_SETTINGS) {
+        defaultModelSetting.value = window.USER_SETTINGS.default_model || '';
+        defaultModelSetting.onchange = async () => {
+            const model = defaultModelSetting.value;
+            const res = await fetch('/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ default_model: model }) });
+            if (res.ok) { window.USER_SETTINGS.default_model = model; if (!currentActiveUUID) updateActiveModelUI(model); showToast('Default model updated'); }
+        };
     }
 
-    if (sessionSearch) {
-        sessionSearch.addEventListener('input', debounce(() => {
-            if (sessionSearch.value.trim() !== "") {
-                activeTags.clear();
-                renderTagFilters();
-            }
-            loadSessions();
-        }, 300));
+    if (defaultWorkspaceSetting && window.USER_SETTINGS) {
+        defaultWorkspaceSetting.value = window.USER_SETTINGS.default_workspace || '';
+        defaultWorkspaceSetting.onchange = async () => {
+            const workspace = defaultWorkspaceSetting.value.trim();
+            if (!workspace) return;
+            const res = await fetch('/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ default_workspace: workspace }) });
+            if (res.ok) { window.USER_SETTINGS.default_workspace = workspace; showToast('Default workspace updated'); loadWorkspaces(); }
+        };
     }
 
-    if (sidebarLoadMoreBtn) {
-        sidebarLoadMoreBtn.addEventListener('click', () => {
-            sidebarOffset += SIDEBAR_PAGE_LIMIT;
-            loadSessions(true);
-        });
+    const showMicSetting = document.getElementById('setting-show-mic');
+    if (showMicSetting && window.USER_SETTINGS) {
+        showMicSetting.checked = window.USER_SETTINGS.show_mic !== false;
+        showMicSetting.onchange = async () => {
+            const enabled = showMicSetting.checked;
+            const res = await fetch('/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ show_mic: enabled }) });
+            if (res.ok) { window.USER_SETTINGS.show_mic = enabled; updateDriveModeVisibility(); }
+        };
     }
 
-    // Load sessions when sidebar is shown
-    historySidebar.addEventListener('show.bs.offcanvas', () => loadSessions());
-
-    // Load sessions on page load
-    fetchUniqueTags();
-    loadSessions();
-
-    // Initial load from server-side messages
-    if (window.INITIAL_MESSAGES && window.INITIAL_MESSAGES.length > 0) {
-        if (chatWelcome) chatWelcome.classList.add('d-none');
-        window.INITIAL_MESSAGES.forEach((msg, idx) => {
-            const index = (msg.raw_index !== undefined) ? msg.raw_index : idx;
-            const msgDiv = createMessageDiv(msg.role, msg.content, null, null, index);
-            if (msgDiv) chatContainer.appendChild(msgDiv);
-        });
-        chatContainer.scrollTop = chatContainer.scrollHeight;
-        currentOffset = 20; // Default limit used in index route
-        window.HAS_INITIAL_MESSAGES = true;
+    const showPlanSetting = document.getElementById('setting-show-plan');
+    if (showPlanSetting && window.USER_SETTINGS) {
+        showPlanSetting.checked = window.USER_SETTINGS.show_plan === true;
+        showPlanSetting.onchange = async () => {
+            const enabled = showPlanSetting.checked;
+            const res = await fetch('/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ show_plan: enabled }) });
+            if (res.ok) { window.USER_SETTINGS.show_plan = enabled; updatePlanModeVisibility(); }
+        };
     }
 
-    
-    async function loadMessages(uuid, limit = PAGE_LIMIT, offset = 0, isAutoRestore = false) {
-        if (isLoadingHistory) return;
-        if (offset > 0) isLoadingHistory = true;
-
-        if (offset === 0) {
-            currentActiveUUID = uuid;
-            await fetchForks(uuid);
-        }
-
-        try {
-            const response = await fetch(`/sessions/${uuid}/messages?limit=${limit}&offset=${offset}`);
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const data = await response.json();
-            const messages = data.messages || [];
-            const total = data.total || 0;
-            
-            if (offset === 0) {
-                // Clear existing messages only if it's the first page
-                chatContainer.innerHTML = '<div id="scroll-sentinel" style="height: 10px; width: 100%;"></div>';
-                currentOffset = 0;
-                window.TOTAL_MESSAGES = total; // Update global
-                if (chatWelcome) chatWelcome.classList.add('d-none');
-            }
-
-            if (messages.length > 0) {
-                if (offset === 0) {
-                    messages.forEach((msg, idx) => {
-                        const index = (msg.raw_index !== undefined) ? msg.raw_index : idx;
-                        const msgDiv = createMessageDiv(msg.role, msg.content, null, null, index);
-                        if (msgDiv) chatContainer.appendChild(msgDiv);
-                    });
-                    chatContainer.scrollTop = chatContainer.scrollHeight;
-                } else {
-                    // Prepend for "Load More"
-                    const scrollHeightBefore = chatContainer.scrollHeight;
-                    
-                    const sentinel = document.getElementById('scroll-sentinel');
-                    const loadMore = document.getElementById('load-more-container');
-                    const originalFirstMessage = loadMore ? loadMore.nextSibling : (sentinel ? sentinel.nextSibling : chatContainer.firstChild);
-
-                    // If total is 100, offset is 20, limit is 20.
-                    // We loaded messages 60 to 79 (total - offset - limit to total - offset)
-                    // The index of the first message in this chunk is total - offset - messages.length
-                    const baseIndex = total - offset - messages.length;
-
-                    messages.forEach((msg, idx) => {
-                        const index = (msg.raw_index !== undefined) ? msg.raw_index : (baseIndex + idx);
-                        const msgDiv = createMessageDiv(msg.role, msg.content, null, null, index); 
-                        if (msgDiv) {
-                            chatContainer.insertBefore(msgDiv, originalFirstMessage);
-                        }
-                    });
-                    
-                    chatContainer.scrollTop = chatContainer.scrollHeight - scrollHeightBefore;
-                }
-                
-                currentOffset = offset + limit;
-                
-                // Show/Hide Load More
-                if (currentOffset < total) {
-                    if (loadMoreContainer) loadMoreContainer.classList.remove('d-none');
-                } else {
-                    if (loadMoreContainer) loadMoreContainer.classList.add('d-none');
-                }
-
-                if (isAutoRestore) {
-                    showToast('Resumed last session');
-                }
-            } else {
-                if (offset === 0) {
-                    if (chatWelcome) chatWelcome.classList.remove('d-none');
-                }
-                if (loadMoreContainer) loadMoreContainer.classList.add('d-none');
-            }
-        } catch (error) {
-            console.error('Error loading messages:', error);
-        } finally {
-            isLoadingHistory = false;
-        }
+    function updateDriveModeVisibility() {
+        if (!driveModeBtn) return;
+        const isEnabled = window.USER_SETTINGS && window.USER_SETTINGS.show_mic !== false;
+        if (driveMode.isSupported && driveMode.isSupported() && isEnabled) driveModeBtn.classList.remove('d-none');
+        else driveModeBtn.classList.add('d-none');
     }
 
+    function updatePlanModeVisibility() {
+        if (!planModeBtn) return;
+        const isEnabled = window.USER_SETTINGS && window.USER_SETTINGS.show_plan === true;
+        if (isEnabled) planModeBtn.classList.remove('d-none');
+        else planModeBtn.classList.add('d-none');
+    }
+
+    // --- Session History ---
     async function loadSessions(append = false) {
         if (isLoadingSidebar) return;
         if (!append) sidebarOffset = 0;
-        
-        let query = "";
-        if (sessionSearch) {
-            query = sessionSearch.value.trim();
-        }
-        
+        isLoadingSidebar = true;
+        let query = sessionSearch ? sessionSearch.value.trim() : "";
         let url = `/sessions?limit=${SIDEBAR_PAGE_LIMIT}&offset=${sidebarOffset}`;
-        
-        if (activeTags.size > 0) {
-            url += `&tags=${encodeURIComponent(Array.from(activeTags).join(','))}`;
-        }
-        
-        if (query) {
-            url = `/sessions/search?q=${encodeURIComponent(query)}`;
-        }
-
+        if (activeTags.size > 0) url += `&tags=${encodeURIComponent(Array.from(activeTags).join(','))}`;
+        if (query) url = `/sessions/search?q=${encodeURIComponent(query)}`;
         try {
-            isLoadingSidebar = true;
-            const response = await fetch(url);
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const data = await response.json();
-            
-            let sessions = [];
-            let pinned = [];
-            let history = [];
-            let totalUnpinned = 0;
-
-            if (Array.isArray(data)) {
-                sessions = data;
-                history = data;
-            } else {
-                pinned = data.pinned || [];
-                history = data.history || [];
-                totalUnpinned = data.total_unpinned || 0;
-                sessions = pinned.concat(history);
+            const res = await fetch(url);
+            const data = await res.json();
+            renderSessions(data, append);
+            const sessions = Array.isArray(data) ? data : (data.history || []);
+            const activeSession = sessions.find(s => s.active || s.uuid === currentActiveUUID);
+            if (activeSession && activeSession.model) updateActiveModelUI(activeSession.model);
+            if (sidebarLoadMoreBtn) {
+                 const total = data.total_unpinned || 0;
+                 sidebarLoadMoreBtn.parentElement.classList.toggle('d-none', Array.isArray(data) || (sidebarOffset + sessions.length >= total));
             }
-
-            // Auto-create if none and not searching
-            if (!query && !append && sessions.length === 0) {
-                const newRes = await fetch('/sessions/new', { method: 'POST' });
-                if (newRes.ok) {
-                    loadSessions();
-                    return;
-                }
-            }
-
-            try {
-                if (append) {
-                    renderSessions(history, true);
-                } else {
-                    renderSessions(sessions, false);
-                }
-            } catch (renderError) {
-                console.error('Error rendering sessions:', renderError);
-            }
-            
-            // Handle Load More visibility
-            if (query) {
-                if (sidebarLoadMoreContainer) sidebarLoadMoreContainer.classList.add('d-none');
-            } else {
-                if (history.length === SIDEBAR_PAGE_LIMIT && (sidebarOffset + SIDEBAR_PAGE_LIMIT) < totalUnpinned) {
-                    if (sidebarLoadMoreContainer) sidebarLoadMoreContainer.classList.remove('d-none');
-                } else {
-                    if (sidebarLoadMoreContainer) sidebarLoadMoreContainer.classList.add('d-none');
-                }
-            }
-
-            const activeSession = sessions.find(s => s.active);
-            try {
-                renderChatTags(activeSession);
-            } catch (tagError) {
-                console.error('Error rendering chat tags:', tagError);
-            }
-            
-            // Check if we need to auto-load (only on initial load)
-            if (!append && !query) {
-                const hasMessages = chatContainer.querySelectorAll('.message').length > 0;
-                if (activeSession && !hasMessages && !window.HAS_INITIAL_MESSAGES) {
-                     loadMessages(activeSession.uuid, PAGE_LIMIT, 0, true);
-                }
-            }
-        } catch (error) {
-            console.error('Error loading sessions:', error);
-            if (sessionsList && !append) sessionsList.innerHTML = `<div class="alert alert-danger mx-3 mt-3">Failed to load history: ${error.message}</div>`;
-        } finally {
-            isLoadingSidebar = false;
-        }
+        } catch (e) { console.error('loadSessions error:', e); } 
+        finally { isLoadingSidebar = false; }
     }
 
     function renderSessions(data, append = false) {
         const pinnedList = document.getElementById('pinned-sessions-list');
         const historyList = document.getElementById('history-sessions-list');
         const pinnedHeader = document.getElementById('pinned-sessions-header');
-        const historyHeader = document.getElementById('history-sessions-header');
-        const initialLoader = document.getElementById('sidebar-initial-loader');
-
-        if (initialLoader) initialLoader.remove();
-
-        let pinned = [];
-        let history = [];
-
-        if (Array.isArray(data)) {
-            // Fallback for search results or legacy
-            history = data;
-        } else {
-            pinned = data.pinned || [];
-            history = data.history || [];
-        }
-
-        const createSessionHTML = (s) => `
-            <div class="list-group-item list-group-item-action bg-dark text-light session-item ${(s.active || s.has_active_fork) ? 'active-session' : ''}" data-uuid="${s.uuid}">
+        let pinned = data.pinned || [];
+        let history = Array.isArray(data) ? data : (data.history || []);
+        const createHTML = (s) => `
+            <div class="list-group-item list-group-item-action bg-dark text-light session-item ${(s.active || s.uuid === currentActiveUUID) ? 'active-session' : ''}" data-uuid="${s.uuid}">
                 <div class="d-flex justify-content-between align-items-start">
                     <div class="flex-grow-1 overflow-hidden">
-                        <span class="session-title text-truncate">${s.title || 'Untitled Chat'}</span>
-                        <div class="session-tags-list">
-                            ${(s.tags || []).map(t => `<span class="session-tag-item">${t}</span>`).join('')}
-                        </div>
-                        <span class="session-time">${s.time || ''}</span>
+                        <span class="session-title text-truncate d-block">${s.title || 'Untitled Chat'}</span>
+                        <div class="session-tags-list">${(s.tags || []).map(t => `<span class="session-tag-item">${t}</span>`).join('')}</div>
+                        <span class="session-time text-muted small">${s.time || ''}</span>
                     </div>
                     <div class="d-flex align-items-center gap-1">
-                        ${(s.active || s.has_active_fork) ? '<span class="badge bg-primary rounded-pill small me-1">Active</span>' : ''}
-                        <button class="btn btn-sm pin-btn border-0 ${s.pinned ? 'pinned' : ''}" data-uuid="${s.uuid}" title="${s.pinned ? 'Unpin Chat' : 'Pin Chat'}">
-                            <i class="bi ${s.pinned ? 'bi-pin-fill' : 'bi-pin'}"></i>
-                        </button>
-                        <button class="btn btn-sm rename-session-btn border-0" data-uuid="${s.uuid}" title="Rename Chat">
-                            <i class="bi bi-pencil"></i>
-                        </button>
-                        <button class="btn btn-sm btn-outline-danger border-0 delete-session-btn" data-uuid="${s.uuid}" title="Delete Chat">
-                            <i class="bi bi-trash"></i>
-                        </button>
+                        <button class="btn btn-sm pin-btn border-0 ${s.pinned ? 'text-warning' : 'text-muted'}" data-uuid="${s.uuid}"><i class="bi ${s.pinned ? 'bi-pin-fill' : 'bi-pin'}"></i></button>
+                        <button class="btn btn-sm tag-btn border-0 text-warning" data-uuid="${s.uuid}"><i class="bi bi-tags"></i></button>
+                        <button class="btn btn-sm rename-session-btn border-0 text-info" data-uuid="${s.uuid}"><i class="bi bi-pencil"></i></button>
+                        <button class="btn btn-sm btn-outline-danger border-0 delete-session-btn" data-uuid="${s.uuid}"><i class="bi bi-trash"></i></button>
                     </div>
                 </div>
-            </div>
-        `;
-
+            </div>`;
         if (!append) {
-            pinnedList.innerHTML = pinned.map(createSessionHTML).join('');
-            historyList.innerHTML = history.map(createSessionHTML).join('');
-            
-            if (pinned.length > 0) {
-                pinnedHeader.classList.remove('d-none');
-            } else {
-                pinnedHeader.classList.add('d-none');
-            }
-
-            if (history.length > 0 || pinned.length > 0) {
-                historyHeader.classList.remove('d-none');
-            } else {
-                historyHeader.classList.add('d-none');
-                historyList.innerHTML = '<div class="text-center p-3 text-muted">No history found.</div>';
-            }
-        } else {
-            historyList.insertAdjacentHTML('beforeend', history.map(createSessionHTML).join(''));
-        }
-
+            if (pinnedList) pinnedList.innerHTML = pinned.map(createHTML).join('');
+            if (historyList) historyList.innerHTML = history.map(createHTML).join('');
+            if (pinnedHeader) pinnedHeader.classList.toggle('d-none', pinned.length === 0);
+        } else if (historyList) historyList.insertAdjacentHTML('beforeend', history.map(createHTML).join(''));
         attachSessionListeners();
     }
 
-    async function renameSession(uuid, newTitle, titleSpan) {
-        try {
-            const response = await fetch(`/sessions/${uuid}/title`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title: newTitle })
-            });
-            const data = await response.json();
-            if (data.success) {
-                titleSpan.textContent = newTitle;
-                showToast('Chat renamed');
-            } else {
-                alert('Failed to rename chat: ' + (data.error || 'Unknown error'));
-            }
-        } catch (error) {
-            console.error('Error renaming session:', error);
-            alert('Failed to rename chat.');
-        }
-    }
-
-    async function switchSession(uuid) {
-        try {
-            const formData = new FormData();
-            formData.append('session_uuid', uuid);
-            const response = await fetch('/sessions/switch', {
-                method: 'POST',
-                body: formData
-            });
-            const data = await response.json();
-            if (data.success) {
-                chatContainer.innerHTML = '<div class="text-center text-muted mt-5"><p>Loading conversation...</p></div>';
-                await loadMessages(uuid);
-                const historyEl = document.getElementById('historySidebar');
-                const offcanvas = bootstrap.Offcanvas.getInstance(historyEl);
-                if (offcanvas) offcanvas.hide();
-                loadSessions();
-            }
-        } catch (error) {
-            console.error('Error switching session:', error);
-            alert('Failed to switch session.');
-        }
-    }
-
     function attachSessionListeners() {
-        document.querySelectorAll('.session-item').forEach(item => {
-            item.onclick = async (e) => {
-                if (e.target.closest('button')) return;
-
-                const uuid = item.dataset.uuid;
-                if (item.classList.contains('active-session')) {
-                    bootstrap.Offcanvas.getInstance(historySidebar).hide();
-                    return;
-                }
-                
-                await switchSession(uuid);
-            };
-        });
-
-        document.querySelectorAll('.pin-btn').forEach(btn => {
-            btn.onclick = async (e) => {
-                e.stopPropagation();
-                const uuid = btn.dataset.uuid;
-                try {
-                    const response = await fetch(`/sessions/${uuid}/pin`, { method: 'POST' });
-                    const data = await response.json();
-                    loadSessions();
-                } catch (error) {
-                    console.error('Error pinning session:', error);
-                }
-            };
-        });
-
+        document.querySelectorAll('.session-item').forEach(item => { item.onclick = (e) => { if (!e.target.closest('button')) switchSession(item.dataset.uuid); }; });
+        document.querySelectorAll('.pin-btn').forEach(btn => { btn.onclick = async (e) => { e.stopPropagation(); await fetch(`/sessions/${btn.dataset.uuid}/pin`, { method: 'POST' }); loadSessions(); }; });
+        document.querySelectorAll('.tag-btn').forEach(btn => { btn.onclick = (e) => { e.stopPropagation(); openTaggingModal(btn.dataset.uuid); }; });
         document.querySelectorAll('.rename-session-btn').forEach(btn => {
             btn.onclick = (e) => {
                 e.stopPropagation();
-                const uuid = btn.dataset.uuid;
-                const item = btn.closest('.session-item');
-                const titleSpan = item.querySelector('.session-title');
-                const oldTitle = titleSpan.textContent.trim();
-                
-                currentRenameUUID = uuid;
-                currentRenameTitleEl = titleSpan;
-                if (renameInput) renameInput.value = oldTitle;
-                if (renameModal) renameModal.show();
+                currentRenameUUID = btn.dataset.uuid;
+                renameInput.value = btn.closest('.session-item').querySelector('.session-title').textContent;
+                new bootstrap.Modal(renameModalEl).show();
             };
         });
-
         document.querySelectorAll('.delete-session-btn').forEach(btn => {
             btn.onclick = async (e) => {
                 e.stopPropagation();
-                const uuid = btn.dataset.uuid;
-                if (confirm('Are you sure you want to delete this conversation?')) {
-                    try {
-                        const formData = new FormData();
-                        formData.append('session_uuid', uuid);
-                        const response = await fetch('/sessions/delete', {
-                            method: 'POST',
-                            body: formData
-                        });
-                        const data = await response.json();
-                        if (data.success) {
-                            loadSessions();
-                            const item = btn.closest('.session-item');
-                            if (item.classList.contains('active-session')) {
-                                chatContainer.innerHTML = '<div class="text-center text-muted mt-5"><p>Conversation deleted. Start a new one!</p></div>';
-                            }
-                        }
-                    } catch (error) {
-                        console.error('Error deleting session:', error);
-                        alert('Failed to delete session.');
-                    }
-                }
+                if (confirm('Delete this chat?')) { await fetch('/sessions/delete', { method: 'POST', body: new URLSearchParams({ session_uuid: btn.dataset.uuid }) }); if (btn.dataset.uuid === currentActiveUUID) window.location.reload(); else loadSessions(); }
             };
         });
     }
 
-    // New Chat
-    newChatBtn.addEventListener('click', async () => {
+    if (btnSaveRename) {
+        btnSaveRename.onclick = async () => {
+            const title = renameInput.value.trim();
+            if (!title || !currentRenameUUID) return;
+            const res = await fetch(`/sessions/${currentRenameUUID}/title`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title }) });
+            if (res.ok) { bootstrap.Modal.getInstance(renameModalEl).hide(); loadSessions(); }
+        };
+    }
+
+    async function handleNewChat() {
         try {
-            const response = await fetch('/sessions/new', { method: 'POST' });
-            const data = await response.json();
-            if (data.success) {
-                chatContainer.innerHTML = '<div class="text-center text-muted mt-5"><p>New conversation started.</p></div>';
-                bootstrap.Offcanvas.getInstance(historySidebar).hide();
+            const res = await fetch('/sessions/new', { method: 'POST' });
+            if (res.ok) {
+                currentActiveUUID = null;
+                window.ACTIVE_SESSION_UUID = null;
+                window.INITIAL_MESSAGES = [];
+                chatContainer.innerHTML = '';
+                if (chatWelcome) chatWelcome.classList.remove('d-none');
+                currentOffset = 0;
+                window.TOTAL_MESSAGES = 0;
+                if (window.USER_SETTINGS && window.USER_SETTINGS.default_model) updateActiveModelUI(window.USER_SETTINGS.default_model);
+                if (window.USER_SETTINGS && window.USER_SETTINGS.default_workspace) if (workspaceInput) workspaceInput.value = window.USER_SETTINGS.default_workspace;
+                const sidebar = document.getElementById('historySidebar');
+                if (sidebar) bootstrap.Offcanvas.getInstance(sidebar)?.hide();
+                showToast('New session started');
                 loadSessions();
-
-                // Reset model to default for new chat
-                if (window.USER_SETTINGS && window.USER_SETTINGS.default_model) {
-                    updateActiveModelUI(window.USER_SETTINGS.default_model);
-                }
+                loadPatterns();
             }
-        } catch (error) {
-            console.error('Error starting new chat:', error);
-            alert('Failed to start new chat.');
-        }
-    });
-
-    // Load patterns when modal is shown
-    patternsModal.addEventListener('show.bs.modal', async () => {
-        if (allPatterns.length === 0) {
-            await loadPatterns();
-        }
-    });
-
-    // Search patterns
-    patternSearch.addEventListener('input', (e) => {
-        const query = e.target.value.toLowerCase();
-        const filtered = allPatterns.filter(p => 
-            (p.name && p.name.toLowerCase().includes(query)) || 
-            (p.description && p.description.toLowerCase().includes(query))
-        );
-        renderPatterns(filtered);
-    });
-
-    // --- Static Prompt Management Listeners ---
-    const editPromptModalEl = document.getElementById('editPromptModal');
-    const editPromptModal = new bootstrap.Modal(editPromptModalEl);
-
-    // New Prompt Button
-    const newPromptBtn = document.getElementById('btn-new-prompt');
-    if (newPromptBtn) {
-        newPromptBtn.onclick = () => {
-            document.getElementById('editPromptModalTitle').innerHTML = '<i class="bi bi-plus-lg"></i> Create New Custom Prompt';
-            document.getElementById('edit-prompt-filename').value = '';
-            document.getElementById('edit-prompt-filename').readOnly = false;
-            document.getElementById('edit-prompt-filename').placeholder = 'e.g. My Expert Agent';
-            document.getElementById('edit-prompt-content').value = '';
-            
-            editPromptModalEl.dataset.mode = 'create';
-            editPromptModal.show();
-        };
+        } catch (e) { console.error('Error starting new chat:', e); }
     }
+    if (newChatBtn) newChatBtn.onclick = handleNewChat;
 
-    // Handle Prompt Save
-    const savePromptBtn = document.getElementById('btn-save-prompt-edit');
-    if (savePromptBtn) {
-        savePromptBtn.onclick = async () => {
-            const mode = editPromptModalEl.dataset.mode || 'edit';
-            const filename = document.getElementById('edit-prompt-filename').value.trim();
-            const content = document.getElementById('edit-prompt-content').value;
-            
-            if (!filename) {
-                alert('Please enter a title or filename.');
-                return;
-            }
-
-            const formData = new FormData();
-            formData.append('content', content);
-            
-            let url = `/prompts/${filename}`;
-            let method = 'PUT';
-            
-            if (mode === 'create') {
-                url = '/prompts/new';
-                method = 'POST';
-                formData.append('title', filename);
-            }
-
-            try {
-                const res = await fetch(url, {
-                    method: method,
-                    body: formData
-                });
-                const data = await res.json();
-                if (data.success) {
-                    showToast(mode === 'create' ? 'Prompt created successfully!' : 'Prompt updated successfully!');
-                    editPromptModal.hide();
-                    await loadPatterns(); // Refresh list
-                } else {
-                    alert('Failed to save prompt.');
-                }
-            } catch (err) {
-                console.error(err);
-                alert('Error saving prompt.');
-            }
-        };
-    }
-
-    async function loadPatterns() {
+    async function switchSession(uuid) {
+        if (uuid === currentActiveUUID) { 
+            const sidebar = document.getElementById('historySidebar');
+            if (sidebar) bootstrap.Offcanvas.getInstance(sidebar)?.hide(); 
+            return; 
+        }
+        chatContainer.innerHTML = '<div class="text-center text-muted mt-5"><p>Loading conversation...</p></div>';
         try {
-            const response = await fetch('/patterns');
-            const data = await response.json();
-            allPatterns = data; // data is already the list
-            renderPatterns(allPatterns);
-        } catch (error) {
-            console.error('Error loading patterns:', error);
-            if (patternsList) {
-                patternsList.innerHTML = '<div class="alert alert-danger">Failed to load patterns.</div>';
+            const res = await fetch('/sessions/switch', { method: 'POST', body: new URLSearchParams({ session_uuid: uuid }) });
+            const data = await res.json();
+            if (data.success) {
+                currentActiveUUID = uuid;
+                await loadMessages(uuid);
+                const sidebar = document.getElementById('historySidebar');
+                if (sidebar) bootstrap.Offcanvas.getInstance(sidebar)?.hide();
+                loadSessions();
+                loadSessionWorkspace(uuid);
+                loadPatterns();
             }
-        }
+        } catch (e) { console.error('switchSession error:', e); }
     }
 
-    function renderPatterns(patterns) {
-        if (patterns.length === 0) {
-            patternsList.innerHTML = '<div class="text-center p-3 text-muted">No patterns found.</div>';
-            return;
-        }
+    async function loadMessages(uuid, limit = PAGE_LIMIT, offset = 0) {
+        if (isLoadingHistory) return;
+        if (offset === 0) { 
+            currentActiveUUID = uuid; 
+            chatContainer.innerHTML = '<div id="scroll-sentinel" style="height: 10px; width: 100%;"></div>'; 
+            currentOffset = 0; 
+            if (chatWelcome) chatWelcome.classList.add('d-none'); 
+            await fetchForks(uuid); 
+        } else isLoadingHistory = true;
 
-        // Sort: User prompts first, then system patterns
-        patterns.sort((a, b) => {
-            if (a.type === 'user' && b.type !== 'user') return -1;
-            if (a.type !== 'user' && b.type === 'user') return 1;
-            return a.name.localeCompare(b.name);
-        });
-
-        patternsList.innerHTML = patterns.map(p => {
-            if (p.type === 'user') {
-                return `
-                <div class="list-group-item bg-dark text-light border-secondary d-flex justify-content-between align-items-center">
-                    <div class="flex-grow-1 cursor-pointer user-prompt-item" data-name="${p.name}">
-                        <div class="d-flex align-items-center">
-                            <h6 class="mb-1 text-info"><i class="bi bi-file-text me-2"></i>${p.name}</h6>
-                        </div>
-                        <small class="text-muted">${p.description || ''}</small>
-                    </div>
-                    <div class="d-flex gap-2">
-                        <button class="btn btn-sm btn-outline-warning edit-prompt-btn" data-name="${p.name}" title="Edit"><i class="bi bi-pencil"></i></button>
-                        <button class="btn btn-sm btn-outline-danger delete-prompt-btn" data-name="${p.name}" title="Delete"><i class="bi bi-trash"></i></button>
-                    </div>
-                </div>`;
-            } else {
-                return `
-                <button type="button" class="list-group-item list-group-item-action bg-dark text-light border-secondary pattern-item" data-pattern="${p.name}">
-                    <div class="d-flex w-100 justify-content-between">
-                        <h6 class="mb-1"><i class="bi bi-magic me-2"></i>${p.name}</h6>
-                    </div>
-                    <small class="text-muted">${p.description || ''}</small>
-                </button>`;
-            }
-        }).join('');
-
-        // System Pattern Click
-        document.querySelectorAll('.pattern-item').forEach(item => {
-            item.addEventListener('click', () => {
-                const pattern = item.dataset.pattern;
-                messageInput.value = `/p ${pattern} ${messageInput.value}`;
-                bootstrap.Modal.getInstance(patternsModal).hide();
-                messageInput.focus();
-                messageInput.dispatchEvent(new Event('input'));
-            });
-        });
-
-        // Delete Prompt
-        document.querySelectorAll('.delete-prompt-btn').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                if (confirm(`Delete prompt "${btn.dataset.name}"?`)) {
-                    try {
-                        const res = await fetch(`/prompts/${btn.dataset.name}`, { method: 'DELETE' });
-                        if (res.ok) {
-                            allPatterns = allPatterns.filter(p => p.name !== btn.dataset.name);
-                            renderPatterns(allPatterns);
-                        } else {
-                            alert('Failed to delete prompt.');
-                        }
-                    } catch (err) {
-                        console.error(err);
-                    }
+        try {
+            const res = await fetch(`/sessions/${uuid}/messages?limit=${limit}&offset=${offset}`);
+            const data = await res.json();
+            const messages = data.messages || [];
+            window.TOTAL_MESSAGES = data.total || 0;
+            messages.forEach((msg, idx) => {
+                const index = (msg.raw_index !== undefined) ? msg.raw_index : (window.TOTAL_MESSAGES - offset - messages.length + idx);
+                const div = createMessageDiv(msg.role, msg.content, null, null, index);
+                if (div) { 
+                    if (offset === 0) chatContainer.appendChild(div); 
+                    else chatContainer.insertBefore(div, document.getElementById('scroll-sentinel').nextSibling); 
                 }
             });
-        });
-
-        // Edit Prompt Button (Open Modal)
-        document.querySelectorAll('.edit-prompt-btn').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const name = btn.dataset.name;
-                
-                try {
-                    const res = await fetch(`/prompts/${name}`);
-                    const data = await res.json();
-                    if (data.content) {
-                        document.getElementById('editPromptModalTitle').innerHTML = '<i class="bi bi-pencil"></i> Edit Custom Prompt';
-                        document.getElementById('edit-prompt-filename').value = name;
-                        document.getElementById('edit-prompt-filename').readOnly = true;
-                        document.getElementById('edit-prompt-content').value = data.content;
-                        editPromptModalEl.dataset.mode = 'edit';
-                        editPromptModal.show();
-                    }
-                } catch (err) {
-                    console.error(err);
-                    alert('Failed to load prompt content.');
-                }
-            });
-        });
-        
-        // User Prompt Item Click (Load content into chat input)
-        document.querySelectorAll('.user-prompt-item').forEach(item => {
-            item.addEventListener('click', async (e) => {
-                // Prevent trigger if clicking the edit/delete buttons (stopPropagation handles this but extra safety)
-                if (e.target.closest('.edit-prompt-btn') || e.target.closest('.delete-prompt-btn')) return;
-
-                const name = item.dataset.name;
-                try {
-                    const res = await fetch(`/prompts/${name}`);
-                    const data = await res.json();
-                    if (data.content) {
-                        messageInput.value = data.content;
-                        bootstrap.Modal.getInstance(patternsModal).hide();
-                        messageInput.focus();
-                        messageInput.dispatchEvent(new Event('input'));
-                    }
-                } catch (err) {
-                    console.error(err);
-                }
-            });
-        });
+            if (offset === 0) chatContainer.scrollTop = chatContainer.scrollHeight;
+            currentOffset = offset + messages.length;
+        } catch (e) { console.error('loadMessages error:', e); } 
+        finally { isLoadingHistory = false; }
     }
 
-    // Auto-resize textarea
-    messageInput.addEventListener('keydown', function(event) {
-        if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
-            event.preventDefault();
-            chatForm.dispatchEvent(new Event('submit'));
-        }
-    });
+    async function openTaggingModal(uuid) {
+        const modal = new bootstrap.Modal(taggingModalEl);
+        try {
+            const res = await fetch(`/sessions/${uuid}/tags`);
+            const data = await res.json();
+            let workingTags = data.tags || [];
+            const render = () => {
+                modalCurrentTags.innerHTML = workingTags.map(t => `<span class="badge bg-primary me-1">${t} <i class="bi bi-x-circle cursor-pointer" onclick="window.removeTagFromWorking('${t}')"></i></span>`).join('');
+                modalExistingTags.innerHTML = allUniqueTags.filter(t => !workingTags.includes(t)).map(t => `<span class="badge bg-secondary me-1 cursor-pointer" onclick="window.addTagToWorking('${t}')">${t}</span>`).join('');
+            };
+            window.removeTagFromWorking = (tag) => { workingTags = workingTags.filter(t => t !== tag); render(); };
+            window.addTagToWorking = (tag) => { if (!workingTags.includes(tag)) workingTags.push(tag); render(); };
+            btnAddTag.onclick = () => { const val = tagInput.value.trim(); if (val && !workingTags.includes(val)) { workingTags.push(val); tagInput.value = ''; render(); } };
+            btnSaveTags.onclick = async () => { const res = await fetch(`/sessions/${uuid}/tags`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tags: workingTags }) }); if (res.ok) { modal.hide(); loadSessions(); fetchUniqueTags(); } };
+            render(); modal.show();
+        } catch (e) { console.error('openTaggingModal error:', e); }
+    }
 
-    messageInput.addEventListener('input', function() {
-        this.style.height = 'auto';
-        this.style.height = (this.scrollHeight) + 'px';
-        if (this.value === '') {
-            this.style.height = '';
-        }
-    });
+    async function fetchUniqueTags() {
+        try {
+            const res = await fetch('/tags/unique');
+            const data = await res.json();
+            allUniqueTags = data.tags || [];
+            const container = document.getElementById('tag-filter-container');
+            if (container) container.innerHTML = allUniqueTags.map(t => `<span class="badge ${activeTags.has(t) ? 'bg-primary' : 'bg-dark border border-secondary'} cursor-pointer me-1 mb-1" onclick="window.toggleTagFilter('${t}')">${t}</span>`).join('');
+        } catch (e) {}
+    }
 
-    // Model selection
-    modelLinks.forEach(link => {
-        link.addEventListener('click', (e) => {
+    window.toggleTagFilter = (tag) => { if (activeTags.has(tag)) activeTags.delete(tag); else activeTags.add(tag); fetchUniqueTags(); loadSessions(); };
+
+    // --- Chat Flow ---
+    if (chatForm) {
+        chatForm.onsubmit = async (e) => {
             e.preventDefault();
-            const targetLink = e.currentTarget; // The <a> tag
-            const model = targetLink.dataset.model;
+            const msg = messageInput.value.trim();
+            const files = attachments.getFiles ? attachments.getFiles() : [];
+            if (!msg && files.length === 0) return;
             
-            modelInput.value = model;
-            // Get text without the badge if possible, or just full text
-            let modelName = targetLink.innerText;
-            // Clean up "Fast"/"Smart" badges from text if present (simple hack)
-            modelName = modelName.replace('Fast', '').replace('Smart', '').trim();
+            const index = window.TOTAL_MESSAGES || 0;
+            appendMessage('user', msg, null, files[0], index);
+            window.TOTAL_MESSAGES = index + 1;
             
-            modelLabel.textContent = modelName;
+            messageInput.value = ''; messageInput.style.height = '';
+            const filesToSend = [...files]; if (attachments.clear) attachments.clear();
+            const loadingId = appendLoading(); toggleStopButton(true);
             
-            modelLinks.forEach(l => l.classList.remove('active'));
-            targetLink.classList.add('active');
-        });
-    });
-
-    // File handling
-    fileUpload.addEventListener('change', async (e) => {
-        if (e.target.files.length > 0) {
-            await attachments.addFiles(e.target.files);
-            switchToFlashModel();
-            fileUpload.value = ''; // Reset input to allow re-selecting same file
-        }
-    });
-
-    /*
-    clearFileBtn.addEventListener('click', () => {
-        fileUpload.value = '';
-        currentFile = null;
-        filePreviewArea.classList.add('d-none');
-    });
-    */
-
-        chatForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const message = messageInput.value.trim();
-        const queuedFiles = attachments.getFiles();
-        
-        if (!message && queuedFiles.length === 0) return;
-
-        // Add user message to chat
-        const userMsgIndex = window.TOTAL_MESSAGES || 0;
-        const attachmentText = queuedFiles.length > 0 ? 
-            ` [${queuedFiles.length} attachment(s)]` : '';
-            
-        // For local display, we show the first file as a thumbnail if it's an image
-        const firstFile = queuedFiles.length > 0 ? queuedFiles[0] : null;
-        
-        appendMessage('user', message + attachmentText, null, firstFile, userMsgIndex);
-        window.TOTAL_MESSAGES = userMsgIndex + 1;
-
-        // Clear inputs immediately
-        messageInput.value = '';
-        messageInput.style.height = '';
-        const filesToSend = [...queuedFiles]; 
-        attachments.clear();
-        
-        // Save for potential retry
-        window.LAST_SENT_MESSAGE = message;
-        window.LAST_SENT_FILES = [...filesToSend];
-
-        // Show loading state
-        const loadingId = appendLoading();
-        toggleStopButton(true);
-
-        try {
-            const formData = new FormData();
-            formData.append('message', message);
-            
-            for (const file of filesToSend) {
-                // Files are already compressed by AttachmentManager if they are images
-                formData.append('file', file);
+            try {
+                const fd = new FormData();
+                fd.append('message', msg); 
+                fd.append('model', modelInput.value);
+                if (planModeActive) fd.append('plan_mode', 'true');
+                filesToSend.forEach(f => fd.append('file', f));
+                const res = await fetch('/chat', { method: 'POST', body: fd });
+                await processStream(res, loadingId);
+            } catch (error) { 
+                removeLoading(loadingId); 
+                appendMessage('bot', `Error: ${error.message}`); 
+            } finally { 
+                toggleStopButton(false); 
+                loadSessions(); 
             }
-            
-            formData.append('model', modelInput.value);
-            if (planModeActive) {
-                formData.append('plan_mode', 'true');
-            }
-
-            const response = await fetch('/chat', {
-                method: 'POST',
-                body: formData
-            });
-
-            if (!response.ok) {
-                let errorMessage = `Server Error: ${response.status}`;
-                try {
-                    const text = await response.text();
-                    try {
-                        const errorData = JSON.parse(text);
-                        if (errorData.error) {
-                            errorMessage = `Error: ${errorData.error}`;
-                        } else if (errorData.response) {
-                            errorMessage = errorData.response;
-                        }
-                    } catch (parseError) {
-                        if (text && text.length < 100) {
-                            errorMessage = `Error ${response.status}: ${text}`;
-                        } else {
-                            errorMessage = `Error ${response.status}: Failed to get valid response from server.`;
-                        }
-                    }
-                } catch (e) {
-                    console.error('Could not read error response:', e);
-                }
-                throw new Error(errorMessage);
-            }
-
-            const contentType = response.headers.get('content-type');
-            if (contentType && contentType.includes('text/event-stream')) {
-                await processStream(response, loadingId);
-            } else {
-                const data = await response.json();
-                removeLoading(loadingId);
-                appendMessage('bot', data.response);
-            }
-
-        } catch (error) {
-            removeLoading(loadingId);
-            console.error('Detailed Chat Error:', error);
-            let displayError = error.message || 'Unknown Error';
-            if (error instanceof TypeError && error.message === 'Failed to fetch') {
-                displayError = 'Network Error: Could not connect to the server. Check if the service is running and accessible.';
-            }
-            appendMessage('bot', `Error: ${displayError}`);
-        } finally {
-            toggleStopButton(false);
-            // Refresh sidebar to ensure new sessions appear without reload
-            loadSessions();
-        }
-    });
+        };
+    }
 
     async function processStream(response, loadingId) {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
-        let messageDiv = null;
-        
-        let fullText = "";
-        let toolLogs = [];
-        let buffer = "";
-        let errorYielded = false;
-        
-        const renderInterval = 100; // ms
-        let lastRenderTime = 0;
-
+        let messageDiv = null, fullText = "", toolLogs = [], buffer = "";
         try {
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
-                
                 buffer += decoder.decode(value, { stream: true });
                 const lines = buffer.split('\n');
                 buffer = lines.pop();
-
                 for (const line of lines) {
-                    const trimmedLine = line.trim();
-                    if (!trimmedLine || trimmedLine.startsWith(':')) continue; // Skip empty or heartbeats
-
-                    if (trimmedLine.startsWith('data: ')) {
-                        const dataStr = trimmedLine.substring(6).trim();
-                        if (dataStr === '[DONE]') continue;
-                        
-                        try {
-                            const data = JSON.parse(dataStr);
-                            if (data.type === 'message' && data.role === 'assistant') {
-                                fullText += data.content;
-                            } else if (data.type === 'plan_status') {
-                                if (data.status === 'active') {
-                                    fullText += `\n\n<div class="alert alert-info py-2 px-3 mb-2"><i class="bi bi-journal-text me-2"></i><strong>Plan Mode Active:</strong> ${data.message}</div>\n\n`;
-                                } else if (data.status === 'completed') {
-                                    fullText += `\n\n<div class="alert alert-success py-2 px-3 mt-2"><i class="bi bi-check-circle me-2"></i><strong>Plan Complete:</strong> ${data.message}</div>\n\n`;
-                                }
-                            } else if (data.type === 'question') {
-                                // Render question card
-                                const card = createQuestionCard(data);
-                                chatContainer.appendChild(card);
-                                chatContainer.scrollTop = chatContainer.scrollHeight;
-                            } else if (data.type === 'model_switch') {
-                                // Update hidden input for subsequent requests
-                                if (modelInput) modelInput.value = data.new_model;
-                                
-                                // Update active state in the dropdown menu
-                                modelLinks.forEach(link => {
-                                    if (link.dataset.model === data.new_model) {
-                                        link.classList.add('active');
-                                    } else {
-                                        link.classList.remove('active');
-                                    }
-                                });
-
-                                // Update footer label
-                                const label = document.getElementById('model-label');
-                                if (label) {
-                                    // Make it look nice, e.g. "Gemini 3 Flash (Auto-switched)"
-                                    let cleanName = data.new_model.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                                    // Remove 'Preview' etc if redundant, but keep it clear
-                                    label.textContent = cleanName + " (Auto-switched)";
-                                    label.classList.add('text-warning'); // Highlight the change
-                                }
-                            } else if (data.type === 'tool_use') {
-                                toolLogs.push({ type: 'call', name: data.tool_name, input: data.parameters });
-                            } else if (data.type === 'tool_result') {
-                                if (data.output && data.output.trim() !== "") {
-                                    toolLogs.push({ type: 'output', output: data.output, full_path: data.full_output_path });
-                                }
-                            } else if (data.type === 'error') {
-                                fullText += `\n\n[Error: ${data.content}]\n\n`;
-                                errorYielded = true;
-                            }
-                            
-                            if (!messageDiv && (fullText.trim().length > 0 || toolLogs.length > 0)) {
-                                const botMsgIndex = window.TOTAL_MESSAGES || 0;
-                                messageDiv = createStreamingMessage('bot', botMsgIndex);
-                                window.TOTAL_MESSAGES = botMsgIndex + 1;
-                                removeLoading(loadingId);
-                                if (chatWelcome) chatWelcome.classList.add('d-none');
-                            }
-
-                            if (messageDiv) {
-                                const now = Date.now();
-                                if (now - lastRenderTime > renderInterval) {
-                                    updateStreamingMessage(messageDiv, fullText, toolLogs);
-                                    lastRenderTime = now;
-                                }
-                            }
-                        } catch (e) {
-                            console.error('Error parsing stream chunk:', e, dataStr);
+                    if (!line.startsWith('data: ')) continue;
+                    const dataStr = line.substring(6).trim();
+                    if (dataStr === '[DONE]') continue;
+                    try {
+                        const data = JSON.parse(dataStr);
+                        if (data.type === 'message') fullText += data.content;
+                        else if (data.type === 'init') {
+                            currentActiveUUID = data.session_id;
                         }
-                    }
+                        else if (data.type === 'question') { 
+                            const card = createQuestionCard(data); 
+                            chatContainer.appendChild(card); 
+                            chatContainer.scrollTop = chatContainer.scrollHeight; 
+                        }
+                        else if (data.type === 'tool_use') toolLogs.push({ type: 'call', name: data.tool_name, input: data.parameters });
+                        else if (data.type === 'tool_result') toolLogs.push({ type: 'output', output: data.output, full_path: data.full_output_path });
+                        else if (data.type === 'error') fullText += `\n\n[Error: ${data.content}]`;
+                        else if (data.type === 'model_switch') { updateActiveModelUI(data.new_model); showToast(`Switching to ${data.new_model}...`); }
+
+                        if (!messageDiv && (fullText.trim() || toolLogs.length)) { 
+                            messageDiv = createStreamingMessage('bot', window.TOTAL_MESSAGES++); 
+                            removeLoading(loadingId); 
+                        }
+                        if (messageDiv) updateStreamingMessage(messageDiv, fullText, toolLogs);
+                    } catch (e) {}
                 }
             }
-            if (messageDiv) {
-                updateStreamingMessage(messageDiv, fullText, toolLogs, true);
-            } else {
-                removeLoading(loadingId);
-            }
-            toggleStopButton(false);
-            // Refresh sidebar to ensure new sessions appear without reload
-            loadSessions();
-        } catch (error) {
-            console.error('Stream processing error:', error);
-            if (!errorYielded) {
-                if (!messageDiv) {
-                    messageDiv = createStreamingMessage('bot');
-                    removeLoading(loadingId);
-                }
-                const errorDiv = document.createElement('div');
-                errorDiv.className = 'text-danger small mt-2';
-                errorDiv.textContent = 'Connection lost. Message may be incomplete.';
-                messageDiv.appendChild(errorDiv);
-            }
-        }
+            if (messageDiv) updateStreamingMessage(messageDiv, fullText, toolLogs, true);
+            else removeLoading(loadingId);
+        } catch (e) { console.error('processStream error:', e); }
     }
 
-    function createStreamingMessage(sender, index = null) {
-        const messageDiv = document.createElement('div');
-        messageDiv.classList.add('message', sender);
-        if (index !== null) messageDiv.dataset.index = index;
-        
-        const contentArea = document.createElement('div');
-        contentArea.className = 'message-content';
-        messageDiv.appendChild(contentArea);
-        
-        const logsArea = document.createElement('div');
-        logsArea.className = 'tool-logs mt-2 d-none';
-        messageDiv.appendChild(logsArea);
-        
-        chatContainer.appendChild(messageDiv);
+    function createMessageDiv(sender, text, info, file, index) {
+        const div = document.createElement('div'); div.className = `message ${sender}`;
+        if (index !== null) div.dataset.index = index;
+        let parsedText = text;
+        if (sender === 'bot') parsedText = parsedText.replace(/\[Thinking\]([\s\S]*?)\[\/Thinking\]/g, (m, c) => `<div class="thinking-block">${c.trim()}</div>`);
+        const content = document.createElement('div'); content.className = 'message-content';
+        content.innerHTML = (typeof marked !== 'undefined') ? marked.parse(parsedText) : parsedText;
+        div.appendChild(content);
+        const actions = document.createElement('div'); actions.className = 'message-actions';
+        const copyBtn = document.createElement('button'); copyBtn.className = 'copy-btn'; copyBtn.innerHTML = '<i class="bi bi-clipboard"></i>';
+        copyBtn.onclick = () => {
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(() => showToast('Copied!'));
+            } else {
+                const ta = document.createElement('textarea');
+                ta.value = text; document.body.appendChild(ta); ta.select();
+                document.execCommand('copy'); document.body.removeChild(ta);
+                showToast('Copied!');
+            }
+        };
+        actions.appendChild(copyBtn);
+        if (index !== null) {
+            const forkBtn = document.createElement('button'); forkBtn.className = 'clone-btn'; forkBtn.innerHTML = '<i class="bi bi-pencil-square"></i>';
+            forkBtn.onclick = () => { 
+                if (sender === 'user') { messageInput.value = text; messageInput.focus(); handleClone(currentActiveUUID, parseInt(index) - 1, false); } 
+                else handleClone(currentActiveUUID, parseInt(index)); 
+            };
+            actions.appendChild(forkBtn);
+        }
+        div.prepend(actions); return div;
+    }
+
+    function createStreamingMessage(sender, index) {
+        const div = document.createElement('div'); div.className = `message ${sender} streaming`; div.dataset.index = index;
+        div.innerHTML = '<div class="message-content"></div><div class="tool-logs mt-2 d-none"></div>';
+        chatContainer.appendChild(div); chatContainer.scrollTop = chatContainer.scrollHeight; return div;
+    }
+
+    function updateStreamingMessage(div, text, logs, isFinal = false) {
+        const content = div.querySelector('.message-content');
+        let parsedText = text.replace(/\[Thinking\]([\s\S]*?)\[\/Thinking\]/g, (m, c) => `<div class="thinking-block">${c.trim()}</div>`);
+        content.innerHTML = (typeof marked !== 'undefined') ? marked.parse(parsedText) : parsedText;
+        const logsDiv = div.querySelector('.tool-logs');
+        if (logs.length) {
+            logsDiv.classList.remove('d-none');
+            logsDiv.innerHTML = logs.map(l => {
+                if (l.type === 'call') return `<div class="small text-info border-start border-info ps-2 mb-1"><strong>Tool Call:</strong> ${l.name}</div>`;
+                return `<div class="small text-success border-start border-success ps-2 mb-2"><strong>Result:</strong><pre class="m-0" style="font-size: 0.7rem; max-height: 100px; overflow: auto;">${(l.output || '').substring(0, 500)}</pre>${l.full_path ? `<a href="${l.full_path}" target="_blank" class="small text-success">Download Full Output</a>` : ''}</div>`;
+            }).join('');
+        }
+        if (isFinal) {
+            div.classList.remove('streaming');
+            div.querySelectorAll('pre code').forEach(b => typeof hljs !== 'undefined' && hljs.highlightElement(b));
+            const actions = div.querySelector('.message-actions') || document.createElement('div');
+            actions.className = 'message-actions'; actions.innerHTML = '';
+            const copyBtn = document.createElement('button'); copyBtn.className = 'copy-btn'; copyBtn.innerHTML = '<i class="bi bi-clipboard"></i>';
+            copyBtn.onclick = () => navigator.clipboard.writeText(text).then(() => showToast('Copied!'));
+            actions.appendChild(copyBtn);
+            const forkBtn = document.createElement('button'); forkBtn.className = 'clone-btn'; forkBtn.innerHTML = '<i class="bi bi-pencil-square"></i>';
+            forkBtn.onclick = () => handleClone(currentActiveUUID, parseInt(div.dataset.index));
+            actions.appendChild(forkBtn);
+            if (!div.querySelector('.message-actions')) div.prepend(actions);
+        }
         chatContainer.scrollTop = chatContainer.scrollHeight;
-        return messageDiv;
     }
 
     function createQuestionCard(data) {
-        const { question, options, allow_multiple } = data;
-        
-        const card = document.createElement('div');
-        card.className = 'question-card';
-        
-        const qText = document.createElement('div');
-        qText.className = 'question-text';
-        qText.innerText = question;
-        card.appendChild(qText);
-        
-        const optContainer = document.createElement('div');
-        optContainer.className = 'options-container';
-        
-        const dismissCard = () => {
-            card.classList.add('removing');
-            setTimeout(() => card.remove(), 200);
-        };
-
-        if (!options || options.length === 0) {
-            // Open-ended question
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.className = 'form-control bg-dark text-light border-secondary mb-2';
-            input.placeholder = 'Type your answer...';
-            card.appendChild(input);
-            
-            const submit = document.createElement('button');
-            submit.className = 'btn btn-primary btn-sm w-100';
-            submit.innerText = 'Submit';
-            submit.onclick = () => {
-                const val = input.value.trim();
-                if (val) {
-                    submitAnswer(val);
-                    dismissCard();
-                }
-            };
-            card.appendChild(submit);
-            
-            // Allow Enter key
-            input.onkeydown = (e) => {
-                if (e.key === 'Enter') submit.click();
-            };
+        const card = document.createElement('div'); card.className = 'question-card';
+        const qText = document.createElement('div'); qText.className = 'question-text'; qText.innerText = data.question; card.appendChild(qText);
+        const optContainer = document.createElement('div'); optContainer.className = 'options-container';
+        const dismiss = () => { card.classList.add('removing'); setTimeout(() => card.remove(), 200); };
+        if (!data.options || data.options.length === 0) {
+            const input = document.createElement('input'); input.type = 'text'; input.className = 'form-control bg-dark text-light mb-2'; input.placeholder = 'Type answer...'; card.appendChild(input);
+            const btn = document.createElement('button'); btn.className = 'btn btn-primary btn-sm w-100'; btn.innerText = 'Submit';
+            btn.onclick = () => { if (input.value.trim()) { messageInput.value = input.value.trim(); if (chatForm) chatForm.dispatchEvent(new Event('submit')); dismiss(); } };
+            card.appendChild(input); card.appendChild(btn);
         } else {
-            // Multiple choice
             const selected = new Set();
-            
-            options.forEach(opt => {
-                const btn = document.createElement('button');
-                btn.className = 'option-btn';
-                btn.innerText = opt;
+            data.options.forEach(opt => {
+                const btn = document.createElement('button'); btn.className = 'option-btn'; btn.innerText = opt;
                 btn.onclick = () => {
-                    // Special handling for high demand retry/stop
-                    if (data.is_retry) {
-                        if (opt === 'Stop') {
-                            fetch('/stop', { method: 'POST' });
-                            dismissCard();
-                            return;
-                        }
-                        if (opt === 'Retry') {
-                            retryLastTask();
-                            dismissCard();
-                            return;
-                        }
-                    }
-
-                    if (allow_multiple) {
-                        if (selected.has(opt)) {
-                            selected.delete(opt);
-                            btn.classList.remove('active');
-                        } else {
-                            selected.add(opt);
-                            btn.classList.add('active');
-                        }
-                    } else {
-                        submitAnswer(opt);
-                        dismissCard();
-                    }
+                    if (data.allow_multiple) { if (selected.has(opt)) { selected.delete(opt); btn.classList.remove('active'); } else { selected.add(opt); btn.classList.add('active'); } }
+                    else { messageInput.value = opt; if (chatForm) chatForm.dispatchEvent(new Event('submit')); dismiss(); }
                 };
                 optContainer.appendChild(btn);
             });
-            
             card.appendChild(optContainer);
-            
-            if (allow_multiple) {
-                const submit = document.createElement('button');
-                submit.className = 'btn btn-primary btn-sm submit-btn';
-                submit.innerText = 'Submit Selection';
-                submit.onclick = () => {
-                    if (selected.size > 0) {
-                        submitAnswer(Array.from(selected).join(', '));
-                        dismissCard();
-                    }
-                };
-                card.appendChild(submit);
+            if (data.allow_multiple) {
+                const btn = document.createElement('button'); btn.className = 'btn btn-primary btn-sm mt-2 w-100'; btn.innerText = 'Submit';
+                btn.onclick = () => { if (selected.size) { messageInput.value = Array.from(selected).join(', '); if (chatForm) chatForm.dispatchEvent(new Event('submit')); dismiss(); } };
+                card.appendChild(btn);
             }
         }
-        
         return card;
     }
 
-    /**
-     * Retries the last sent message and its attachments.
-     * @return {Promise<void>}
-     */
-    async function retryLastTask() {
-        if (window.LAST_SENT_MESSAGE !== undefined) {
-            messageInput.value = window.LAST_SENT_MESSAGE;
-        }
-        if (window.LAST_SENT_FILES && window.LAST_SENT_FILES.length > 0) {
-            await attachments.addFiles(window.LAST_SENT_FILES);
-        }
-        chatForm.dispatchEvent(new Event('submit'));
-    }
+    function appendMessage(sender, text, info, file, index) { const div = createMessageDiv(sender, text, info, file, index); if (div) { chatContainer.appendChild(div); chatContainer.scrollTop = chatContainer.scrollHeight; } }
+    function appendLoading() { const div = document.createElement('div'); div.className = 'message bot loading'; const id = 'loading-' + Date.now(); div.id = id; div.innerHTML = '<div class="spinner-border spinner-border-sm"></div> Thinking...'; chatContainer.appendChild(div); chatContainer.scrollTop = chatContainer.scrollHeight; return id; }
+    function removeLoading(id) { const el = document.getElementById(id); if (el) el.remove(); }
 
-    /**
-     * Submits a text answer to the current chat session.
-     * @param {string} text The answer text to submit.
-     * @return {Promise<void>}
-     */
-    async function submitAnswer(text) {
-        // Send answer as a normal user message
-        messageInput.value = text;
-        chatForm.dispatchEvent(new Event('submit'));
-    }
-
-    async function copyMessageToClipboard(text, messageDiv, btn) {
+    async function handleClone(uuid, messageIndex, showAlert = true) {
         try {
-            const icon = btn.querySelector('i');
-            const isFormatted = window.USER_SETTINGS && window.USER_SETTINGS.copy_formatted === true;
-
-            if (isFormatted && typeof ClipboardItem !== 'undefined') {
-                // Get the rendered HTML content, excluding the actions div
-                const contentClone = messageDiv.cloneNode(true);
-                const actions = contentClone.querySelector('.message-actions');
-                if (actions) actions.remove();
-                
-                // Remove question cards
-                contentClone.querySelectorAll('.question-card').forEach(c => c.remove());
-
-                const htmlContent = contentClone.innerHTML;
-                const blobHtml = new Blob([htmlContent], { type: 'text/html' });
-                const blobText = new Blob([text], { type: 'text/plain' });
-                
-                const data = [new ClipboardItem({
-                    'text/html': blobHtml,
-                    'text/plain': blobText
-                })];
-                
-                await navigator.clipboard.write(data);
-            } else {
-                // Default markdown only
-                await navigator.clipboard.writeText(text);
-            }
-
-            icon.className = 'bi bi-check2';
-            setTimeout(() => { icon.className = 'bi bi-clipboard'; }, 2000);
-        } catch (err) {
-            console.error('Failed to copy:', err);
-            // Fallback
-            try {
-                await navigator.clipboard.writeText(text);
-                const icon = btn.querySelector('i');
-                if (icon) {
-                    icon.className = 'bi bi-check2';
-                    setTimeout(() => { icon.className = 'bi bi-clipboard'; }, 2000);
-                }
-            } catch (e) {}
-        }
+            const res = await fetch(`/sessions/${uuid}/clone`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message_index: messageIndex }) });
+            const data = await res.json();
+            if (data.success) { if (showAlert) showToast('Conversation forked!'); if (data.new_uuid === "pending") { chatContainer.innerHTML = ''; loadSessions(); } else switchSession(data.new_uuid); }
+        } catch (e) { console.error('handleClone error:', e); }
     }
 
-    function updateStreamingMessage(messageDiv, text, toolLogs, isFinal = false) {
-        const contentArea = messageDiv.querySelector('.message-content');
-        const logsArea = messageDiv.querySelector('.tool-logs');
-        
-        // Render Text
-        if (text.trim().length > 0) {
-            if (typeof marked !== 'undefined') {
-                contentArea.innerHTML = marked.parse(text);
-            } else {
-                contentArea.textContent = text;
-            }
-        }
-        
-        // Render Logs
-        if (toolLogs.length > 0) {
-            logsArea.classList.remove('d-none');
-            logsArea.innerHTML = toolLogs.map(log => {
-                if (log.type === 'call') {
-                    return `<div class="small text-info border-start border-info ps-2 mb-1" style="font-family: monospace;">
-                        <strong>Tool Call:</strong> ${log.name}<br>
-                        <span class="text-muted" style="word-break: break-all; font-size: 0.7rem;">${JSON.stringify(log.input)}</span>
-                    </div>`;
-                } else {
-                    if (!log.output || log.output.trim() === "") return "";
-                    let outputHtml = `<div class="small text-success border-start border-success ps-2 mb-2" style="font-family: monospace;">
-                        <strong>Tool Output:</strong><br>
-                        <pre class="m-0" style="font-size: 0.7rem; max-height: 150px; overflow: auto; background: #1a1a1a; padding: 5px; border-radius: 4px;">${log.output}</pre>`;
-                    
-                    if (log.full_path) {
-                        outputHtml += `<div class="mt-1"><a href="${log.full_path}" target="_blank" class="btn btn-sm btn-outline-success py-0" style="font-size: 0.6rem;"><i class="bi bi-download"></i> Download Full Output</a></div>`;
-                    }
-                    
-                    outputHtml += `</div>`;
-                    return outputHtml;
-                }
-            }).join('');
-        }
-        
-        if (isFinal) {
-            // Update Actions
-            let actionsDiv = messageDiv.querySelector('.message-actions');
-            if (!actionsDiv) {
-                actionsDiv = document.createElement('div');
-                actionsDiv.className = 'message-actions';
-                messageDiv.prepend(actionsDiv);
-            }
-            actionsDiv.innerHTML = ''; // Clear
+    async function handleReset() { if (confirm('Reset chat?')) { const res = await fetch('/reset', { method: 'POST' }); const data = await res.json(); chatContainer.innerHTML = `<div class="text-center text-muted mt-5">${data.response}</div>`; currentActiveUUID = null; loadSessions(); } }
+    if (resetBtn) resetBtn.onclick = handleReset;
+    if (resetBtnMobile) resetBtnMobile.onclick = handleReset;
 
-            const copyBtn = document.createElement('button');
-            copyBtn.className = 'copy-btn';
-            copyBtn.title = 'Copy to clipboard';
-            copyBtn.innerHTML = '<i class="bi bi-clipboard"></i>';
-            copyBtn.onclick = (e) => {
-                e.stopPropagation();
-                copyMessageToClipboard(text, messageDiv, copyBtn);
-            };
-            actionsDiv.appendChild(copyBtn);
-
-            const forkBtn = document.createElement('button');
-            forkBtn.className = 'clone-btn';
-            forkBtn.title = 'Fork conversation from this message';
-            forkBtn.innerHTML = `<svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M5 5.372v.878c0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75v-.878a2.25 2.25 0 1 1 1.5 0v.878a2.25 2.25 0 0 1-2.25 2.25h-1.5v2.128a2.251 2.251 0 1 1-1.5 0V8.5h-1.5A2.25 2.25 0 0 1 3.5 6.25v-.878a2.25 2.25 0 1 1 1.5 0ZM5 3.25a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0Zm6.75.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm-3 8.75a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0Z"></path></svg>`;
-            forkBtn.onclick = (e) => {
-                e.stopPropagation();
-                const activeSessionItem = document.querySelector('.session-item.active-session');
-                if (activeSessionItem) {
-                    handleClone(activeSessionItem.dataset.uuid, parseInt(messageDiv.dataset.index));
-                }
-            };
-            actionsDiv.appendChild(forkBtn);
-
-            // Highlight code
-            if (typeof hljs !== 'undefined') {
-                messageDiv.querySelectorAll('pre code').forEach((block) => {
-                    hljs.highlightElement(block);
-                });
-            }
-
-            // Render Math
-            try {
-                if (typeof renderMathInElement === 'function') {
-                    renderMathInElement(messageDiv, {
-                        delimiters: [
-                            {left: '$$', right: '$$', display: true},
-                            {left: '$', right: '$', display: false},
-                            {left: '\\(', right: '\\)', display: false},
-                            {left: '\\[', right: '\\]', display: true}
-                        ],
-                        throwOnError: false
-                    });
-                }
-            } catch (e) {
-                console.error('Error rendering math:', e);
-            }
-        }
-        
-        chatContainer.scrollTop = chatContainer.scrollHeight;
-    }
-
-    function createMessageDiv(sender, text, attachmentInfo = null, file = null, index = null) {
-        if (!text && !attachmentInfo) return null;
-        if (text && text.trim() === "" && !attachmentInfo) return null;
-
-        const messageDiv = document.createElement('div');
-        messageDiv.classList.add('message', sender);
-        if (index !== null) messageDiv.dataset.index = index;
-        
-        let contentHtml = '';
-
-        // Image Preview Logic
-        let imageUrl = null;
-        if (file && file.type.startsWith('image/')) {
-            imageUrl = URL.createObjectURL(file);
-        } else if (text && sender === 'user') {
-            // Regex to find attachment path: matches both / and \ 
-            const match = text.match(/@tmp[\\\/]user_attachments[\\\/]([^\s]+)/);
-            if (match) {
-                const filename = match[1];
-                imageUrl = `/uploads/${filename}`;
-            }
-        }
-
-        if (imageUrl) {
-            contentHtml += `<img src="${imageUrl}" class="message-thumbnail mb-2" style="max-width: 150px; border-radius: 8px; cursor: pointer; display: block;" onclick="window.open('${imageUrl}', '_blank')">`;
-        }
-
-        if (attachmentInfo) {
-            contentHtml += `<div class="text-muted small mb-1"><i class="bi bi-paperclip"></i> ${attachmentInfo}</div>`;
-        }
-        
-        // Use marked to parse markdown safely
-        let parsedText = text;
-        
-        // Handle thinking blocks
-        if (sender === 'bot') {
-            parsedText = parsedText.replace(/\[Thinking\]([\s\S]*?)\[\/Thinking\]/g, (match, content) => {
-                return `<div class="thinking-block">${content.trim()}</div>`;
-            });
-        }
-
+    async function handleExport() {
+        if (!currentActiveUUID) return;
         try {
-            if (typeof marked !== 'undefined') {
-                if (typeof marked.parse === 'function') {
-                    parsedText = marked.parse(text);
-                } else if (typeof marked === 'function') {
-                    parsedText = marked(text);
-                }
-            }
-        } catch (e) {
-            console.error('Error parsing markdown:', e);
-        }
-        
-        contentHtml += `<div class="message-content">${parsedText}</div>`;
+            const res = await fetch(`/sessions/${currentActiveUUID}/messages`);
+            const data = await res.json();
+            const messages = data.messages || [];
+            let md = "# Export\n\n"; messages.forEach(m => md += `## ${m.role}\n${m.content}\n\n`);
+            const b = new Blob([md], { type: 'text/markdown' }); const u = URL.createObjectURL(b);
+            const a = document.createElement('a'); a.href = u; a.download = `chat_${currentActiveUUID}.md`; a.click();
+        } catch (e) {}
+    }
+    if (exportBtn) exportBtn.onclick = handleExport;
+    if (exportBtnMobile) exportBtnMobile.onclick = handleExport;
 
-        messageDiv.innerHTML = contentHtml;
+    async function fetchForks(uuid) { try { const res = await fetch(`/sessions/${uuid}/forks`); currentForkMap = await res.json(); } catch (e) { currentForkMap = {}; } }
 
-        // Detect and render Question Cards if present in text (Historical Rendering)
-        if (sender === 'bot') {
-            const questionPattern = /(?:```(?:json)?\s*)?\{\s*"type"\s*:\s*"question"[\s\S]*?\}(?:\s*```)?/g;
-            const matches = text.match(questionPattern);
-            if (matches) {
-                matches.forEach(match => {
-                    try {
-                        // Extract just the JSON part
-                        const jsonMatch = match.match(/\{[\s\S]*\}/);
-                        if (jsonMatch) {
-                            const questionData = JSON.parse(jsonMatch[0]);
-                            const card = createQuestionCard(questionData);
-                            messageDiv.appendChild(card);
-                            
-                            // Remove the raw JSON from the displayed text if it was successfully rendered
-                            const contentArea = messageDiv.querySelector('.message-content');
-                            if (contentArea) {
-                                // We replace the match in the innerHTML/innerText carefully.
-                                // Since marked might have wrapped it in <pre><code>, we might need a more robust way.
-                                // For now, let's try to remove the <pre><code> block if it contains this JSON.
-                                const preBlocks = contentArea.querySelectorAll('pre');
-                                preBlocks.forEach(pre => {
-                                    if (pre.innerText.includes('"type": "question"') && pre.innerText.includes(questionData.question)) {
-                                        pre.remove();
-                                    }
-                                });
-                            }
-                        }
-                    } catch (e) {
-                        console.error('Error parsing historical question card:', e);
-                    }
-                });
-            }
-        }
-        
-        // Add Action Buttons
-        const actionsDiv = document.createElement('div');
-        actionsDiv.className = 'message-actions';
+    async function loadPatterns() { try { const res = await fetch('/patterns'); const data = await res.json(); allPatterns = data; renderPatterns(data); } catch (e) {} }
+    function renderPatterns(patterns) {
+        if (!patternsList) return;
+        patternsList.innerHTML = patterns.map(p => {
+            if (p.type === 'user') return `<div class="list-group-item bg-dark border-secondary d-flex justify-content-between align-items-center"><div class="pattern-item cursor-pointer" data-type="user" data-name="${p.name}"><h6 class="mb-0 text-info">${p.name}</h6></div><button class="btn btn-sm btn-outline-warning edit-prompt-btn" data-name="${p.name}"><i class="bi bi-pencil"></i></button></div>`;
+            return `<button type="button" class="list-group-item list-group-item-action bg-dark text-light border-secondary pattern-item" data-type="${p.type}" data-name="${p.name}"><h6 class="mb-0">${p.name.replace('skill:', '')}</h6></button>`;
+        }).join('');
+        document.querySelectorAll('.pattern-item').forEach(item => { item.onclick = () => {
+            const {name, type} = item.dataset;
+            if (type === 'skill') messageInput.value = `Use skill '${name.replace('skill:', '')}' to ${messageInput.value}`;
+            else if (type === 'system') messageInput.value = `/p ${name} ${messageInput.value}`;
+            else fetch(`/prompts/${name}`).then(r => r.json()).then(d => { if (d.content) { messageInput.value = d.content; messageInput.dispatchEvent(new Event('input')); } });
+            bootstrap.Modal.getInstance(patternsModalEl).hide(); messageInput.focus();
+        }; });
+        document.querySelectorAll('.edit-prompt-btn').forEach(btn => { btn.onclick = async (e) => { e.stopPropagation(); const res = await fetch(`/prompts/${btn.dataset.name}`); const d = await res.json(); if (d.content) { document.getElementById('edit-prompt-filename').value = btn.dataset.name; document.getElementById('edit-prompt-content').value = d.content; editPromptModalEl.dataset.mode = 'edit'; new bootstrap.Modal(editPromptModalEl).show(); } }; });
+    }
 
-        const copyBtn = document.createElement('button');
-        copyBtn.className = 'copy-btn';
-        copyBtn.title = 'Copy to clipboard';
-        copyBtn.innerHTML = '<i class="bi bi-clipboard"></i>';
-        copyBtn.onclick = (e) => {
-            e.stopPropagation();
-            copyMessageToClipboard(text, messageDiv, copyBtn);
+    if (btnSavePrompt) {
+        btnSavePrompt.onclick = async () => {
+            const name = document.getElementById('edit-prompt-filename').value.trim(), content = document.getElementById('edit-prompt-content').value, mode = editPromptModalEl.dataset.mode || 'create';
+            const fd = new FormData(); fd.append('content', content); if (mode === 'create') fd.append('filename', name);
+            const res = await fetch(mode === 'create' ? '/prompts' : `/prompts/${name}`, { method: mode === 'create' ? 'POST' : 'PUT', body: fd });
+            if (res.ok) { bootstrap.Modal.getInstance(editPromptModalEl).hide(); loadPatterns(); }
         };
-        actionsDiv.appendChild(copyBtn);
-
-        if (sender === 'bot' && index !== null) {
-            const forkBtn = document.createElement('button');
-            forkBtn.className = 'clone-btn';
-            forkBtn.title = 'Fork conversation from this message';
-            forkBtn.innerHTML = `<svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M5 5.372v.878c0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75v-.878a2.25 2.25 0 1 1 1.5 0v.878a2.25 2.25 0 0 1-2.25 2.25h-1.5v2.128a2.251 2.251 0 1 1-1.5 0V8.5h-1.5A2.25 2.25 0 0 1 3.5 6.25v-.878a2.25 2.25 0 1 1 1.5 0ZM5 3.25a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0Zm6.75.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm-3 8.75a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0Z"></path></svg>`;
-            forkBtn.onclick = (e) => {
-                e.stopPropagation();
-                const activeSessionItem = document.querySelector('.session-item.active-session');
-                if (activeSessionItem) {
-                    handleClone(activeSessionItem.dataset.uuid, parseInt(index));
-                }
-            };
-            actionsDiv.appendChild(forkBtn);
-        }
-
-        // User Message Actions: Edit and Fork Navigation
-        if (sender === 'user' && index !== null) {
-            // Edit Button
-            const editBtn = document.createElement('button');
-            editBtn.className = 'clone-btn'; // Reuse same style
-            editBtn.title = 'Edit and branch conversation';
-            editBtn.innerHTML = '<i class="bi bi-pencil"></i>';
-            editBtn.onclick = (e) => {
-                e.stopPropagation();
-                if (confirm('Edit this question and branch the conversation?')) {
-                    // 1. Populate input
-                    messageInput.value = text;
-                    messageInput.focus();
-                    messageInput.dispatchEvent(new Event('input'));
-                    
-                    // 2. Clone at the point before this message
-                    const activeSessionItem = document.querySelector('.session-item.active-session');
-                    if (activeSessionItem) {
-                        const msgIndex = parseInt(index);
-                        handleClone(activeSessionItem.dataset.uuid, msgIndex - 1, false); 
-                    }
-                }
-            };
-            actionsDiv.appendChild(editBtn);
-
-            // Fork Navigation Arrows (now on the user message that branched)
-            const forkPoint = index - 1;
-            if (currentForkMap[forkPoint]) {
-                const forks = currentForkMap[forkPoint];
-                const totalBranches = forks.length + 1;
-                
-                const navSpan = document.createElement('span');
-                navSpan.className = 'fork-nav-controls d-flex align-items-center bg-dark rounded px-1 me-1';
-                navSpan.style.fontSize = '0.7rem';
-                navSpan.style.border = '1px solid rgba(255,255,255,0.1)';
-
-                const prevBtn = document.createElement('button');
-                prevBtn.className = 'btn btn-link btn-sm p-0 text-secondary border-0';
-                prevBtn.innerHTML = '<i class="bi bi-chevron-left"></i>';
-                
-                const nextBtn = document.createElement('button');
-                nextBtn.className = 'btn btn-link btn-sm p-0 text-secondary border-0';
-                nextBtn.innerHTML = '<i class="bi bi-chevron-right"></i>';
-
-                const branchInfo = document.createElement('span');
-                branchInfo.className = 'mx-1 text-muted';
-                branchInfo.textContent = `${totalBranches} forks`;
-
-                nextBtn.onclick = (e) => { e.stopPropagation(); switchSession(forks[0]); };
-                prevBtn.onclick = (e) => { e.stopPropagation(); switchSession(forks[forks.length - 1]); };
-
-                navSpan.appendChild(prevBtn);
-                navSpan.appendChild(branchInfo);
-                navSpan.appendChild(nextBtn);
-                actionsDiv.appendChild(navSpan);
-            }
-        }
-
-        messageDiv.prepend(actionsDiv);
-
-        // Highlight code blocks safely
-        try {
-            if (typeof hljs !== 'undefined') {
-                messageDiv.querySelectorAll('pre code').forEach((block) => {
-                    hljs.highlightElement(block);
-                });
-            }
-        } catch (e) {
-            console.error('Error highlighting code:', e);
-        }
-
-        // Render Math
-        try {
-            if (typeof renderMathInElement === 'function') {
-                renderMathInElement(messageDiv, {
-                    delimiters: [
-                        {left: '$$', right: '$$', display: true},
-                        {left: '$', right: '$', display: false},
-                        {left: '\\(', right: '\\)', display: false},
-                        {left: '\\[', right: '\\]', display: true}
-                    ],
-                    throwOnError: false
-                });
-            }
-        } catch (e) {
-            console.error('Error rendering math:', e);
-        }
-        
-        return messageDiv;
     }
 
-    function appendMessage(sender, text, attachmentInfo = null, file = null, index = null) {
-        try {
-            const messageDiv = createMessageDiv(sender, text, attachmentInfo, file, index);
-            if (messageDiv) {
-                chatContainer.appendChild(messageDiv);
-                chatContainer.scrollTop = chatContainer.scrollHeight;
-            }
-            return messageDiv;
-        } catch (e) {
-            console.error('Error in appendMessage:', e);
-            return null;
-        }
-    }
+    // --- Observer ---
+    const observer = new IntersectionObserver((entries) => { if (entries[0].isIntersecting && !isLoadingHistory && currentOffset > 0 && currentActiveUUID) loadMessages(currentActiveUUID, PAGE_LIMIT, currentOffset); }, { root: chatContainer, threshold: 0.1 });
+    if (!document.getElementById('scroll-sentinel')) { const s = document.createElement('div'); s.id = 'scroll-sentinel'; s.style.height = '10px'; chatContainer.prepend(s); }
+    observer.observe(document.getElementById('scroll-sentinel'));
 
-    function appendLoading() {
-        const id = 'loading-' + Date.now();
-        const messageDiv = document.createElement('div');
-        messageDiv.classList.add('message', 'bot');
-        messageDiv.id = id;
-        messageDiv.innerHTML = '<div class="spinner-border spinner-border-sm text-light" role="status"><span class="visually-hidden">Loading...</span></div> Thinking...';
-        chatContainer.appendChild(messageDiv);
-        chatContainer.scrollTop = chatContainer.scrollHeight;
-        return { id, element: messageDiv };
-    }
+    // --- Share ---
+    if (btnConfirmShare) { btnConfirmShare.onclick = async () => {
+        const u = shareUsernameInput.value.trim(); if (!u || !currentActiveUUID) return;
+        const res = await fetch(`/sessions/${currentActiveUUID}/share`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u }) });
+        if (res.ok) { shareStatus.textContent = 'Shared!'; setTimeout(() => bootstrap.Modal.getInstance(shareModalEl).hide(), 1000); }
+    }; }
 
-    function removeLoading(id) {
-        const element = document.getElementById(id);
-        if (element) {
-            element.remove();
-        }
-    }
-
-    // Infinite Scroll Observer
-    const scrollSentinel = document.getElementById('scroll-sentinel');
-    if (scrollSentinel) {
-        const observer = new IntersectionObserver((entries) => {
-            if (entries[0].isIntersecting && !isLoadingHistory) {
-                const activeSessionItem = document.querySelector('.session-item.active-session');
-                const hasMore = !loadMoreContainer.classList.contains('d-none');
-                
-                if (activeSessionItem && hasMore && currentOffset > 0) {
-                    loadMessages(activeSessionItem.dataset.uuid, PAGE_LIMIT, currentOffset);
-                }
-            }
-        }, {
-            root: chatContainer,
-            threshold: 0.1
-        });
-        observer.observe(scrollSentinel);
-    }
-
-    // Swipe Gestures for Mobile
-    let touchStartX = 0;
-    let touchStartY = 0;
-    const swipeThreshold = 50;
-    const edgeThreshold = 40;
-
-    document.addEventListener('touchstart', (e) => {
-        // Only track if swipe starts near edges
-        const x = e.touches[0].clientX;
-        if (x < edgeThreshold || x > window.innerWidth - edgeThreshold) {
-            touchStartX = x;
-            touchStartY = e.touches[0].clientY;
+    // --- Initialization ---
+    loadWorkspaces(); loadSessions(); loadPatterns(); fetchUniqueTags();
+    if (currentActiveUUID) { 
+        loadSessionWorkspace(currentActiveUUID); 
+        // If we have initial messages rendered by server, don't load again
+        if (!window.INITIAL_MESSAGES || window.INITIAL_MESSAGES.length === 0) {
+            loadMessages(currentActiveUUID); 
         } else {
-            touchStartX = 0; // Reset
+            currentOffset = window.INITIAL_MESSAGES.length;
+            // The template passes window.TOTAL_MESSAGES
+            // window.TOTAL_MESSAGES = window.TOTAL_MESSAGES || currentOffset;
         }
-    }, { passive: true });
+    }
 
-    document.addEventListener('touchend', (e) => {
-        if (touchStartX === 0) return;
+    if (window.USER_SETTINGS) {
+        updateDriveModeVisibility();
+        updatePlanModeVisibility();
+    }
 
-        const touchEndX = e.changedTouches[0].clientX;
-        const touchEndY = e.changedTouches[0].clientY;
-        const diffX = touchEndX - touchStartX;
-        const diffY = touchEndY - touchStartY;
-
-        // Must be horizontal and meet threshold
-        if (Math.abs(diffX) > Math.abs(diffY) * 1.5 && Math.abs(diffX) > swipeThreshold) {
-            if (diffX > 0 && touchStartX < edgeThreshold) {
-                // Swipe Left-to-Right from left edge: Open History
-                const historyEl = document.getElementById('historySidebar');
-                const historyOffcanvas = bootstrap.Offcanvas.getInstance(historyEl) || new bootstrap.Offcanvas(historyEl);
-                historyOffcanvas.show();
-            } else if (diffX < 0 && touchStartX > window.innerWidth - edgeThreshold) {
-                // Swipe Right-to-Left from right edge: Open Actions
-                const actionsEl = document.getElementById('actionsSidebar');
-                const actionsOffcanvas = bootstrap.Offcanvas.getInstance(actionsEl) || new bootstrap.Offcanvas(actionsEl);
-                actionsOffcanvas.show();
-            }
-        }
-        touchStartX = 0; // Reset
-    }, { passive: true });
+    modelLinks.forEach(l => { l.onclick = (e) => { e.preventDefault(); updateActiveModelUI(l.dataset.model); }; });
+    if (planModeBtn) planModeBtn.onclick = () => { planModeActive = !planModeActive; planModeBtn.classList.toggle('btn-warning', planModeActive); planModeBtn.classList.toggle('btn-outline-warning', !planModeActive); messageInput.placeholder = planModeActive ? "Plan Mode..." : "Message..."; };
+    messageInput.oninput = () => { messageInput.style.height = 'auto'; messageInput.style.height = messageInput.scrollHeight + 'px'; };
+    
+    // Swipe
+    let ts = 0; document.addEventListener('touchstart', e => ts = e.touches[0].clientX, { passive: true });
+    document.addEventListener('touchend', e => { const dx = e.changedTouches[0].clientX - ts; if (Math.abs(dx) > 100) { if (dx > 0 && ts < 50) bootstrap.Offcanvas.getOrCreateInstance(historySidebar).show(); else if (dx < 0 && ts > window.innerWidth - 50) bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('actionsSidebar')).show(); } }, { passive: true });
 });

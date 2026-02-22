@@ -287,27 +287,63 @@ async def set_sess_tools(
     return {"success": True}
 
 
+async def get_effective_workspace(agent, user):
+    active_session = agent.user_data.get(user, {}).get("active_session")
+    if active_session:
+        return agent.get_session_workspace(user, active_session)
+    return agent.get_user_settings(user).get("default_workspace", agent.WORKSPACE_ROOT)
+
+
 @router.get("/patterns")
-async def get_pats(request: Request):
+async def get_pats(request: Request, user=Depends(get_user)):
     agent = request.app.state.agent
-    # This logic was a bit involved in original_app.py
-    # I'll simplify or copy it.
+    if not user:
+        raise HTTPException(401)
+
+    workspace = await get_effective_workspace(agent, user)
+
     from app.core.patterns import PATTERNS
     import re
 
     expl = PATTERNS.get("__explanations__", "")
     res = []
 
-    # Custom Prompts
-    prompts_dir = "prompts"
+    # Custom Prompts from Workspace
+    prompts_dir = os.path.join(workspace, "prompts")
     if os.path.exists(prompts_dir):
         for filename in os.listdir(prompts_dir):
             if filename.endswith(".md") or filename.endswith(".txt"):
                 res.append(
                     {
                         "name": filename,
-                        "description": "User generated prompt",
+                        "description": f"User generated prompt in {os.path.basename(workspace)}",
                         "type": "user",
+                    }
+                )
+
+    # Skills from Workspace (.opencode/skills)
+    skills_dir = os.path.join(workspace, ".opencode", "skills")
+    if os.path.exists(skills_dir):
+        for skill_name in os.listdir(skills_dir):
+            skill_path = os.path.join(skills_dir, skill_name)
+            if os.path.isdir(skill_path):
+                # Look for SKILL.md
+                skill_md = os.path.join(skill_path, "SKILL.md")
+                description = "Workspace Skill"
+                if os.path.exists(skill_md):
+                    try:
+                        with open(skill_md, "r", encoding="utf-8") as f:
+                            first_line = f.readline().strip()
+                            if first_line.startswith("#"):
+                                description = first_line.lstrip("#").strip()
+                    except:
+                        pass
+
+                res.append(
+                    {
+                        "name": f"skill:{skill_name}",
+                        "description": description,
+                        "type": "skill",
                     }
                 )
 
@@ -345,7 +381,8 @@ async def get_prompt_content(filename: str, request: Request, user=Depends(get_u
     if ".." in filename or "/" in filename or "\\" in filename:
         raise HTTPException(400, "Invalid filename")
 
-    filepath = os.path.join(agent.working_dir, "prompts", filename)
+    workspace = await get_effective_workspace(agent, user)
+    filepath = os.path.join(workspace, "prompts", filename)
     if os.path.exists(filepath):
         try:
             with open(filepath, "r", encoding="utf-8") as f:
@@ -366,7 +403,8 @@ async def delete_prompt(filename: str, request: Request, user=Depends(get_user))
     if ".." in filename or "/" in filename or "\\" in filename:
         raise HTTPException(400, "Invalid filename")
 
-    filepath = os.path.join(agent.working_dir, "prompts", filename)
+    workspace = await get_effective_workspace(agent, user)
+    filepath = os.path.join(workspace, "prompts", filename)
     if os.path.exists(filepath):
         try:
             os.remove(filepath)
@@ -386,18 +424,20 @@ async def update_prompt(filename: str, request: Request, user=Depends(get_user))
         raise HTTPException(400, "Invalid filename")
 
     data = await request.form()
-    content = data.get("content")
-    if content is None:
+    content = str(data.get("content") or "")
+    if not content:
         raise HTTPException(400, "Content is required")
 
-    filepath = os.path.join(agent.working_dir, "prompts", filename)
-    if os.path.exists(filepath):
-        try:
-            with open(filepath, "w", encoding="utf-8") as f:
-                f.write(content)
-            return {"success": True}
-        except Exception as e:
-            raise HTTPException(500, f"Failed to update file: {e}")
+    workspace = await get_effective_workspace(agent, user)
+    filepath = os.path.join(workspace, "prompts", filename)
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+
+    try:
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(content)
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(500, f"Failed to update file: {e}")
     else:
         raise HTTPException(404, "Prompt not found")
 
@@ -409,11 +449,12 @@ async def create_prompt(request: Request, user=Depends(get_user)):
         raise HTTPException(401)
 
     data = await request.form()
-    title = data.get("title", "New Prompt")
-    content = data.get("content", "")
+    title = str(data.get("title") or "New Prompt")
+    content = str(data.get("content") or "")
 
     # Save to prompts/ directory
-    prompts_dir = os.path.join(agent.working_dir, "prompts")
+    workspace = await get_effective_workspace(agent, user)
+    prompts_dir = os.path.join(workspace, "prompts")
     os.makedirs(prompts_dir, exist_ok=True)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -672,3 +713,38 @@ async def reset(request: Request, user=Depends(get_user)):
     if not user:
         raise HTTPException(401)
     return {"response": await agent.reset_chat(user)}
+
+
+@router.get("/workspaces")
+async def get_workspaces(request: Request, user=Depends(get_user)):
+    agent = request.app.state.agent
+    if not user:
+        raise HTTPException(401)
+    from app.services.llm_service import WORKSPACE_ROOT
+
+    return {"workspaces": agent.get_available_workspaces(), "root": WORKSPACE_ROOT}
+
+
+@router.post("/session/workspace")
+async def update_session_workspace(request: Request, user=Depends(get_user)):
+    agent = request.app.state.agent
+    if not user:
+        raise HTTPException(401)
+    data = await request.json()
+    session_uuid = data.get("uuid")
+    path = data.get("path")
+    if not session_uuid or not path:
+        raise HTTPException(400, detail="Missing uuid or path")
+
+    success = agent.update_session_workspace(user, session_uuid, path)
+    return {"success": success}
+
+
+@router.get("/session/workspace/{uuid}")
+async def get_session_workspace_path(
+    uuid: str, request: Request, user=Depends(get_user)
+):
+    agent = request.app.state.agent
+    if not user:
+        raise HTTPException(401)
+    return {"path": agent.get_session_workspace(user, uuid)}

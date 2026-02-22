@@ -1,6 +1,6 @@
 {
   "name": "opencode_web",
-  "version": "1.12.0",
+  "version": "1.12.5",
   "description": "A secure web interface for interacting with Google's Gemini AI, specifically optimized for Raspberry Pi and other Linux environments.",
   "main": "index.js",
   "directories": {

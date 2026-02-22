@@ -13,18 +13,14 @@ This skill automates the sequential process of deploying the consolidated releas
 Execute the secure copy of the release artifact to the target production server.
 
 ```bash
-scp opencode_agent_release.py z@192.168.1.84:g
-scp opencode_agent_release.py z@192.168.1.84:gg/law
-scp opencode_agent_release.py z@192.168.1.84:gg/school
+cp opencode_agent_release.py ..
 ```
 
 ### 2. Restart Server
 Execute the server restart command via SSH.
 
 ```bash
-ssh z@192.168.1.84 "sudo systemctl restart gemini-agent"
-ssh z@192.168.1.84 "sudo systemctl restart gemini-agent-law"
-ssh z@192.168.1.84 "sudo systemctl restart gemini-agent-school"
+systemctl --user restart oc
 ```
 
 ### 3. Determine Next Version
@@ -58,4 +54,4 @@ gh release create "v$nextVersion" --generate-notes
 
 - Ensure `opencode_agent_release.py` has been generated and verified before triggering this workflow.
 - This skill assumes a `vMAJOR.MINOR.PATCH` tagging format.
-- The `scp` command targets user `z` at IP `192.168.1.84`.
+
