@@ -40,8 +40,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const patternsModalEl = document.getElementById('patternsModal');
     const patternsList = document.getElementById('patterns-list');
     
-    const toolsModalEl = document.getElementById('toolsModal');
-    
     const planModeBtn = document.getElementById('plan-mode-btn');
     const driveModeBtn = document.getElementById('drive-mode-btn');
 
@@ -230,9 +228,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updatePlanModeVisibility() {
         if (!planModeBtn) return;
-        const isEnabled = window.USER_SETTINGS && window.USER_SETTINGS.show_plan === true;
-        if (isEnabled) planModeBtn.classList.remove('d-none');
-        else planModeBtn.classList.add('d-none');
+        planModeBtn.classList.remove('d-none');
     }
 
     // --- Session History ---

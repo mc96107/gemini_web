@@ -133,14 +133,6 @@
                 <button id="btn-update-workspace" class="btn btn-outline-info btn-sm w-100">Update Workspace</button>
                 <div id="workspace-status" class="mt-2 small text-center"></div>
             </div>
-            
-            <!-- Mobile Tags Section -->
-            <div class="p-3 border-bottom border-secondary d-md-none">
-                <h6 class="small text-muted text-uppercase fw-bold mb-2">Chat Tags</h6>
-                <div id="chat-tags-sidebar" class="d-flex flex-wrap gap-2">
-                    <!-- Mobile tags will render here -->
-                </div>
-            </div>
 
             {% if is_admin %}
             <a href="/admin" class="list-group-item list-group-item-action bg-dark text-light border-secondary"><i class="bi bi-gear me-2"></i> Admin Maintenance</a>
@@ -209,16 +201,12 @@
                     <input type="file" id="file-upload" name="file" class="d-none" multiple>
                     
                     <div class="d-flex gap-2">
-                        <button class="btn btn-outline-secondary btn-sm rounded-circle" type="button" id="tools-config-btn" data-bs-toggle="modal" data-bs-target="#toolsModal" title="Tools Settings">
-                            <i class="bi bi-wrench"></i>
-                        </button>
-                        
                         <button class="btn btn-outline-info btn-sm rounded-circle d-none" type="button" id="drive-mode-btn" title="Drive Mode (Voice Loop)">
                             <i class="bi bi-mic-fill"></i>
                         </button>
                     </div>
 
-                    <button class="btn btn-outline-warning btn-sm rounded-circle d-none" type="button" id="plan-mode-btn" title="Toggle Plan Mode (Experimental)">
+                    <button class="btn btn-outline-warning btn-sm rounded-circle" type="button" id="plan-mode-btn" title="Toggle Plan Mode (Experimental)">
                         <i class="bi bi-journal-text"></i>
                     </button>
                 </div>
@@ -331,7 +319,7 @@
                 <input class="form-check-input" type="checkbox" role="switch" id="setting-show-mic">
                 <label class="form-check-label" for="setting-show-mic">Show Drive Mode (Mic)</label>
             </div>
-            <div class="form-check form-switch mb-2">
+            <div class="d-none">
                 <input class="form-check-input" type="checkbox" role="switch" id="setting-show-plan">
                 <label class="form-check-label" for="setting-show-plan">Show Plan Mode</label>
             </div>
@@ -342,6 +330,15 @@
             <div class="form-check form-switch">
                 <input class="form-check-input" type="checkbox" role="switch" id="setting-copy-formatted">
                 <label class="form-check-label" for="setting-copy-formatted">Copy Formatted Text</label>
+            </div>
+            <div class="mb-3">
+                <label for="session-workspace-input" class="form-label small text-muted">Current Session Workspace</label>
+                <div class="input-group input-group-sm mb-2">
+                    <span class="input-group-text bg-dark border-secondary text-secondary"><i class="bi bi-folder2-open"></i></span>
+                    <input type="text" id="session-workspace-input" class="form-control bg-dark text-light border-secondary" list="workspace-suggestions" placeholder="/home/z/o">
+                </div>
+                <button id="btn-update-workspace" class="btn btn-outline-info btn-sm w-100">Update Current Session Workspace</button>
+                <div id="workspace-status" class="mt-2 small text-center"></div>
             </div>
             <div class="mb-3">
                 <label for="setting-default-workspace" class="form-label small text-muted">Default Workspace</label>
@@ -417,88 +414,7 @@
   </div>
 </div>
 
-<!-- Tools Modal -->
-<div class="modal fade" id="toolsModal" tabindex="-1" aria-labelledby="toolsModalLabel">
-  <div class="modal-dialog">
-    <div class="modal-content bg-dark text-light border-secondary">
-      <div class="modal-header border-secondary">
-        <h5 class="modal-title" id="toolsModalLabel"><i class="bi bi-wrench"></i> Tools Settings</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <p class="small text-muted mb-3">Enable or disable tools for the current session. All tools are disabled by default for security.</p>
-        
-        <div class="mb-4">
-            <h6 class="text-info small mb-2 text-uppercase fw-bold">Read-Only / Safe Tools</h6>
-            <div class="list-group list-group-flush bg-transparent">
-                <div class="form-check form-switch mb-2">
-                    <input class="form-check-input tool-toggle" type="checkbox" id="tool-read" value="read">
-                    <label class="form-check-label" for="tool-read">Read File/Dir (read)</label>
-                </div>
-                <div class="form-check form-switch mb-2">
-                    <input class="form-check-input tool-toggle" type="checkbox" id="tool-glob" value="glob">
-                    <label class="form-check-label" for="tool-glob">Find Files (glob)</label>
-                </div>
-                <div class="form-check form-switch mb-2">
-                    <input class="form-check-input tool-toggle" type="checkbox" id="tool-grep" value="grep">
-                    <label class="form-check-label" for="tool-grep">Search Text (grep)</label>
-                </div>
-                <div class="form-check form-switch mb-2">
-                    <input class="form-check-input tool-toggle" type="checkbox" id="tool-google_search" value="google_search">
-                    <label class="form-check-label" for="tool-google_search">Google Search (google_search)</label>
-                </div>
-                <div class="form-check form-switch mb-2">
-                    <input class="form-check-input tool-toggle" type="checkbox" id="tool-webfetch" value="webfetch">
-                    <label class="form-check-label" for="tool-webfetch">Web Fetch (webfetch)</label>
-                </div>
-            </div>
-        </div>
 
-        <div class="mb-4">
-            <h6 class="text-danger small mb-2 text-uppercase fw-bold">Modification / High-Risk Tools</h6>
-            <div class="list-group list-group-flush bg-transparent">
-                <div class="form-check form-switch mb-2">
-                    <input class="form-check-input tool-toggle" type="checkbox" id="tool-edit" value="edit">
-                    <label class="form-check-label" for="tool-edit">Edit File (edit)</label>
-                </div>
-                <div class="form-check form-switch mb-2">
-                    <input class="form-check-input tool-toggle" type="checkbox" id="tool-write" value="write">
-                    <label class="form-check-label" for="tool-write">Write File (write)</label>
-                </div>
-                <div class="form-check form-switch mb-2">
-                    <input class="form-check-input tool-toggle" type="checkbox" id="tool-bash" value="bash">
-                    <label class="form-check-label" for="tool-bash">Shell (bash)</label>
-                </div>
-                <div class="form-check form-switch mb-2">
-                    <input class="form-check-input tool-toggle" type="checkbox" id="tool-task" value="task">
-                    <label class="form-check-label" for="tool-task">Sub-Agents (task)</label>
-                </div>
-                <div class="form-check form-switch mb-2">
-                    <input class="form-check-input tool-toggle" type="checkbox" id="tool-skill" value="skill">
-                    <label class="form-check-label" for="tool-skill">Load Skill (skill)</label>
-                </div>
-                <div class="form-check form-switch mb-2">
-                    <input class="form-check-input tool-toggle" type="checkbox" id="tool-todowrite" value="todowrite">
-                    <label class="form-check-label" for="tool-todowrite">Todo Write (todowrite)</label>
-                </div>
-            </div>
-        </div>
-
-        <div class="d-flex flex-wrap justify-content-between gap-2 mt-4">
-            <div class="d-flex gap-2">
-                <button type="button" class="btn btn-outline-info btn-sm" id="btn-safe-tools-only">Safe Tools Only</button>
-                <button type="button" class="btn btn-outline-warning btn-sm" id="btn-all-except-memory">All Except Memory</button>
-            </div>
-            <div class="d-flex gap-2">
-                <button type="button" class="btn btn-outline-danger btn-sm" id="btn-deselect-all-tools">Deselect All</button>
-                <button type="button" class="btn btn-primary btn-sm" id="btn-apply-tools">Apply Settings</button>
-            </div>
-        </div>
-        <div id="tools-status" class="mt-2 small text-center"></div>
-      </div>
-    </div>
-  </div>
-</div>
 
 <!-- Tagging Modal -->
 <div class="modal fade" id="taggingModal" tabindex="-1" aria-labelledby="taggingModalLabel">
