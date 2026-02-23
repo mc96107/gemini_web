@@ -292,9 +292,9 @@ class OpenCodeAgent:
 
     async def get_available_agents(self) -> List[Dict]:
         try:
-            # Try 'agent list'
+            # Try 'agent list' without JSON format since it's not supported
             proc = await self._create_subprocess(
-                [self.opencode_cmd, "agent", "list", "--format", "json"],
+                [self.opencode_cmd, "agent", "list"],
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=self.working_dir.replace("\\", "/"),
@@ -302,18 +302,26 @@ class OpenCodeAgent:
             stdout, stderr = await proc.communicate()
             content = stdout.decode().strip()
             
-            # Find JSON start in case of extra output
-            json_start = content.find("[")
-            if json_start != -1:
-                return json.loads(content[json_start:])
+            agents = [{"id": "default", "name": "Default Agent"}]
+            seen = {"default"}
             
-            # Fallback to a few standard ones
-            return [
-                {"id": "default", "name": "Default Agent"},
-                {"id": "github", "name": "GitHub Agent"},
-                {"id": "expert", "name": "Expert Agent"}
-            ]
-        except:
+            if content:
+                # Parse lines like "general (subagent)"
+                for line in content.splitlines():
+                    line = line.strip()
+                    if "(" in line and ")" in line and not line.startswith("[") and not line.startswith("{"):
+                        parts = line.split("(")
+                        agent_id = parts[0].strip()
+                        if agent_id and agent_id not in seen:
+                            agents.append({
+                                "id": agent_id,
+                                "name": agent_id.capitalize() + " Agent"
+                            })
+                            seen.add(agent_id)
+            
+            return agents
+        except Exception as e:
+            global_log(f"Error fetching agents: {e}", level="ERROR")
             return [
                 {"id": "default", "name": "Default Agent"},
                 {"id": "github", "name": "GitHub Agent"},
