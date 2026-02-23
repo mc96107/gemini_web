@@ -439,7 +439,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Chat Flow ---
     if (chatForm) {
-        chatForm.onsubmit = async (e) => {
+        chatForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const msg = messageInput.value.trim();
             const files = attachments.getFiles ? attachments.getFiles() : [];
@@ -468,7 +468,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 toggleStopButton(false); 
                 loadSessions(); 
             }
-        };
+        });
     }
 
     async function processStream(response, loadingId) {
@@ -734,6 +734,12 @@ document.addEventListener('DOMContentLoaded', () => {
     modelLinks.forEach(l => { l.onclick = (e) => { e.preventDefault(); updateActiveModelUI(l.dataset.model); }; });
     if (planModeBtn) planModeBtn.onclick = () => { planModeActive = !planModeActive; planModeBtn.classList.toggle('btn-warning', planModeActive); planModeBtn.classList.toggle('btn-outline-warning', !planModeActive); messageInput.placeholder = planModeActive ? "Plan Mode..." : "Message..."; };
     messageInput.oninput = () => { messageInput.style.height = 'auto'; messageInput.style.height = messageInput.scrollHeight + 'px'; };
+    messageInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            if (chatForm) chatForm.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+        }
+    });
     
     // Swipe
     let ts = 0; document.addEventListener('touchstart', e => ts = e.touches[0].clientX, { passive: true });
