@@ -13,18 +13,22 @@ ORIGIN = os.getenv("ORIGIN")
 # Security Configuration
 SESSION_SECRET = os.getenv("SESSION_SECRET", secrets.token_hex(32))
 
+# Project paths
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 # Application Configuration
 UPLOAD_DIR = os.getenv(
-    "UPLOAD_DIR", os.path.join(os.getcwd(), "tmp", "user_attachments")
+    "UPLOAD_DIR", os.path.join(BASE_DIR, "tmp", "user_attachments")
 )
 AGENT_BASE_DIR = os.getenv(
-    "AGENT_BASE_DIR", os.path.join(os.getcwd(), "data", "agents")
+    "AGENT_BASE_DIR", os.path.join(BASE_DIR, "data", "agents")
 )
-SKILLS_BASE_DIR = os.path.join(os.getcwd(), ".opencode", "skills")
-SETTINGS_FILE = os.path.join(os.getcwd(), "data", "settings.json")
+SKILLS_BASE_DIR = os.path.join(BASE_DIR, ".opencode", "skills")
+SETTINGS_FILE = os.path.join(BASE_DIR, "data", "settings.json")
 MODEL_NAME = os.getenv("MODEL_NAME", "google/antigravity-gemini-3.1-pro")
-LOG_LEVEL = os.getenv("LOG_LEVEL", "NONE").upper()
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 OPENCODE_CMD = os.getenv("OPENCODE_CMD", "opencode")
+WORKSPACE_ROOT = os.getenv("WORKSPACE_ROOT", os.path.join(BASE_DIR, "workspace"))
 
 import json
 import logging
@@ -57,7 +61,7 @@ def update_global_setting(key: str, value: str):
 
 
 def update_env(key: str, value: str):
-    env_path = os.path.join(os.getcwd(), ".env")
+    env_path = os.path.join(BASE_DIR, ".env")
     lines = []
     if os.path.exists(env_path):
         with open(env_path, "r") as f:

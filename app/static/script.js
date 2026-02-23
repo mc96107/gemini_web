@@ -14,6 +14,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let allPatterns = [];
     let sessionGeneration = 0; // Bug 9: generation counter to prevent init race
 
+    let allModels = [];
+    
     // --- DOM Elements ---
     const chatForm = document.getElementById('chat-form');
     const messageInput = document.getElementById('message-input');
@@ -24,11 +26,26 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const modelInput = document.getElementById('model-input');
     const modelLabel = document.getElementById('model-label');
-    const modelLinks = document.querySelectorAll('[data-model]');
+    const modelDropdownMenu = document.getElementById('model-dropdown-menu');
     
-    const workspaceInput = document.getElementById('session-workspace-input');
-    const updateWorkspaceBtn = document.getElementById('btn-update-workspace');
-    const workspaceStatus = document.getElementById('workspace-status');
+    const agentInput = document.getElementById('agent-input');
+    const agentDropdownMenu = document.getElementById('agent-dropdown-menu');
+    
+    const workspaceInputs = [
+        document.getElementById('session-workspace-input-sidebar'),
+        document.getElementById('session-workspace-input-settings')
+    ].filter(el => el !== null);
+    
+    const updateWorkspaceBtns = [
+        document.getElementById('btn-update-workspace-sidebar'),
+        document.getElementById('btn-update-workspace-settings')
+    ].filter(el => el !== null);
+
+    const workspaceStatuses = [
+        document.getElementById('workspace-status-sidebar'),
+        document.getElementById('workspace-status-settings')
+    ].filter(el => el !== null);
+
     const workspaceSuggestions = document.getElementById('workspace-suggestions');
     const defaultWorkspaceSetting = document.getElementById('setting-default-workspace');
     const defaultModelSetting = document.getElementById('setting-default-model');
@@ -93,6 +110,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }) : { getFiles: () => [], clear: () => {} };
 
     // --- UI Helpers ---
+    function renderAttachmentQueue(items) {
+        const queue = document.getElementById('attachment-queue');
+        if (!queue) return;
+        queue.innerHTML = items.map(item => `
+            <div class="attachment-item position-relative bg-dark border border-secondary rounded p-2 d-flex align-items-center gap-2 mb-2" style="max-width: 200px;">
+                ${item.previewUrl ? `<img src="${item.previewUrl}" style="width: 30px; height: 30px; object-fit: cover; border-radius: 4px;">` : `<i class="bi bi-file-earmark"></i>`}
+                <span class="small text-truncate flex-grow-1">${item.name}</span>
+                <button type="button" class="btn-close btn-close-white small p-1" style="font-size: 0.5rem;" onclick="attachments.removeAttachment('${item.id}')"></button>
+            </div>
+        `).join('');
+    }
+    window.attachments = attachments; // Make global for onclick handlers
+
     function showToast(message) {
         const toastEl = document.getElementById('liveToast');
         const toastBody = document.getElementById('toast-body');
@@ -117,6 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateActiveModelUI(model) {
         if (!modelInput) return;
         modelInput.value = model;
+        const modelLinks = document.querySelectorAll('[data-model]');
         let found = false;
         modelLinks.forEach(link => {
             if (link.dataset.model === model) {
@@ -132,6 +163,119 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function updateActiveAgentUI(agentId) {
+        if (!agentInput) return;
+        agentInput.value = agentId;
+        const agentLinks = document.querySelectorAll('[data-agent]');
+        agentLinks.forEach(link => {
+            if (link.dataset.agent === agentId) link.classList.add('active');
+            else link.classList.remove('active');
+        });
+    }
+
+    async function loadDynamicModels() {
+        if (!modelDropdownMenu) return;
+        
+        // Wire the search input that's already in HTML
+        const searchInput = document.getElementById('model-search');
+        if (searchInput) {
+            searchInput.onclick = (e) => e.stopPropagation();
+            searchInput.oninput = (e) => {
+                const query = e.target.value.toLowerCase();
+                const filtered = allModels.filter(m => m.toLowerCase().includes(query));
+                renderModelList(filtered, true);
+            };
+        }
+
+        try {
+            const res = await fetch('/models');
+            const data = await res.json();
+            if (data.models && data.models.length > 0) {
+                allModels = data.models;
+                renderModelList(allModels);
+            }
+        } catch (err) { console.error('loadDynamicModels error:', err); }
+    }
+
+    function renderModelList(models, isFiltered = false) {
+        const container = document.getElementById('model-list-container');
+        if (!container) return;
+        
+        let html = '';
+        let displayedModels = new Set();
+
+        if (!isFiltered) {
+            // Include some "featured" models at top if not searching
+            const featured = [
+                'google/antigravity-gemini-3.1-pro',
+                'google/antigravity-gemini-3-flash',
+                'google/antigravity-claude-sonnet-4-6',
+                'google/antigravity-claude-opus-4-6-thinking'
+            ];
+            featured.forEach(m => {
+                if (models.includes(m)) {
+                    const isActive = m === (modelInput ? modelInput.value : '');
+                    const name = m.split('/').pop().replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    html += `<li><a class="dropdown-item ${isActive ? 'active' : ''}" href="#" data-model="${m}">${name} <span class="badge bg-secondary ms-1" style="font-size: 0.6rem;">Featured</span></a></li>`;
+                    displayedModels.add(m);
+                }
+            });
+            if (html) html += '<li><hr class="dropdown-divider"></li>';
+        }
+
+        models.forEach(m => {
+            if (displayedModels.has(m)) return;
+            const isActive = m === (modelInput ? modelInput.value : '');
+            const parts = m.split('/');
+            const provider = parts[0];
+            const name = parts.length > 1 ? parts.slice(1).join('/') : parts[0];
+            html += `<li><a class="dropdown-item ${isActive ? 'active' : ''}" href="#" data-model="${m}">${name} <small class="text-muted" style="font-size: 0.65rem;">(${provider})</small></a></li>`;
+        });
+        
+        container.innerHTML = html;
+        attachModelListeners();
+    }
+
+    async function loadDynamicAgents() {
+        if (!agentDropdownMenu) return;
+        try {
+            const res = await fetch('/agents');
+            const data = await res.json();
+            if (data.agents && data.agents.length > 0) {
+                let html = '<li><h6 class="dropdown-header">Agent Selection</h6></li>';
+                data.agents.forEach(a => {
+                    const isActive = a.id === agentInput.value;
+                    html += `<li><a class="dropdown-item ${isActive ? 'active' : ''}" href="#" data-agent="${a.id}">${a.name}</a></li>`;
+                });
+                agentDropdownMenu.innerHTML = html;
+                attachAgentListeners();
+            }
+        } catch (err) { console.error('loadDynamicAgents error:', err); }
+    }
+
+    function attachModelListeners() {
+        document.querySelectorAll('#model-list-container [data-model]').forEach(l => {
+            l.onclick = (e) => {
+                e.preventDefault();
+                const model = l.dataset.model;
+                updateActiveModelUI(model);
+                // Also update others in the list
+                document.querySelectorAll('#model-list-container [data-model]').forEach(link => {
+                    link.classList.toggle('active', link.dataset.model === model);
+                });
+            };
+        });
+    }
+
+    function attachAgentListeners() {
+        document.querySelectorAll('[data-agent]').forEach(l => {
+            l.onclick = (e) => {
+                e.preventDefault();
+                updateActiveAgentUI(l.dataset.agent);
+            };
+        });
+    }
+
     // --- Workspace Management ---
     async function loadWorkspaces() {
         try {
@@ -145,20 +289,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadSessionWorkspace(uuid) {
-        if (!workspaceInput || !uuid) return;
+        if (workspaceInputs.length === 0 || !uuid) return;
         try {
             const res = await fetch(`/session/workspace/${uuid}`);
             const data = await res.json();
-            if (data.path) workspaceInput.value = data.path;
+            if (data.path) {
+                workspaceInputs.forEach(input => input.value = data.path);
+            }
         } catch (err) { console.error('loadSessionWorkspace error:', err); }
     }
 
-    if (updateWorkspaceBtn && workspaceInput) {
-        updateWorkspaceBtn.onclick = async () => {
+    updateWorkspaceBtns.forEach((btn, idx) => {
+        btn.onclick = async () => {
             const uuid = currentActiveUUID || 'pending';
-            const path = workspaceInput.value.trim();
+            const input = workspaceInputs[idx];
+            const status = workspaceStatuses[idx];
+            if (!input) return;
+            
+            const path = input.value.trim();
             if (!path) { showToast('Enter a workspace path'); return; }
-            workspaceStatus.textContent = 'Updating...';
+            if (status) status.textContent = 'Updating...';
             try {
                 const res = await fetch('/session/workspace', {
                     method: 'POST',
@@ -167,17 +317,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 const data = await res.json();
                 if (data.success) {
-                    workspaceStatus.textContent = 'Workspace updated!';
-                    workspaceStatus.className = 'mt-2 small text-center text-success';
-                    setTimeout(() => { workspaceStatus.textContent = ''; }, 2000);
+                    if (status) {
+                        status.textContent = 'Workspace updated!';
+                        status.className = 'mt-2 small text-center text-success';
+                        setTimeout(() => { status.textContent = ''; }, 2000);
+                    }
+                    // Sync other inputs
+                    workspaceInputs.forEach(inp => inp.value = path);
                     loadPatterns();
                 } else {
-                    workspaceStatus.textContent = 'Error: Path must be within root';
-                    workspaceStatus.className = 'mt-2 small text-center text-danger';
+                    if (status) {
+                        status.textContent = 'Error: Path must be within root';
+                        status.className = 'mt-2 small text-center text-danger';
+                    }
                 }
-            } catch (err) { workspaceStatus.textContent = 'Network error'; }
+            } catch (err) { if (status) status.textContent = 'Network error'; }
         };
-    }
+    });
 
     // --- Settings ---
     if (defaultModelSetting && window.USER_SETTINGS) {
@@ -327,7 +483,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentOffset = 0;
                 window.TOTAL_MESSAGES = 0;
                 if (window.USER_SETTINGS && window.USER_SETTINGS.default_model) updateActiveModelUI(window.USER_SETTINGS.default_model);
-                if (window.USER_SETTINGS && window.USER_SETTINGS.default_workspace) if (workspaceInput) workspaceInput.value = window.USER_SETTINGS.default_workspace;
+                if (window.USER_SETTINGS && window.USER_SETTINGS.default_workspace) {
+                    workspaceInputs.forEach(input => input.value = window.USER_SETTINGS.default_workspace);
+                }
                 const sidebar = document.getElementById('historySidebar');
                 if (sidebar) bootstrap.Offcanvas.getInstance(sidebar)?.hide();
                 showToast('New session started');
@@ -441,6 +599,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (chatForm) {
         chatForm.addEventListener('submit', async (e) => {
             e.preventDefault();
+            console.log('Chat form submitted');
             const msg = messageInput.value.trim();
             const files = attachments.getFiles ? attachments.getFiles() : [];
             if (!msg && files.length === 0) return;
@@ -457,9 +616,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 const fd = new FormData();
                 fd.append('message', msg); 
                 fd.append('model', modelInput.value);
+                if (agentInput) fd.append('agent_name', agentInput.value);
                 if (planModeActive) fd.append('plan_mode', 'true');
                 filesToSend.forEach(f => fd.append('file', f));
+                console.log('Sending fetch request to /chat');
                 const res = await fetch('/chat', { method: 'POST', body: fd });
+                console.log('Fetch response received', res.status);
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.detail || `Server error: ${res.status}`);
+                }
                 await processStream(res, loadingId);
             } catch (error) { 
                 removeLoading(loadingId); 
@@ -515,12 +681,38 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         else if (data.type === 'tool_use') toolLogs.push({ type: 'call', name: data.tool_name, input: data.parameters });
                         else if (data.type === 'tool_result') toolLogs.push({ type: 'output', output: data.output, full_path: data.full_output_path });
+                        else if (data.type === 'step_start') {
+                            const loadingEl = document.getElementById(loadingId);
+                            if (loadingEl) loadingEl.innerHTML = `<div class="message-content"><div class="thinking-block">${data.message || 'Thinking'}<span class="thinking-loading"></span></div></div>`;
+                        }
+                        else if (data.type === 'step_finish') {
+                            if (messageDiv) {
+                                const tokens = data.tokens || {};
+                                const statsHtml = `<div class="mt-2 small text-muted border-top border-secondary pt-1" style="font-size: 0.65rem;">
+                                    <i class="bi bi-lightning-charge"></i> ${tokens.total || 0} tokens 
+                                    ${data.cost ? `| <i class="bi bi-currency-dollar"></i> ${data.cost.toFixed(4)}` : ''}
+                                    ${tokens.reasoning ? `| <i class="bi bi-brain"></i> ${tokens.reasoning}` : ''}
+                                </div>`;
+                                const content = messageDiv.querySelector('.message-content');
+                                if (content && !content.querySelector('.message-stats')) {
+                                    const statsDiv = document.createElement('div');
+                                    statsDiv.className = 'message-stats';
+                                    statsDiv.innerHTML = statsHtml;
+                                    content.appendChild(statsDiv);
+                                }
+                            }
+                        }
                         else if (data.type === 'error') fullText += `\n\n[Error: ${data.content}]`;
                         else if (data.type === 'model_switch') { updateActiveModelUI(data.new_model); showToast(`Switching to ${data.new_model}...`); }
 
-                        if (!messageDiv && (fullText.trim() || toolLogs.length)) { 
-                            messageDiv = createStreamingMessage('bot', window.TOTAL_MESSAGES++); 
-                            removeLoading(loadingId); 
+                        if (!messageDiv && (fullText.trim() || toolLogs.length || data.type === 'init' || data.type === 'step_start')) { 
+                            if (data.type === 'init' || data.type === 'step_start') {
+                                // Just update loading/remove and continue, don't create messageDiv yet if no text
+                                if (data.type === 'init') removeLoading(loadingId);
+                            } else {
+                                messageDiv = createStreamingMessage('bot', window.TOTAL_MESSAGES++); 
+                                removeLoading(loadingId); 
+                            }
                         }
                         if (messageDiv) updateStreamingMessage(messageDiv, fullText, toolLogs);
                     } catch (e) {}
@@ -541,7 +733,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const div = document.createElement('div'); div.className = `message ${sender}`;
         if (index !== null) div.dataset.index = index;
         let parsedText = text;
-        if (sender === 'bot') parsedText = parsedText.replace(/\[Thinking\]([\s\S]*?)\[\/Thinking\]/g, (m, c) => `<div class="thinking-block">${c.trim()}</div>`);
+        if (sender === 'bot') {
+            parsedText = parsedText.replace(/\[Thinking\]([\s\S]*?)\[\/Thinking\]/g, (m, c) => `<div class="thinking-block">${c.trim()}</div>`);
+            // Handle potentially unclosed thinking block (shouldn't happen in final, but for safety)
+            if (parsedText.includes('[Thinking]')) {
+                parsedText = parsedText.replace(/\[Thinking\]([\s\S]*?)$/g, (m, c) => `<div class="thinking-block">${c.trim()}</div>`);
+            }
+        }
         const content = document.createElement('div'); content.className = 'message-content';
         content.innerHTML = (typeof marked !== 'undefined') ? marked.parse(parsedText) : parsedText;
         div.appendChild(content);
@@ -578,6 +776,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateStreamingMessage(div, text, logs, isFinal = false) {
         const content = div.querySelector('.message-content');
         let parsedText = text.replace(/\[Thinking\]([\s\S]*?)\[\/Thinking\]/g, (m, c) => `<div class="thinking-block">${c.trim()}</div>`);
+        
+        // Handle open thinking block during streaming
+        if (!isFinal && parsedText.includes('[Thinking]')) {
+            parsedText = parsedText.replace(/\[Thinking\]([\s\S]*?)$/g, (m, c) => `<div class="thinking-block">${c.trim()}<span class="thinking-loading"></span></div>`);
+        }
+
         content.innerHTML = (typeof marked !== 'undefined') ? marked.parse(parsedText) : parsedText;
         const logsDiv = div.querySelector('.tool-logs');
         if (logs.length) {
@@ -634,7 +838,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function appendMessage(sender, text, info, file, index) { const div = createMessageDiv(sender, text, info, file, index); if (div) { chatContainer.appendChild(div); chatContainer.scrollTop = chatContainer.scrollHeight; } }
-    function appendLoading() { const div = document.createElement('div'); div.className = 'message bot loading'; const id = 'loading-' + Date.now(); div.id = id; div.innerHTML = '<div class="spinner-border spinner-border-sm"></div> Thinking...'; chatContainer.appendChild(div); chatContainer.scrollTop = chatContainer.scrollHeight; return id; }
+    function appendLoading() { 
+        const div = document.createElement('div'); 
+        div.className = 'message bot loading'; 
+        const id = 'loading-' + Date.now(); 
+        div.id = id; 
+        div.innerHTML = '<div class="message-content"><div class="thinking-block">Thinking<span class="thinking-loading"></span></div></div>'; 
+        chatContainer.appendChild(div); 
+        chatContainer.scrollTop = chatContainer.scrollHeight; 
+        return id; 
+    }
     function removeLoading(id) { const el = document.getElementById(id); if (el) el.remove(); }
 
     async function handleClone(uuid, messageIndex, showAlert = true) {
@@ -697,6 +910,11 @@ document.addEventListener('DOMContentLoaded', () => {
     observer.observe(document.getElementById('scroll-sentinel'));
 
     // --- Share ---
+    const shareModalEl = document.getElementById('shareModal');
+    const btnConfirmShare = document.getElementById('btn-confirm-share');
+    const shareUsernameInput = document.getElementById('share-username-input');
+    const shareStatus = document.getElementById('share-status');
+    
     if (btnConfirmShare) { btnConfirmShare.onclick = async () => {
         const u = shareUsernameInput.value.trim(); if (!u || !currentActiveUUID) return;
         const res = await fetch(`/sessions/${currentActiveUUID}/share`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u }) });
@@ -705,6 +923,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Initialization ---
     loadWorkspaces(); loadSessions(); loadPatterns(); fetchUniqueTags();
+    loadDynamicModels(); loadDynamicAgents();
     if (currentActiveUUID) { 
         loadSessionWorkspace(currentActiveUUID); 
         if (window.INITIAL_MESSAGES && window.INITIAL_MESSAGES.length > 0) {
@@ -731,8 +950,8 @@ document.addEventListener('DOMContentLoaded', () => {
         updatePlanModeVisibility();
     }
 
-    modelLinks.forEach(l => { l.onclick = (e) => { e.preventDefault(); updateActiveModelUI(l.dataset.model); }; });
     if (planModeBtn) planModeBtn.onclick = () => { planModeActive = !planModeActive; planModeBtn.classList.toggle('btn-warning', planModeActive); planModeBtn.classList.toggle('btn-outline-warning', !planModeActive); messageInput.placeholder = planModeActive ? "Plan Mode..." : "Message..."; };
+
     messageInput.oninput = () => { messageInput.style.height = 'auto'; messageInput.style.height = messageInput.scrollHeight + 'px'; };
     messageInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {

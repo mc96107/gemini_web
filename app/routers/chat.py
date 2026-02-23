@@ -477,11 +477,13 @@ async def chat(
     message: str = Form(...),
     file: Optional[list[UploadFile]] = File(None),
     model: Optional[str] = Form(None),
+    agent_name: Optional[str] = Form(None),
     plan_mode: Optional[str] = Form(None),
     user=Depends(get_user),
 ):
     agent = request.app.state.agent
     UPLOAD_DIR = request.app.state.UPLOAD_DIR
+    print(f"DEBUG: /chat request received. User: {user}, Model: {model}, Agent: {agent_name}, Plan: {plan_mode}")
     if not user:
         raise HTTPException(401)
 
@@ -623,6 +625,7 @@ async def chat(
                 user,
                 message,
                 model=m_override,
+                agent_name=agent_name,
                 file_paths=file_paths,
                 plan_mode=is_plan,
             )
@@ -751,3 +754,19 @@ async def get_session_workspace_path(
     if not user:
         raise HTTPException(401)
     return {"path": agent.get_session_workspace(user, uuid)}
+
+
+@router.get("/models")
+async def get_models(request: Request, user=Depends(get_user)):
+    agent = request.app.state.agent
+    if not user:
+        raise HTTPException(401)
+    return {"models": await agent.get_available_models()}
+
+
+@router.get("/agents")
+async def get_agents(request: Request, user=Depends(get_user)):
+    agent = request.app.state.agent
+    if not user:
+        raise HTTPException(401)
+    return {"agents": await agent.get_available_agents()}

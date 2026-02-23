@@ -89,9 +89,24 @@ header {
     display: block;
     font-weight: bold;
     font-size: 0.7rem;
-    text-uppercase: uppercase;
+    text-transform: uppercase;
     margin-bottom: 0.3rem;
     opacity: 0.7;
+}
+
+.thinking-loading {
+    display: inline-block;
+    margin-left: 5px;
+}
+.thinking-loading::after {
+    content: "...";
+    animation: thinking-dots 1.5s steps(4, end) infinite;
+}
+@keyframes thinking-dots {
+    0%, 20% { content: ""; }
+    40% { content: "."; }
+    60% { content: ".."; }
+    80%, 100% { content: "..."; }
 }
 
 /* Footer / Input Area */
@@ -634,6 +649,29 @@ footer {
     .question-card {
         max-width: 95%;
     }
+}
+
+#model-list-container {
+    max-height: 400px;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+#model-list-container::-webkit-scrollbar {
+    width: 4px;
+}
+
+#model-list-container::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 2px;
+}
+
+.message-stats {
+    opacity: 0.8;
+    transition: opacity 0.2s;
+}
+.message-stats:hover {
+    opacity: 1;
 }
 
 /* Drive Mode Pulse Animation */

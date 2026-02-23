@@ -128,10 +128,10 @@
                 <h6 class="small text-muted text-uppercase fw-bold mb-2">Workspace</h6>
                 <div class="input-group input-group-sm mb-2">
                     <span class="input-group-text bg-dark border-secondary text-secondary"><i class="bi bi-folder2-open"></i></span>
-                    <input type="text" id="session-workspace-input" class="form-control bg-dark text-light border-secondary" list="workspace-suggestions" placeholder="/home/z/o">
+                    <input type="text" id="session-workspace-input-sidebar" class="form-control bg-dark text-light border-secondary" list="workspace-suggestions" placeholder="/path/to/workspace">
                 </div>
-                <button id="btn-update-workspace" class="btn btn-outline-info btn-sm w-100">Update Workspace</button>
-                <div id="workspace-status" class="mt-2 small text-center"></div>
+                <button id="btn-update-workspace-sidebar" class="btn btn-outline-info btn-sm w-100">Update Workspace</button>
+                <div id="workspace-status-sidebar" class="mt-2 small text-center"></div>
             </div>
 
             {% if is_admin %}
@@ -181,19 +181,33 @@
                         <button class="btn btn-secondary btn-sm rounded-circle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Select Model">
                             <i class="bi bi-cpu"></i>
                         </button>
-                        <ul class="dropdown-menu">
+                        <ul class="dropdown-menu shadow-lg border-secondary" id="model-dropdown-menu" style="width: 320px; max-height: 500px;">
                             <li><h6 class="dropdown-header">Model Selection</h6></li>
-                            <li><a class="dropdown-item active" href="#" data-model="google/antigravity-gemini-3.1-pro">Antigravity Pro <span class="badge bg-warning text-dark ms-1">3.1</span></a></li>
-                            <li><a class="dropdown-item" href="#" data-model="google/antigravity-gemini-3-flash">Antigravity Flash <span class="badge bg-secondary ms-1">3.0</span></a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="#" data-model="google/antigravity-claude-sonnet-4-6">Antigravity Sonnet <span class="badge bg-info ms-1">4.6</span></a></li>
-                            <li><a class="dropdown-item" href="#" data-model="google/antigravity-claude-opus-4-6-thinking">Antigravity Opus <span class="badge bg-danger ms-1">Thinking</span></a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="#" data-model="google/gemini-2.5-pro">Gemini 2.5 Pro</a></li>
-                            <li><a class="dropdown-item" href="#" data-model="google/gemini-2.5-flash">Gemini 2.5 Flash</a></li>
+                            <li class="px-2 pb-2 border-bottom border-secondary border-opacity-25">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text bg-dark border-secondary text-secondary"><i class="bi bi-search"></i></span>
+                                    <input type="text" id="model-search" class="form-control bg-dark text-light border-secondary shadow-none" placeholder="Search models...">
+                                </div>
+                            </li>
+                            <div id="model-list-container" style="max-height: 400px; overflow-y: auto;">
+                                <!-- Model items will be dynamically injected here -->
+                            </div>
                         </ul>
                     </div>
                     <input type="hidden" name="model" id="model-input" value="{{ active_session.model if active_session and active_session.model else user_settings.default_model }}">
+                    
+                    <div class="btn-group dropup">
+                        <button class="btn btn-outline-info btn-sm rounded-circle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Select Agent">
+                            <i class="bi bi-person-badge"></i>
+                        </button>
+                        <ul class="dropdown-menu" id="agent-dropdown-menu">
+                            <li><h6 class="dropdown-header">Agent Selection</h6></li>
+                            <li><a class="dropdown-item active" href="#" data-agent="default">Default Agent</a></li>
+                            <li><a class="dropdown-item" href="#" data-agent="github">GitHub Agent</a></li>
+                            <li><a class="dropdown-item" href="#" data-agent="expert">Expert Agent</a></li>
+                        </ul>
+                    </div>
+                    <input type="hidden" name="agent" id="agent-input" value="default">
                     
                     <label class="btn btn-outline-secondary btn-sm rounded-circle" for="file-upload" title="Attach Files">
                         <i class="bi bi-paperclip"></i>
@@ -332,19 +346,19 @@
                 <label class="form-check-label" for="setting-copy-formatted">Copy Formatted Text</label>
             </div>
             <div class="mb-3">
-                <label for="session-workspace-input" class="form-label small text-muted">Current Session Workspace</label>
+                <label for="session-workspace-input-settings" class="form-label small text-muted">Current Session Workspace</label>
                 <div class="input-group input-group-sm mb-2">
                     <span class="input-group-text bg-dark border-secondary text-secondary"><i class="bi bi-folder2-open"></i></span>
-                    <input type="text" id="session-workspace-input" class="form-control bg-dark text-light border-secondary" list="workspace-suggestions" placeholder="/home/z/o">
+                    <input type="text" id="session-workspace-input-settings" class="form-control bg-dark text-light border-secondary" list="workspace-suggestions" placeholder="/path/to/workspace">
                 </div>
-                <button id="btn-update-workspace" class="btn btn-outline-info btn-sm w-100">Update Current Session Workspace</button>
-                <div id="workspace-status" class="mt-2 small text-center"></div>
+                <button id="btn-update-workspace-settings" class="btn btn-outline-info btn-sm w-100">Update Current Session Workspace</button>
+                <div id="workspace-status-settings" class="mt-2 small text-center"></div>
             </div>
             <div class="mb-3">
                 <label for="setting-default-workspace" class="form-label small text-muted">Default Workspace</label>
                 <div class="input-group input-group-sm">
                     <span class="input-group-text bg-dark border-secondary text-secondary"><i class="bi bi-folder"></i></span>
-                    <input type="text" id="setting-default-workspace" class="form-control bg-dark text-light border-secondary" list="workspace-suggestions" placeholder="/home/z/o">
+                    <input type="text" id="setting-default-workspace" class="form-control bg-dark text-light border-secondary" list="workspace-suggestions" placeholder="/path/to/workspace">
                 </div>
             </div>
             <div class="mb-3 mt-3">

@@ -13,14 +13,13 @@ from typing import Optional, List, Dict, AsyncGenerator, Any
 from app.core.patterns import PATTERNS
 from app.core import config
 
-WORKSPACE_ROOT = "/home/z/o"
+WORKSPACE_ROOT = config.WORKSPACE_ROOT
 
 FALLBACK_MODELS = {
     "google/antigravity-gemini-3.1-pro": "google/antigravity-gemini-3-flash",
     "google/antigravity-gemini-3-flash": "google/gemini-2.5-flash",
     "google/antigravity-claude-sonnet-4-6": "google/antigravity-gemini-3.1-pro",
     "google/antigravity-claude-opus-4-6-thinking": "google/antigravity-gemini-3.1-pro",
-    "google/antigravity-gemini-3.1-pro": "google/antigravity-gemini-3.1-pro",
     "google/gemini-3-flash-preview": "google/antigravity-gemini-3-flash",
     "google/gemini-2.5-pro": "google/gemini-2.5-flash",
     "google/gemini-1.5-pro": "google/gemini-1.5-flash",
@@ -52,6 +51,10 @@ def global_log(msg, level="INFO", user_data=None):
         pass
 
 
+def log_debug(msg):
+    global_log(msg, level="DEBUG")
+
+
 class ThreadedStreamReader:
     """Helper to read a pipe in a thread and provide an async interface."""
 
@@ -64,14 +67,37 @@ class ThreadedStreamReader:
 
     def _read_pipe(self):
         try:
-            for line in iter(self.pipe.readline, b""):
-                self.loop.call_soon_threadsafe(self.queue.put_nowait, line)
+            while True:
+                # Read in small chunks to avoid blocking and ensure low latency
+                chunk = self.pipe.read(1) # Byte by byte is safest for unbuffered
+                if not chunk:
+                    log_debug("Pipe EOF reached")
+                    break
+                self.loop.call_soon_threadsafe(self.queue.put_nowait, chunk)
+        except Exception as e:
+            log_debug(f"Error reading pipe: {e}")
         finally:
             self.loop.call_soon_threadsafe(self.queue.put_nowait, None)
 
-    async def readline(self):
-        line = await self.queue.get()
-        return line if line is not None else b""
+    async def readline(self, timeout=None):
+        # We now act as a stream reader for bytes
+        line = b""
+        while True:
+            try:
+                # Use a short timeout internally to allow checking for cancellation
+                chunk = await asyncio.wait_for(self.queue.get(), timeout=0.1)
+            except asyncio.TimeoutError:
+                if timeout: # If user provided a global timeout, check if we exceeded it
+                    # This is a bit simplified, but for our purposes 0.1s check is fine
+                    continue
+                continue # Keep waiting for data
+
+            if chunk is None:
+                # EOF reached, return what we have (even if no newline)
+                return line
+            line += chunk
+            if chunk == b"\n":
+                return line
 
 
 class ThreadedProcess:
@@ -93,9 +119,12 @@ class ThreadedProcess:
 
     async def wait(self):
         while self.proc.poll() is None:
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.01)
         self.returncode = self.proc.returncode
         return self.returncode
+
+    def poll(self):
+        return self.proc.poll()
 
     async def communicate(self, input=None):
         if input:
@@ -126,6 +155,32 @@ class ThreadedProcess:
         self.proc.terminate()
 
 
+class AsyncProcessWrapper:
+    """Wrapper for asyncio.subprocess.Process to provide poll()."""
+
+    def __init__(self, proc):
+        self.proc = proc
+        self.stdout = proc.stdout
+        self.stderr = proc.stderr
+        self.stdin = proc.stdin
+
+    @property
+    def returncode(self):
+        return self.proc.returncode
+
+    def poll(self):
+        return self.proc.returncode
+
+    async def wait(self):
+        return await self.proc.wait()
+
+    async def communicate(self, input=None):
+        return await self.proc.communicate(input)
+
+    def terminate(self):
+        self.proc.terminate()
+
+
 class OpenCodeAgent:
     WORKSPACE_ROOT = WORKSPACE_ROOT
 
@@ -137,7 +192,14 @@ class OpenCodeAgent:
         self.model_name = model
         self.working_dir = working_dir or os.getcwd()
         self.session_file = os.path.join(self.working_dir, "user_sessions.json")
-        self.opencode_cmd = shutil.which(config.OPENCODE_CMD) or config.OPENCODE_CMD
+        
+        # Cross-platform command resolution
+        cmd_base = config.OPENCODE_CMD
+        if sys.platform == "win32" and not cmd_base.lower().endswith(".cmd"):
+            self.opencode_cmd = shutil.which(f"{cmd_base}.cmd") or shutil.which(cmd_base) or cmd_base
+        else:
+            self.opencode_cmd = shutil.which(cmd_base) or cmd_base
+            
         self.user_data = self._load_user_data()
         self.yolo_mode = False
         self.active_tasks: Dict[str, asyncio.Task] = {}
@@ -146,6 +208,14 @@ class OpenCodeAgent:
         prompts_dir = os.path.join(self.working_dir, "prompts")
         if not os.path.exists(prompts_dir):
             os.makedirs(prompts_dir, exist_ok=True)
+            
+        # Ensure workspace root exists
+        if not os.path.exists(WORKSPACE_ROOT):
+            try:
+                os.makedirs(WORKSPACE_ROOT, exist_ok=True)
+                global_log(f"Created workspace root: {WORKSPACE_ROOT}")
+            except Exception as e:
+                global_log(f"Failed to create workspace root: {e}", level="ERROR")
 
     def _load_user_data(self) -> Dict:
         if os.path.exists(self.session_file):
@@ -202,6 +272,54 @@ class OpenCodeAgent:
         with open(self.session_file, "w") as f:
             json.dump(self.user_data, f, indent=2)
 
+    async def get_available_models(self) -> List[str]:
+        try:
+            proc = await self._create_subprocess(
+                [self.opencode_cmd, "models"],
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=self.working_dir.replace("\\", "/"),
+            )
+            stdout, stderr = await proc.communicate()
+            content = stdout.decode().strip()
+            if not content:
+                return []
+            # Split by lines and filter empty
+            return [line.strip() for line in content.splitlines() if line.strip()]
+        except Exception as e:
+            global_log(f"Error fetching models: {e}", level="ERROR")
+            return []
+
+    async def get_available_agents(self) -> List[Dict]:
+        try:
+            # Try 'agent list'
+            proc = await self._create_subprocess(
+                [self.opencode_cmd, "agent", "list", "--format", "json"],
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=self.working_dir.replace("\\", "/"),
+            )
+            stdout, stderr = await proc.communicate()
+            content = stdout.decode().strip()
+            
+            # Find JSON start in case of extra output
+            json_start = content.find("[")
+            if json_start != -1:
+                return json.loads(content[json_start:])
+            
+            # Fallback to a few standard ones
+            return [
+                {"id": "default", "name": "Default Agent"},
+                {"id": "github", "name": "GitHub Agent"},
+                {"id": "expert", "name": "Expert Agent"}
+            ]
+        except:
+            return [
+                {"id": "default", "name": "Default Agent"},
+                {"id": "github", "name": "GitHub Agent"},
+                {"id": "expert", "name": "Expert Agent"}
+            ]
+
     def get_user_settings(self, user_id: str) -> Dict:
         default_settings = {
             "show_mic": True,
@@ -255,36 +373,37 @@ class OpenCodeAgent:
         self._save_user_data()
 
     async def _create_subprocess(self, args, **kwargs):
+        if sys.platform == "win32":
+            # Always use ThreadedProcess on Windows for maximum reliability across loop types
+            from subprocess import Popen, PIPE
+
+            loop = asyncio.get_running_loop()
+
+            # Adapt kwargs for Popen
+            popen_kwargs = {
+                "stdout": kwargs.get("stdout", PIPE),
+                "stderr": kwargs.get("stderr", PIPE),
+                "stdin": kwargs.get("stdin", PIPE),
+                "cwd": kwargs.get("cwd"),
+                "env": kwargs.get("env"),
+                "bufsize": 0,  # Unbuffered
+            }
+            
+            # Explicitly find opencode.cmd if it exists to avoid shell dependency
+            if args[0] == self.opencode_cmd and not args[0].lower().endswith(".cmd"):
+                cmd_path = shutil.which(f"{args[0]}.cmd") or shutil.which(args[0])
+                if cmd_path:
+                    args[0] = cmd_path
+
+            proc = Popen(args, **popen_kwargs)
+            return ThreadedProcess(proc, loop)
+
         try:
-            # Try the standard asyncio approach first
-            return await asyncio.create_subprocess_exec(*args, **kwargs)
-        except NotImplementedError:
-            if sys.platform == "win32":
-                # Robust fallback for Windows (works on ALL loops)
-                global_log(
-                    "asyncio subprocess not implemented, using ThreadedProcess fallback",
-                    level="INFO",
-                )
-                from subprocess import Popen, PIPE
-
-                loop = asyncio.get_running_loop()
-
-                # Adapt kwargs for Popen
-                popen_kwargs = {
-                    "stdout": kwargs.get("stdout", PIPE),
-                    "stderr": kwargs.get("stderr", PIPE),
-                    "stdin": kwargs.get("stdin", PIPE),
-                    "cwd": kwargs.get("cwd"),
-                    "env": kwargs.get("env"),
-                    "bufsize": 0,  # Unbuffered for streaming
-                }
-
-                # If it's a list, we might need list2cmdline for shell consistency,
-                # but Popen handles lists well on Windows if NOT using shell=True.
-                proc = Popen(args, **popen_kwargs)
-                return ThreadedProcess(proc, loop)
-            else:
-                raise
+            p = await asyncio.create_subprocess_exec(*args, **kwargs)
+            return AsyncProcessWrapper(p)
+        except Exception as e:
+            global_log(f"Subprocess creation failed: {e}", level="ERROR")
+            raise
 
     def toggle_pin(self, user_id: str, session_uuid: str) -> bool:
         if user_id not in self.user_data:
@@ -455,7 +574,7 @@ class OpenCodeAgent:
                 [self.opencode_cmd, "session", "list", "--format", "json"],
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                cwd=self.working_dir,
+                cwd=self.working_dir.replace("\\", "/"),
             )
             stdout, stderr = await proc.communicate()
             content = stdout.decode().strip()
@@ -479,6 +598,7 @@ class OpenCodeAgent:
         user_id: str,
         prompt: str,
         model: Optional[str] = None,
+        agent_name: Optional[str] = None,
         file_paths: Optional[List[str]] = None,
         resume_session: Optional[str] = "AUTO",
         plan_mode: bool = False,
@@ -508,6 +628,9 @@ class OpenCodeAgent:
 
         settings = self.get_user_settings(user_id)
         current_model = model or settings.get("default_model") or self.model_name
+        
+        # Signal start immediately to clear UI loading state
+        yield {"type": "step_start", "message": "Initializing OpenCode Agent..."}
 
         if plan_mode:
             yield {
@@ -578,15 +701,26 @@ class OpenCodeAgent:
             )
 
         # Resolve Workspace
-        workspace = self.get_session_workspace(user_id, session_uuid or "pending")
-        log_debug(f"Resolved workspace: {workspace}")
-        if not os.path.exists(workspace) and workspace.startswith(WORKSPACE_ROOT):
+        workspace = self.get_session_workspace(user_id, session_uuid or "pending").replace("\\", "/")
+        norm_workspace = os.path.normpath(workspace)
+        norm_root = os.path.normpath(WORKSPACE_ROOT)
+        
+        log_debug(f"Resolved workspace: {workspace} (norm: {norm_workspace})")
+        
+        # Check if workspace is within root in a cross-platform way
+        is_within_root = False
+        try:
+            is_within_root = os.path.commonpath([norm_root, norm_workspace]) == norm_root
+        except:
+            pass
+
+        if not os.path.exists(workspace) and is_within_root:
             try:
                 os.makedirs(workspace, exist_ok=True)
                 global_log(f"Created missing workspace: {workspace}")
             except Exception as e:
                 global_log(f"Error creating workspace {workspace}: {e}", level="ERROR")
-                workspace = WORKSPACE_ROOT  # Fallback
+                workspace = WORKSPACE_ROOT.replace("\\", "/")  # Fallback
 
         while attempt < max_attempts:
             attempt += 1
@@ -604,9 +738,11 @@ class OpenCodeAgent:
                 args.extend(["-s", session_uuid])
             if current_model:
                 args.extend(["-m", current_model])
+            if agent_name and agent_name != "default":
+                args.extend(["--agent", agent_name])
             if file_paths:
                 for fp in file_paths:
-                    args.extend(["-f", fp])
+                    args.extend(["-f", fp.replace("\\", "/")])
 
             log_debug(f"Attempt {attempt}: Running command {' '.join(args)}")
 
@@ -614,17 +750,24 @@ class OpenCodeAgent:
             high_demand_detected = False
             proc = None
             stderr_buffer = []
+            in_reasoning = False
             try:
-                proc = await self._create_subprocess(
-                    args,
-                    stdin=asyncio.subprocess.PIPE,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    cwd=workspace,
-                    env=env,
-                )
-
+                try:
+                    proc = await self._create_subprocess(
+                        args,
+                        stdin=asyncio.subprocess.PIPE,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                        cwd=workspace,
+                        env=env,
+                    )
+                except Exception as e:
+                    global_log(f"CRITICAL: Failed to start subprocess: {e}", level="ERROR")
+                    yield {"type": "error", "content": f"Failed to start backend: {str(e)}"}
+                    return
+                
                 if prompt:
+
                     log_debug("Writing prompt to stdin...")
 
                     async def write_to_stdin(proc, data):
@@ -648,9 +791,16 @@ class OpenCodeAgent:
                     if not pipe:
                         return
                     while True:
-                        line = await pipe.readline()
+                        try:
+                            line = await pipe.readline(timeout=0.5)
+                        except:
+                            line = None
+                            
                         if not line:
-                            break
+                            if proc and proc.poll() is not None:
+                                break
+                            await asyncio.sleep(0.1)
+                            continue
                         line_str = line.decode(errors="replace").strip()
                         log_debug(f"STDERR: {line_str}")
                         stderr_buffer.append(line_str)
@@ -677,10 +827,12 @@ class OpenCodeAgent:
                     return
 
                 while True:
-                    line = await proc.stdout.readline()
+                    line = await proc.stdout.readline(timeout=1.0)
                     if not line:
-                        log_debug("Stdout closed (EOF)")
-                        break
+                        if proc.poll() is not None:
+                            log_debug("Stdout closed (EOF) and process finished")
+                            break
+                        continue
                     line_str = line.decode(errors="replace").strip()
                     if not line_str:
                         continue
@@ -739,18 +891,42 @@ class OpenCodeAgent:
                         transformed_data = None
 
                         if data.get("type") == "text":
+                            if in_reasoning:
+                                yield {
+                                    "type": "message",
+                                    "role": "assistant",
+                                    "content": "\n[/Thinking]\n",
+                                }
+                                in_reasoning = False
                             transformed_data = {
                                 "type": "message",
                                 "role": "assistant",
                                 "content": data.get("part", {}).get("text", ""),
                             }
                         elif data.get("type") == "reasoning":
-                            transformed_data = {
-                                "type": "message",
-                                "role": "assistant",
-                                "content": f"[Thinking]\n{data.get('part', {}).get('text', '')}\n[/Thinking]",
-                            }
+                            text = data.get("part", {}).get("text", "")
+                            if not in_reasoning:
+                                transformed_data = {
+                                    "type": "message",
+                                    "role": "assistant",
+                                    "content": f"[Thinking]\n{text}",
+                                }
+                                in_reasoning = True
+                            else:
+                                transformed_data = {
+                                    "type": "message",
+                                    "role": "assistant",
+                                    "content": text,
+                                }
                         elif data.get("type") == "tool_use":
+                            if in_reasoning:
+                                yield {
+                                    "type": "message",
+                                    "role": "assistant",
+                                    "content": "\n[/Thinking]\n",
+                                }
+                                in_reasoning = False
+
                             tool_part = data.get("part", {})
                             state = tool_part.get("state", {})
                             if state.get("status") == "completed":
@@ -759,6 +935,19 @@ class OpenCodeAgent:
                                     "tool_name": tool_part.get("tool"),
                                     "output": state.get("output", ""),
                                 }
+                            else:
+                                # New event: tool started
+                                transformed_data = {
+                                    "type": "tool_use",
+                                    "tool_name": tool_part.get("tool"),
+                                    "parameters": tool_part.get("input", {}),
+                                }
+                        elif data.get("type") == "step_finish":
+                            transformed_data = {
+                                "type": "step_finish",
+                                "tokens": data.get("part", {}).get("tokens", {}),
+                                "cost": data.get("part", {}).get("cost", 0),
+                            }
 
                         if not transformed_data:
                             continue
@@ -777,28 +966,38 @@ class OpenCodeAgent:
 
                             # Logic to hide JSON and potential markdown backticks from the stream
                             cleaned_content = ""
-                            for char in content:
-                                if (char == "{" or char == "`") and not in_json_block:
-                                    # Potential start of JSON or markdown block
-                                    in_json_block = True
-                                    json_buffer = char
-                                elif in_json_block:
+                            i = 0
+                            while i < len(content):
+                                char = content[i]
+                                if not in_json_block:
+                                    # Lookahead for potential JSON start
+                                    # Only buffer if we see { or ` and NOT in reasoning
+                                    if (char == "{" or char == "`") and not in_reasoning:
+                                        # Peek ahead for "type": "question" or ```json
+                                        rem = content[i:]
+                                        # Aggressive peek: if we see { followed soon by "type"
+                                        if char == "{" and (
+                                            '"type"' in rem[:50]
+                                            or '"type"' in current_message_content[-50:]
+                                        ):
+                                            in_json_block = True
+                                            json_buffer = char
+                                        elif char == "`" and rem.startswith("```"):
+                                            in_json_block = True
+                                            json_buffer = char
+                                        else:
+                                            cleaned_content += char
+                                    else:
+                                        cleaned_content += char
+                                else:
                                     json_buffer += char
-                                    # We check for the end of a potential JSON block or markdown block
-                                    # If it ends with } or ` we might be at the end.
+                                    # Check for end of block
                                     if char == "}" or char == "`":
-                                        # Let's see if we have a complete question JSON (potentially wrapped)
-                                        # We use a greedy check in the buffer
+                                        # Heuristic: if valid question, stay in block until closed
                                         if (
                                             '"type": "question"' in json_buffer
                                             or '"type":"question"' in json_buffer
                                         ):
-                                            # We need to decide if this block is COMPLETE.
-                                            # If it's wrapped in backticks, we wait for the closing backticks.
-                                            # For now, if we see a valid JSON question, we consider it "absorbed"
-                                            # but we only clear the buffer if it's truly complete.
-
-                                            # Simple heuristic: if it's a valid JSON, it's absorbed.
                                             try:
                                                 # Try to extract JSON from the buffer (might have backticks)
                                                 inner_json_match = re.search(
@@ -807,14 +1006,11 @@ class OpenCodeAgent:
                                                     re.DOTALL,
                                                 )
                                                 if inner_json_match:
-                                                    # Check if it's balanced (minimal check)
                                                     json_text = inner_json_match.group(
                                                         0
                                                     )
                                                     json.loads(json_text)
-
-                                                    # If it was wrapped in backticks, and we just saw a backtick,
-                                                    # or it wasn't wrapped and we just saw }, then it's done.
+                                                    # Balanced? Check if closed correctly
                                                     is_wrapped = json_buffer.startswith(
                                                         "```"
                                                     )
@@ -830,24 +1026,15 @@ class OpenCodeAgent:
                                             except:
                                                 pass  # Not complete yet
                                         else:
-                                            # Not a question yet, or ever.
-                                            # If the buffer is getting too large or we are sure it's not a question, release it.
-                                            # For now, if it ends with ` and doesn't look like our JSON, release it.
-                                            if char == "`":
-                                                if len(json_buffer) > 10 and not (
-                                                    '"type"' in json_buffer
-                                                ):
-                                                    cleaned_content += json_buffer
-                                                    in_json_block = False
-                                                    json_buffer = ""
-                                            elif char == "}" and not (
-                                                '"type"' in json_buffer
-                                            ):
+                                            # Not a question. Flush it.
+                                            # If buffer ends with ` (closing backtick) or looks too big
+                                            if (
+                                                char == "`" and json_buffer.endswith("```")
+                                            ) or len(json_buffer) > 50:
                                                 cleaned_content += json_buffer
                                                 in_json_block = False
                                                 json_buffer = ""
-                                else:
-                                    cleaned_content += char
+                                i += 1
 
                             data["content"] = cleaned_content
 
@@ -952,6 +1139,15 @@ class OpenCodeAgent:
 
                 await proc.wait()
                 await stderr_task
+
+                if in_reasoning:
+                    yield {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": "\n[/Thinking]\n",
+                    }
+                    in_reasoning = False
+
                 log_debug(f"Process exited with code {proc.returncode}")
 
                 if high_demand_detected:
@@ -1000,11 +1196,6 @@ class OpenCodeAgent:
                     yield {"type": "error", "content": f"Exit code {proc.returncode}"}
 
                 break
-
-            except Exception as e:
-                log_debug(f"Exception in stream: {repr(e)}")
-                yield {"type": "error", "content": f"Exception: {repr(e)}"}
-                break
             finally:
                 if proc and proc.returncode is None:
                     try:
@@ -1018,12 +1209,13 @@ class OpenCodeAgent:
         user_id: str,
         prompt: str,
         model: Optional[str] = None,
+        agent_name: Optional[str] = None,
         file_paths: Optional[List[str]] = None,
         resume_session: Optional[str] = "AUTO",
     ) -> str:
         full_response = ""
         async for chunk in self.generate_response_stream(
-            user_id, prompt, model, file_paths, resume_session=resume_session
+            user_id, prompt, model, agent_name, file_paths, resume_session=resume_session
         ):
             if chunk.get("type") == "message":
                 full_response += chunk.get("content", "")
@@ -1190,7 +1382,7 @@ class OpenCodeAgent:
                     ],
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
-                    cwd=self.working_dir,
+                    cwd=self.working_dir.replace("\\", "/"),
                 )
                 stdout, stderr = await proc.communicate()
                 raw_content = stdout.decode().strip()
@@ -1428,7 +1620,7 @@ class OpenCodeAgent:
                 [self.opencode_cmd, "export", session_uuid],
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                cwd=self.working_dir,
+                cwd=self.working_dir.replace("\\", "/"),
             )
             stdout, stderr = await proc.communicate()
             content = stdout.decode().strip()
@@ -1506,7 +1698,7 @@ class OpenCodeAgent:
                 [self.opencode_cmd, "session", "list", "--format", "json"],
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                cwd=self.working_dir,
+                cwd=self.working_dir.replace("\\", "/"),
             )
             stdout, _ = await proc.communicate()
             sessions = json.loads(stdout.decode())
@@ -1562,7 +1754,7 @@ class OpenCodeAgent:
                 [self.opencode_cmd, "export", original_uuid],
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                cwd=self.working_dir,
+                cwd=self.working_dir.replace("\\", "/"),
             )
             stdout, stderr = await proc.communicate()
             content = stdout.decode().strip()
@@ -1588,10 +1780,10 @@ class OpenCodeAgent:
 
             try:
                 proc = await self._create_subprocess(
-                    [self.opencode_cmd, "import", temp_file],
+                    [self.opencode_cmd, "import", temp_file.replace("\\", "/")],
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
-                    cwd=self.working_dir,
+                    cwd=self.working_dir.replace("\\", "/"),
                 )
                 stdout, stderr = await proc.communicate()
                 output = stdout.decode().strip()
@@ -1795,7 +1987,7 @@ class OpenCodeAgent:
                     await (
                         await self._create_subprocess(
                             [self.opencode_cmd, "session", "delete", target_uuid],
-                            cwd=self.working_dir,
+                            cwd=self.working_dir.replace("\\", "/"),
                         )
                     ).communicate()
 
