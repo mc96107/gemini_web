@@ -470,12 +470,45 @@ document.addEventListener('DOMContentLoaded', () => {
         finally { isLoadingSidebar = false; }
     }
 
+    function getFriendlyWorkspaceName(path) {
+        if (!path) return 'Default';
+        const root = window.WORKSPACE_ROOT || '';
+        let cp = path.replace(/\\/g, '/');
+        let cr = root.replace(/\\/g, '/');
+        
+        // Remove trailing slashes for comparison
+        if (cp.endsWith('/')) cp = cp.slice(0, -1);
+        if (cr.endsWith('/')) cr = cr.slice(0, -1);
+
+        if (cp.toLowerCase() === cr.toLowerCase()) return 'Project Root';
+        
+        if (cp.toLowerCase().startsWith(cr.toLowerCase() + '/')) {
+            return cp.substring(cr.length + 1);
+        }
+        
+        return cp.split('/').pop() || cp;
+    }
+
+    function toggleWorkspaceCollapse(header) {
+        const group = header.closest('.workspace-group');
+        if (group) {
+            group.classList.toggle('collapsed');
+            const icon = header.querySelector('.collapse-icon');
+            if (icon) {
+                icon.classList.toggle('bi-chevron-down');
+                icon.classList.toggle('bi-chevron-right');
+            }
+        }
+    }
+    window.toggleWorkspaceCollapse = toggleWorkspaceCollapse;
+
     function renderSessions(data, append = false) {
         const pinnedList = document.getElementById('pinned-sessions-list');
         const historyList = document.getElementById('history-sessions-list');
         const pinnedHeader = document.getElementById('pinned-sessions-header');
         let pinned = data.pinned || [];
         let history = Array.isArray(data) ? data : (data.history || []);
+        
         const createHTML = (s) => `
             <div class="list-group-item list-group-item-action bg-dark text-light session-item ${(s.active || s.uuid === currentActiveUUID) ? 'active-session' : ''}" data-uuid="${s.uuid}">
                 <div class="d-flex justify-content-between align-items-start">
@@ -492,11 +525,41 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
             </div>`;
+            
         if (!append) {
             if (pinnedList) pinnedList.innerHTML = pinned.map(createHTML).join('');
-            if (historyList) historyList.innerHTML = history.map(createHTML).join('');
             if (pinnedHeader) pinnedHeader.classList.toggle('d-none', pinned.length === 0);
-        } else if (historyList) historyList.insertAdjacentHTML('beforeend', history.map(createHTML).join(''));
+            
+            if (historyList) {
+                const groups = {};
+                history.forEach(s => {
+                    const ws = s.workspace || 'default';
+                    if (!groups[ws]) groups[ws] = [];
+                    groups[ws].push(s);
+                });
+                
+                let historyHTML = '';
+                Object.keys(groups).forEach(wsPath => {
+                    const friendlyName = getFriendlyWorkspaceName(wsPath);
+                    historyHTML += `
+                        <div class="workspace-group" data-workspace="${wsPath}">
+                            <div class="workspace-group-header px-3 py-1 small text-muted bg-black bg-opacity-25 border-bottom border-secondary border-opacity-10 d-flex align-items-center gap-2 mt-1 cursor-pointer" onclick="toggleWorkspaceCollapse(this)">
+                                <i class="bi bi-chevron-down collapse-icon" style="font-size: 0.6rem;"></i>
+                                <i class="bi bi-folder2 text-secondary"></i> 
+                                <span class="fw-bold flex-grow-1">${friendlyName}</span>
+                                <span class="badge bg-dark border border-secondary border-opacity-25 text-muted" style="font-size: 0.6rem;">${groups[wsPath].length}</span>
+                            </div>
+                            <div class="workspace-items">
+                                ${groups[wsPath].map(createHTML).join('')}
+                            </div>
+                        </div>
+                    `;
+                });
+                historyList.innerHTML = historyHTML;
+            }
+        } else if (historyList) {
+            historyList.insertAdjacentHTML('beforeend', history.map(createHTML).join(''));
+        }
         attachSessionListeners();
     }
 

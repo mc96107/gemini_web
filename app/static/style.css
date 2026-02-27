@@ -490,6 +490,33 @@ footer {
     top: 0;
 }
 
+.workspace-group-header {
+    background-color: rgba(0, 0, 0, 0.4) !important;
+    color: #6c757d !important;
+    font-size: 0.65rem !important;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.workspace-group-header i {
+    font-size: 0.8rem;
+}
+
+.workspace-group.collapsed .workspace-items {
+    display: none;
+}
+
+.workspace-group-header:hover {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    color: #fff !important;
+}
+
+.workspace-group-header .badge {
+    opacity: 0.6;
+}
+
 /* Pinning UI */
 .pin-btn {
     color: rgba(255, 255, 255, 0.3);

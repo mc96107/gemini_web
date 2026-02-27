@@ -1492,6 +1492,7 @@ class OpenCodeAgent:
                             "model": session_metadata[u].get(
                                 "model"
                             ),  # Include model
+                            "workspace": self.get_session_workspace(user_id, u),
                         }
                     )
 
@@ -1528,6 +1529,7 @@ class OpenCodeAgent:
                                 "pinned": (u in pinned_uuids),
                                 "tags": current_tags,
                                 "model": meta.get("model"),
+                                "workspace": self.get_session_workspace(user_id, u),
                             }
                         )
 
@@ -1564,6 +1566,7 @@ class OpenCodeAgent:
                         "pinned": (u in pinned_uuids),
                         "tags": current_tags,
                         "model": meta.get("model"),
+                        "workspace": self.get_session_workspace(user_id, u),
                     }
                 )
 
