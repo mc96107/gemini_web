@@ -272,6 +272,43 @@ class OpenCodeAgent:
         with open(self.session_file, "w") as f:
             json.dump(self.user_data, f, indent=2)
 
+    async def get_git_status(self, workspace_path: str) -> Dict:
+        """Fetch basic Git status for the workspace."""
+        if not os.path.exists(os.path.join(workspace_path, ".git")):
+            return {"is_repo": False}
+            
+        try:
+            # Get current branch
+            proc = await self._create_subprocess(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=workspace_path.replace("\\", "/"),
+            )
+            stdout, _ = await proc.communicate()
+            branch = stdout.decode().strip()
+            
+            # Check for changes
+            proc = await self._create_subprocess(
+                ["git", "status", "--porcelain"],
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=workspace_path.replace("\\", "/"),
+            )
+            stdout, _ = await proc.communicate()
+            changes = stdout.decode().strip()
+            has_changes = len(changes) > 0
+            
+            return {
+                "is_repo": True,
+                "branch": branch,
+                "has_changes": has_changes,
+                "change_count": len(changes.splitlines()) if has_changes else 0
+            }
+        except Exception as e:
+            global_log(f"Error fetching Git status: {e}", level="DEBUG")
+            return {"is_repo": False, "error": str(e)}
+
     async def get_available_models(self) -> List[str]:
         try:
             proc = await self._create_subprocess(
@@ -709,18 +746,22 @@ class OpenCodeAgent:
             )
 
         # Resolve Workspace
-        workspace = self.get_session_workspace(user_id, session_uuid or "pending").replace("\\", "/")
-        norm_workspace = os.path.normpath(workspace)
-        norm_root = os.path.normpath(WORKSPACE_ROOT)
+        workspace = self.get_session_workspace(user_id, session_uuid or "pending")
+        norm_workspace = os.path.normcase(os.path.abspath(workspace))
+        norm_root = os.path.normcase(os.path.abspath(WORKSPACE_ROOT))
         
         log_debug(f"Resolved workspace: {workspace} (norm: {norm_workspace})")
         
         # Check if workspace is within root in a cross-platform way
         is_within_root = False
         try:
-            is_within_root = os.path.commonpath([norm_root, norm_workspace]) == norm_root
+            common = os.path.normcase(os.path.commonpath([norm_root, norm_workspace]))
+            is_within_root = common == norm_root
         except:
             pass
+        
+        # Sanitize for CLI (use forward slashes)
+        cli_workspace = workspace.replace("\\", "/")
 
         if not os.path.exists(workspace) and is_within_root:
             try:
@@ -740,7 +781,7 @@ class OpenCodeAgent:
                 "json",
                 "--thinking",
                 "--dir",
-                workspace,
+                workspace.replace("\\", "/"),
             ]
             if session_uuid:
                 args.extend(["-s", session_uuid])
@@ -900,11 +941,7 @@ class OpenCodeAgent:
 
                         if data.get("type") == "text":
                             if in_reasoning:
-                                yield {
-                                    "type": "message",
-                                    "role": "assistant",
-                                    "content": "\n[/Thinking]\n",
-                                }
+                                yield {"type": "reasoning_finish"}
                                 in_reasoning = False
                             transformed_data = {
                                 "type": "message",
@@ -915,24 +952,18 @@ class OpenCodeAgent:
                             text = data.get("part", {}).get("text", "")
                             if not in_reasoning:
                                 transformed_data = {
-                                    "type": "message",
-                                    "role": "assistant",
-                                    "content": f"[Thinking]\n{text}",
+                                    "type": "reasoning_start",
+                                    "content": text,
                                 }
                                 in_reasoning = True
                             else:
                                 transformed_data = {
-                                    "type": "message",
-                                    "role": "assistant",
+                                    "type": "reasoning",
                                     "content": text,
                                 }
                         elif data.get("type") == "tool_use":
                             if in_reasoning:
-                                yield {
-                                    "type": "message",
-                                    "role": "assistant",
-                                    "content": "\n[/Thinking]\n",
-                                }
+                                yield {"type": "reasoning_finish"}
                                 in_reasoning = False
 
                             tool_part = data.get("part", {})
@@ -1149,11 +1180,7 @@ class OpenCodeAgent:
                 await stderr_task
 
                 if in_reasoning:
-                    yield {
-                        "type": "message",
-                        "role": "assistant",
-                        "content": "\n[/Thinking]\n",
-                    }
+                    yield {"type": "reasoning_finish"}
                     in_reasoning = False
 
                 log_debug(f"Process exited with code {proc.returncode}")
@@ -1279,8 +1306,19 @@ class OpenCodeAgent:
     def update_session_workspace(
         self, user_id: str, session_uuid: str, workspace_path: str
     ):
-        # Security check: must be within root
-        if not workspace_path.startswith(WORKSPACE_ROOT):
+        # Normalize paths for comparison
+        # Use abspath to ensure we have the full path
+        norm_root = os.path.normcase(os.path.abspath(WORKSPACE_ROOT))
+        norm_path = os.path.normcase(os.path.abspath(workspace_path))
+        
+        # Security check: must be within root or equal to root
+        try:
+            common = os.path.normcase(os.path.commonpath([norm_root, norm_path]))
+            is_within = common == norm_root
+        except ValueError:
+            is_within = False
+
+        if not is_within:
             return False
 
         if user_id not in self.user_data:

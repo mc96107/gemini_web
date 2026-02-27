@@ -756,6 +756,16 @@ async def get_session_workspace_path(
     return {"path": agent.get_session_workspace(user, uuid)}
 
 
+@router.get("/session/git-status")
+async def get_git_status(request: Request, user=Depends(get_user)):
+    agent = request.app.state.agent
+    if not user:
+        raise HTTPException(401)
+    
+    workspace = await get_effective_workspace(agent, user)
+    return await agent.get_git_status(workspace)
+
+
 @router.get("/models")
 async def get_models(request: Request, user=Depends(get_user)):
     agent = request.app.state.agent

@@ -1,3 +1,24 @@
+/* Lite Mode optimizations */
+body.lite-mode {
+    --box-shadow-level: none;
+    --transition-speed: 0s;
+}
+body.lite-mode * {
+    box-shadow: var(--box-shadow-level) !important;
+    text-shadow: none !important;
+    transition: var(--transition-speed) !important;
+}
+body.lite-mode .pulse-animation {
+    animation: none !important;
+}
+body.lite-mode .thinking-loading::after {
+    animation-duration: 3s; /* Slower animation for lower CPU usage */
+}
+body.lite-mode .spinner-border {
+    animation-duration: 2s;
+}
+
+/* Default Variables */
 :root {
     --bg-color: #121212;
     --chat-bg: #0b0b0b;
@@ -7,6 +28,8 @@
     --text-color: #e0e0e0;
     --input-bg: #2d2d2d;
     --border-color: #444;
+    --box-shadow-level: 0 1px 2px rgba(0,0,0,0.2);
+    --transition-speed: 0.2s;
 }
 
 body {
@@ -38,7 +61,7 @@ header {
     border-radius: 1.2rem;
     position: relative;
     word-wrap: break-word;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    box-shadow: var(--box-shadow-level);
     font-size: 0.95rem;
     line-height: 1.5;
 }
@@ -73,25 +96,42 @@ header {
     border: 1px solid #333;
 }
 
-/* Thinking Blocks */
+/* Thinking & Reasoning Blocks */
+.reasoning-details {
+    background-color: rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 2px 8px;
+    transition: all 0.2s;
+}
+.reasoning-details[open] {
+    background-color: rgba(0, 0, 0, 0.25);
+    padding-bottom: 8px;
+}
+.reasoning-details summary {
+    list-style: none;
+    outline: none;
+    user-select: none;
+}
+.reasoning-details summary::-webkit-details-marker {
+    display: none;
+}
+.reasoning-details summary:hover {
+    color: #fff !important;
+}
+
 .thinking-block {
-    font-style: italic;
-    color: #888;
-    background-color: rgba(0, 0, 0, 0.2);
-    border-left: 3px solid #555;
-    padding: 0.5rem 1rem;
-    margin-bottom: 0.8rem;
+    font-style: normal;
+    color: #aaa;
+    background-color: transparent;
+    border-left: 2px solid #444;
+    padding: 0.2rem 0.8rem;
+    margin-bottom: 0;
     font-size: 0.85rem;
-    border-radius: 0 4px 4px 0;
+    border-radius: 0;
 }
 .thinking-block::before {
-    content: "Thinking";
-    display: block;
-    font-weight: bold;
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    margin-bottom: 0.3rem;
-    opacity: 0.7;
+    display: none;
 }
 
 .thinking-loading {

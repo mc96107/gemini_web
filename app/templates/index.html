@@ -131,6 +131,12 @@
                     <input type="text" id="session-workspace-input-sidebar" class="form-control bg-dark text-light border-secondary" list="workspace-suggestions" placeholder="/path/to/workspace">
                 </div>
                 <button id="btn-update-workspace-sidebar" class="btn btn-outline-info btn-sm w-100">Update Workspace</button>
+                <div id="git-status-container-sidebar" class="mt-2 d-none">
+                    <div class="d-flex justify-content-between align-items-center bg-black bg-opacity-50 p-2 rounded border border-secondary border-opacity-25">
+                        <span class="small text-muted"><i class="bi bi-git"></i> <span id="git-branch-sidebar">main</span> <i class="bi bi-arrow-clockwise cursor-pointer ms-1" onclick="updateGitStatus()" title="Refresh Git Status"></i></span>
+                        <span id="git-changes-badge-sidebar" class="badge bg-warning text-dark d-none">M</span>
+                    </div>
+                </div>
                 <div id="workspace-status-sidebar" class="mt-2 small text-center"></div>
             </div>
 
@@ -341,6 +347,10 @@
                 <input class="form-check-input" type="checkbox" role="switch" id="setting-interactive-mode">
                 <label class="form-check-label" for="setting-interactive-mode">Interactive Mode (AI Questions)</label>
             </div>
+            <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" role="switch" id="setting-lite-mode">
+                <label class="form-check-label" for="setting-lite-mode">Lite Mode (Performance)</label>
+            </div>
             <div class="form-check form-switch">
                 <input class="form-check-input" type="checkbox" role="switch" id="setting-copy-formatted">
                 <label class="form-check-label" for="setting-copy-formatted">Copy Formatted Text</label>
@@ -352,6 +362,12 @@
                     <input type="text" id="session-workspace-input-settings" class="form-control bg-dark text-light border-secondary" list="workspace-suggestions" placeholder="/path/to/workspace">
                 </div>
                 <button id="btn-update-workspace-settings" class="btn btn-outline-info btn-sm w-100">Update Current Session Workspace</button>
+                <div id="git-status-container-settings" class="mt-2 d-none">
+                    <div class="d-flex justify-content-between align-items-center bg-black bg-opacity-50 p-2 rounded border border-secondary border-opacity-25">
+                        <span class="small text-muted"><i class="bi bi-git"></i> <span id="git-branch-settings">main</span> <i class="bi bi-arrow-clockwise cursor-pointer ms-1" onclick="updateGitStatus()" title="Refresh Git Status"></i></span>
+                        <span id="git-changes-badge-settings" class="badge bg-warning text-dark d-none">M</span>
+                    </div>
+                </div>
                 <div id="workspace-status-settings" class="mt-2 small text-center"></div>
             </div>
             <div class="mb-3">

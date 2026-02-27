@@ -288,6 +288,47 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) { console.error('loadWorkspaces error:', err); }
     }
 
+    async function updateGitStatus() {
+        const containers = [
+            document.getElementById('git-status-container-sidebar'),
+            document.getElementById('git-status-container-settings')
+        ].filter(el => el !== null);
+        
+        try {
+            const res = await fetch('/session/git-status');
+            const data = await res.json();
+            
+            if (data.is_repo) {
+                containers.forEach(container => container.classList.remove('d-none'));
+                
+                const branchEls = [
+                    document.getElementById('git-branch-sidebar'),
+                    document.getElementById('git-branch-settings')
+                ].filter(el => el !== null);
+                
+                const badgeEls = [
+                    document.getElementById('git-changes-badge-sidebar'),
+                    document.getElementById('git-changes-badge-settings')
+                ].filter(el => el !== null);
+                
+                branchEls.forEach(el => el.textContent = data.branch);
+                badgeEls.forEach(el => {
+                    if (data.has_changes) {
+                        el.classList.remove('d-none');
+                        el.textContent = data.change_count;
+                    } else {
+                        el.classList.add('d-none');
+                    }
+                });
+            } else {
+                containers.forEach(container => container.classList.add('d-none'));
+            }
+        } catch (err) {
+            console.error('updateGitStatus error:', err);
+            containers.forEach(container => container.classList.add('d-none'));
+        }
+    }
+
     async function loadSessionWorkspace(uuid) {
         if (workspaceInputs.length === 0 || !uuid) return;
         try {
@@ -295,6 +336,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
             if (data.path) {
                 workspaceInputs.forEach(input => input.value = data.path);
+                updateGitStatus();
             }
         } catch (err) { console.error('loadSessionWorkspace error:', err); }
     }
@@ -325,6 +367,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Sync other inputs
                     workspaceInputs.forEach(inp => inp.value = path);
                     loadPatterns();
+                    updateGitStatus();
                 } else {
                     if (status) {
                         status.textContent = 'Error: Path must be within root';
@@ -352,6 +395,22 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!workspace) return;
             const res = await fetch('/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ default_workspace: workspace }) });
             if (res.ok) { window.USER_SETTINGS.default_workspace = workspace; showToast('Default workspace updated'); loadWorkspaces(); }
+        };
+    }
+
+    const liteModeSetting = document.getElementById('setting-lite-mode');
+    if (liteModeSetting && window.USER_SETTINGS) {
+        liteModeSetting.checked = window.USER_SETTINGS.lite_mode === true;
+        if (liteModeSetting.checked) document.body.classList.add('lite-mode');
+        
+        liteModeSetting.onchange = async () => {
+            const enabled = liteModeSetting.checked;
+            const res = await fetch('/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lite_mode: enabled }) });
+            if (res.ok) { 
+                window.USER_SETTINGS.lite_mode = enabled; 
+                document.body.classList.toggle('lite-mode', enabled);
+                showToast(`Lite Mode ${enabled ? 'enabled' : 'disabled'}`); 
+            }
         };
     }
 
@@ -640,7 +699,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function processStream(response, loadingId) {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
-        let messageDiv = null, fullText = "", toolLogs = [], buffer = "";
+        let messageDiv = null, fullText = "", streamItems = [], buffer = "";
         const streamGeneration = sessionGeneration;
         try {
             while (true) {
@@ -667,7 +726,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 const loadingEl = document.getElementById(loadingId);
                                 if (loadingEl) loadingEl.innerHTML = `<div class="spinner-border spinner-border-sm"></div> ${data.message || 'Thinking...'}`;
                             } else if (data.status === 'completed') {
-                                if (!fullText.trim() && !toolLogs.length) removeLoading(loadingId);
+                                if (!fullText.trim() && !streamItems.length) removeLoading(loadingId);
                             }
                         }
                         else if (data.type === 'raw') {
@@ -677,10 +736,29 @@ document.addEventListener('DOMContentLoaded', () => {
                             const card = createQuestionCard(data); 
                             chatContainer.appendChild(card); 
                             chatContainer.scrollTop = chatContainer.scrollHeight; 
-                            if (!fullText.trim() && !toolLogs.length) removeLoading(loadingId);
+                            if (!fullText.trim() && !streamItems.length) removeLoading(loadingId);
                         }
-                        else if (data.type === 'tool_use') toolLogs.push({ type: 'call', name: data.tool_name, input: data.parameters });
-                        else if (data.type === 'tool_result') toolLogs.push({ type: 'output', output: data.output, full_path: data.full_output_path });
+                        else if (data.type === 'reasoning_start') {
+                            streamItems.push({ type: 'reasoning', content: data.content, active: true });
+                        }
+                        else if (data.type === 'reasoning') {
+                            const last = streamItems[streamItems.length - 1];
+                            if (last && last.type === 'reasoning' && last.active) {
+                                last.content += data.content;
+                            } else {
+                                streamItems.push({ type: 'reasoning', content: data.content, active: true });
+                            }
+                        }
+                        else if (data.type === 'reasoning_finish') {
+                            const last = streamItems[streamItems.length - 1];
+                            if (last && last.type === 'reasoning') last.active = false;
+                        }
+                        else if (data.type === 'tool_use') {
+                            streamItems.push({ type: 'tool_call', name: data.tool_name, input: data.parameters });
+                        }
+                        else if (data.type === 'tool_result') {
+                            streamItems.push({ type: 'tool_output', output: data.output, full_path: data.full_output_path });
+                        }
                         else if (data.type === 'step_start') {
                             const loadingEl = document.getElementById(loadingId);
                             if (loadingEl) loadingEl.innerHTML = `<div class="message-content"><div class="thinking-block">${data.message || 'Thinking'}<span class="thinking-loading"></span></div></div>`;
@@ -705,24 +783,24 @@ document.addEventListener('DOMContentLoaded', () => {
                         else if (data.type === 'error') fullText += `\n\n[Error: ${data.content}]`;
                         else if (data.type === 'model_switch') { updateActiveModelUI(data.new_model); showToast(`Switching to ${data.new_model}...`); }
 
-                        if (!messageDiv && (fullText.trim() || toolLogs.length || data.type === 'init' || data.type === 'step_start')) { 
+                        if (!messageDiv && (fullText.trim() || streamItems.length || data.type === 'init' || data.type === 'step_start')) { 
                             if (data.type === 'init' || data.type === 'step_start') {
-                                // Just update loading/remove and continue, don't create messageDiv yet if no text
                                 if (data.type === 'init') removeLoading(loadingId);
                             } else {
                                 messageDiv = createStreamingMessage('bot', window.TOTAL_MESSAGES++); 
                                 removeLoading(loadingId); 
                             }
                         }
-                        if (messageDiv) updateStreamingMessage(messageDiv, fullText, toolLogs);
+                        if (messageDiv) updateStreamingMessage(messageDiv, fullText, streamItems);
                     } catch (e) {}
                 }
             }
             if (messageDiv) {
-                updateStreamingMessage(messageDiv, fullText, toolLogs, true);
+                updateStreamingMessage(messageDiv, fullText, streamItems, true);
+                updateGitStatus(); // Refresh Git status after bot responds
             } else {
                 removeLoading(loadingId);
-                if (!fullText.trim() && toolLogs.length === 0) {
+                if (!fullText.trim() && streamItems.length === 0) {
                     appendMessage('bot', '[System Error] The agent exited without responding. Check backend logs or try again.');
                 }
             }
@@ -734,15 +812,26 @@ document.addEventListener('DOMContentLoaded', () => {
         if (index !== null) div.dataset.index = index;
         let parsedText = text;
         if (sender === 'bot') {
-            parsedText = parsedText.replace(/\[Thinking\]([\s\S]*?)\[\/Thinking\]/g, (m, c) => `<div class="thinking-block">${c.trim()}</div>`);
-            // Handle potentially unclosed thinking block (shouldn't happen in final, but for safety)
-            if (parsedText.includes('[Thinking]')) {
-                parsedText = parsedText.replace(/\[Thinking\]([\s\S]*?)$/g, (m, c) => `<div class="thinking-block">${c.trim()}</div>`);
-            }
+            // Legacy/History: transform [Thinking] blocks into collapsible details
+            parsedText = parsedText.replace(/\[Thinking\]([\s\S]*?)\[\/Thinking\]/g, (m, c) => `
+                <details class="reasoning-details mb-2">
+                    <summary class="small text-muted cursor-pointer d-flex align-items-center gap-2">
+                        <i class="bi bi-brain"></i> Thinking <i class="bi bi-check2 text-success"></i>
+                    </summary>
+                    <div class="thinking-block mt-2">
+                        ${c.trim()}
+                    </div>
+                </details>`);
         }
         const content = document.createElement('div'); content.className = 'message-content';
         content.innerHTML = (typeof marked !== 'undefined') ? marked.parse(parsedText) : parsedText;
         div.appendChild(content);
+        
+        // Add a placeholder for tool logs in history if they exist in metadata (future)
+        const logsDiv = document.createElement('div');
+        logsDiv.className = 'tool-logs mt-2 d-none';
+        div.appendChild(logsDiv);
+
         const actions = document.createElement('div'); actions.className = 'message-actions';
         const copyBtn = document.createElement('button'); copyBtn.className = 'copy-btn'; copyBtn.innerHTML = '<i class="bi bi-clipboard"></i>';
         copyBtn.onclick = () => {
@@ -773,27 +862,76 @@ document.addEventListener('DOMContentLoaded', () => {
         chatContainer.appendChild(div); chatContainer.scrollTop = chatContainer.scrollHeight; return div;
     }
 
-    function updateStreamingMessage(div, text, logs, isFinal = false) {
+    window.sendQuickCommand = (cmd) => {
+        if (!messageInput || !chatForm) return;
+        messageInput.value = cmd;
+        chatForm.dispatchEvent(new Event('submit'));
+    };
+
+    function updateStreamingMessage(div, text, items, isFinal = false) {
         const content = div.querySelector('.message-content');
-        let parsedText = text.replace(/\[Thinking\]([\s\S]*?)\[\/Thinking\]/g, (m, c) => `<div class="thinking-block">${c.trim()}</div>`);
+        content.innerHTML = (typeof marked !== 'undefined') ? marked.parse(text) : text;
         
-        // Handle open thinking block during streaming
-        if (!isFinal && parsedText.includes('[Thinking]')) {
-            parsedText = parsedText.replace(/\[Thinking\]([\s\S]*?)$/g, (m, c) => `<div class="thinking-block">${c.trim()}<span class="thinking-loading"></span></div>`);
+        const logsDiv = div.querySelector('.tool-logs');
+        if (items.length) {
+            logsDiv.classList.remove('d-none');
+            logsDiv.innerHTML = items.map(item => {
+                if (item.type === 'reasoning') {
+                    return `
+                        <details class="reasoning-details mb-2" ${item.active ? 'open' : ''}>
+                            <summary class="small text-muted cursor-pointer d-flex align-items-center gap-2">
+                                <i class="bi bi-brain"></i> Thinking
+                                ${item.active ? '<span class="thinking-loading"></span>' : '<i class="bi bi-check2 text-success"></i>'}
+                            </summary>
+                            <div class="thinking-block mt-2">
+                                ${(typeof marked !== 'undefined') ? marked.parse(item.content) : item.content}
+                            </div>
+                        </details>`;
+                } else if (item.type === 'tool_call') {
+                    return `<div class="small text-info border-start border-info ps-2 mb-1"><strong>Tool Call:</strong> ${item.name}</div>`;
+                } else if (item.type === 'tool_output') {
+                    const isRead = item.name === 'read' || item.name === 'read_file';
+                    const output = item.output || '';
+                    
+                    // Specialized Git Branch UI
+                    let gitActionsHtml = '';
+                    if (item.name === 'bash' || item.name === 'git') {
+                        if (output.includes('*') && (output.includes('main') || output.includes('master') || output.includes('branch'))) {
+                            const branches = output.split('\n').map(b => b.trim().replace('* ', ''));
+                            gitActionsHtml = `<div class="mt-2 d-flex flex-wrap gap-1">
+                                ${branches.filter(b => b && b.length < 50).map(b => `<button class="btn btn-outline-info btn-xs py-0 px-2" style="font-size: 0.6rem;" onclick="sendQuickCommand('git checkout ${b}')"><i class="bi bi-git"></i> ${b}</button>`).join('')}
+                            </div>`;
+                        }
+                    }
+
+                    return `
+                        <div class="small text-success border-start border-success ps-2 mb-2 tool-output-container">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <strong>Result${item.name ? ' (' + item.name + ')' : ''}:</strong>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-link p-0 text-success" title="Copy Output" onclick="copyToClipboard(\`${output.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`)"><i class="bi bi-clipboard" style="font-size: 0.7rem;"></i></button>
+                                </div>
+                            </div>
+                            <pre class="m-0 mt-1 tool-output-pre" style="font-size: 0.7rem; max-height: 150px; overflow: auto;">${isRead ? '<code>' : ''}${output.substring(0, 2000)}${isRead ? '</code>' : ''}</pre>
+                            ${gitActionsHtml}
+                            ${item.full_path ? `<a href="${item.full_path}" target="_blank" class="small text-success d-inline-block mt-1">Download Full Output</a>` : ''}
+                        </div>`;
+                }
+                return '';
+            }).join('');
+            
+            if (isFinal) {
+                logsDiv.querySelectorAll('pre code').forEach(b => typeof hljs !== 'undefined' && hljs.highlightElement(b));
+            }
         }
 
-        content.innerHTML = (typeof marked !== 'undefined') ? marked.parse(parsedText) : parsedText;
-        const logsDiv = div.querySelector('.tool-logs');
-        if (logs.length) {
-            logsDiv.classList.remove('d-none');
-            logsDiv.innerHTML = logs.map(l => {
-                if (l.type === 'call') return `<div class="small text-info border-start border-info ps-2 mb-1"><strong>Tool Call:</strong> ${l.name}</div>`;
-                return `<div class="small text-success border-start border-success ps-2 mb-2"><strong>Result:</strong><pre class="m-0" style="font-size: 0.7rem; max-height: 100px; overflow: auto;">${(l.output || '').substring(0, 500)}</pre>${l.full_path ? `<a href="${l.full_path}" target="_blank" class="small text-success">Download Full Output</a>` : ''}</div>`;
-            }).join('');
-        }
         if (isFinal) {
             div.classList.remove('streaming');
             div.querySelectorAll('pre code').forEach(b => typeof hljs !== 'undefined' && hljs.highlightElement(b));
+            
+            const stats = div.querySelector('.message-stats');
+            if (stats) content.appendChild(stats);
+
             const actions = div.querySelector('.message-actions') || document.createElement('div');
             actions.className = 'message-actions'; actions.innerHTML = '';
             const copyBtn = document.createElement('button'); copyBtn.className = 'copy-btn'; copyBtn.innerHTML = '<i class="bi bi-clipboard"></i>';
@@ -806,6 +944,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         chatContainer.scrollTop = chatContainer.scrollHeight;
     }
+
+    window.copyToClipboard = (text) => {
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(text).then(() => showToast('Copied!'));
+        } else {
+            const ta = document.createElement('textarea');
+            ta.value = text; document.body.appendChild(ta); ta.select();
+            document.execCommand('copy'); document.body.removeChild(ta);
+            showToast('Copied!');
+        }
+    };
 
     function createQuestionCard(data) {
         const card = document.createElement('div'); card.className = 'question-card';
