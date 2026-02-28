@@ -884,6 +884,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (index !== null) div.dataset.index = index;
         let parsedText = text;
         if (sender === 'bot') {
+            // First parse markdown, then transform [Thinking] blocks in the HTML
+            parsedText = (typeof marked !== 'undefined') ? marked.parse(text) : text;
             // Legacy/History: transform [Thinking] blocks into collapsible details
             parsedText = parsedText.replace(/\[Thinking\]([\s\S]*?)\[\/Thinking\]/g, (m, c) => `
                 <details class="reasoning-details mb-2">
@@ -896,7 +898,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </details>`);
         }
         const content = document.createElement('div'); content.className = 'message-content';
-        content.innerHTML = (typeof marked !== 'undefined') ? marked.parse(parsedText) : parsedText;
+        content.innerHTML = parsedText;
         div.appendChild(content);
         
         // Add a placeholder for tool logs in history if they exist in metadata (future)
