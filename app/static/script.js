@@ -123,6 +123,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     window.attachments = attachments; // Make global for onclick handlers
 
+    // --- File Upload Handlers ---
+    const fileInput = document.getElementById('file-upload');
+    if (fileInput) {
+        fileInput.addEventListener('change', async (e) => {
+            if (e.target.files && e.target.files.length > 0) {
+                await attachments.addFiles(e.target.files);
+                fileInput.value = ''; // Reset to allow selecting same file again
+            }
+        });
+    }
+
+    // Drag and drop support
+    if (chatContainer) {
+        chatContainer.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            chatContainer.classList.add('drag-over');
+        });
+        chatContainer.addEventListener('dragleave', () => {
+            chatContainer.classList.remove('drag-over');
+        });
+        chatContainer.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            chatContainer.classList.remove('drag-over');
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                await attachments.addFiles(e.dataTransfer.files);
+            }
+        });
+    }
+
     function showToast(message) {
         const toastEl = document.getElementById('liveToast');
         const toastBody = document.getElementById('toast-body');
