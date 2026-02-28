@@ -675,10 +675,19 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             messages.forEach((msg, idx) => {
                 const index = (msg.raw_index !== undefined) ? msg.raw_index : (window.TOTAL_MESSAGES - offset - messages.length + idx);
-                const div = createMessageDiv(msg.role, msg.content, null, null, index);
-                if (div) { 
-                    if (offset === 0) chatContainer.appendChild(div); 
-                    else chatContainer.insertBefore(div, document.getElementById('scroll-sentinel').nextSibling); 
+                // Check if message has embedded question data
+                if (msg.question) {
+                    const card = createQuestionCard(msg.question);
+                    if (card) { 
+                        if (offset === 0) chatContainer.appendChild(card); 
+                        else chatContainer.insertBefore(card, document.getElementById('scroll-sentinel').nextSibling); 
+                    }
+                } else {
+                    const div = createMessageDiv(msg.role, msg.content, null, null, index);
+                    if (div) { 
+                        if (offset === 0) chatContainer.appendChild(div); 
+                        else chatContainer.insertBefore(div, document.getElementById('scroll-sentinel').nextSibling); 
+                    }
                 }
             });
             if (offset === 0) chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -1146,8 +1155,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (sentinel) observer.observe(sentinel);
             window.INITIAL_MESSAGES.forEach((msg, idx) => {
                 const index = (msg.raw_index !== undefined) ? msg.raw_index : idx;
-                const div = createMessageDiv(msg.role, msg.content, null, null, index);
-                if (div) chatContainer.appendChild(div);
+                // Check if message has embedded question data
+                if (msg.question) {
+                    const card = createQuestionCard(msg.question);
+                    chatContainer.appendChild(card);
+                } else {
+                    const div = createMessageDiv(msg.role, msg.content, null, null, index);
+                    if (div) chatContainer.appendChild(div);
+                }
             });
             currentOffset = window.INITIAL_MESSAGES.length;
             chatContainer.scrollTop = chatContainer.scrollHeight;

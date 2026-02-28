@@ -1036,11 +1036,13 @@ class OpenCodeAgent:
                                         if (
                                             '"type": "question"' in json_buffer
                                             or '"type":"question"' in json_buffer
+                                            or '"type": "quesions"' in json_buffer
+                                            or '"type":"quesions"' in json_buffer
                                         ):
                                             try:
                                                 # Try to extract JSON from the buffer (might have backticks)
                                                 inner_json_match = re.search(
-                                                    r"\{\s*\"type\"\s*:\s*\"question\".*?\}",
+                                                    r"\{\s*\"type\"\s*:\s*\"quesions?\".*?\}",
                                                     json_buffer,
                                                     re.DOTALL,
                                                 )
@@ -1079,7 +1081,7 @@ class OpenCodeAgent:
 
                             # Global buffer handles full detection and yielding
                             # We update the regex to optionally swallow surrounding backticks and newlines
-                            question_pattern = r"(?:```(?:json)?\s*)?\{\s*\"type\"\s*:\s*\"question\".*?\}(?:\s*```)?"
+                            question_pattern = r"(?:```(?:json)?\s*)?\{\s*\"type\"\s*:\s*\"quesions?\".*?\}(?:\s*```)?"
                             question_match = re.search(
                                 question_pattern, current_message_content, re.DOTALL
                             )
@@ -1088,7 +1090,7 @@ class OpenCodeAgent:
                                     full_match_text = question_match.group(0)
                                     # Extract JUST the JSON part for parsing
                                     json_only_match = re.search(
-                                        r"\{\s*\"type\"\s*:\s*\"question\".*?\}",
+                                        r"\{\s*\"type\"\s*:\s*\"quesions?\".*?\}",
                                         full_match_text,
                                         re.DOTALL,
                                     )
@@ -1715,13 +1717,58 @@ class OpenCodeAgent:
                 if not content_text:
                     continue
 
-                messages.append(
-                    {
-                        "role": "user" if role == "user" else "bot",
-                        "content": content_text,
-                        "raw_index": start + idx,
-                    }
+                msg_data = {
+                    "role": "user" if role == "user" else "bot",
+                    "content": content_text,
+                    "raw_index": start + idx,
+                }
+
+                # Extract question JSON from content if present
+                question_match = re.search(
+                    r"\{[^{}]*\"type\"\s*:\s*\"quesions?\".*?\}",
+                    content_text,
+                    re.DOTALL
                 )
+                if question_match:
+                    try:
+                        question_data = json.loads(question_match.group(0))
+                        msg_data["question"] = question_data
+                        # Remove the question JSON from content to avoid rendering issues
+                        content_text = content_text.replace(question_match.group(0), "")
+                        msg_data["content"] = content_text.strip()
+                    except:
+                        pass
+                
+                # Cleanup malformed/corrupted question patterns (e.g., missing type field, corrupted JSON)
+                # Match patterns containing options and allow_multiple that look like question data
+                malformed_pattern = re.search(
+                    r'\{"[^}]*"options"\s*:\s*\[[^\]]+\][^}]*"allow_multiple"\s*:\s*(?:true|false)[^}]*\}',
+                    msg_data["content"],
+                    re.DOTALL
+                )
+                if malformed_pattern:
+                    # Try to parse and extract as question
+                    try:
+                        potential_q = json.loads(malformed_pattern.group(0))
+                        if "question" in potential_q or "options" in potential_q:
+                            msg_data["question"] = potential_q
+                            msg_data["content"] = msg_data["content"].replace(malformed_pattern.group(0), "")
+                    except:
+                        # If parsing fails, just remove the pattern
+                        msg_data["content"] = msg_data["content"].replace(malformed_pattern.group(0), "")
+                
+                # Also remove standalone "options": [...] patterns that appear corrupted
+                standalone_options = re.findall(
+                    r'options"\s*:\s*\[[^\]]+\],\s*"allow_multiple"\s*:\s*(?:true|false)',
+                    msg_data["content"]
+                )
+                for opt in standalone_options:
+                    clean_opt = 'options": ' + opt.split('options": ')[1] if 'options": ' in opt else opt
+                    msg_data["content"] = msg_data["content"].replace(opt, "")
+
+                msg_data["content"] = msg_data["content"].strip()
+
+                messages.append(msg_data)
             return {"messages": messages, "total": total}
         except Exception as e:
             print(f"Error loading session messages: {str(e)}")
