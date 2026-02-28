@@ -576,7 +576,8 @@ class OpenCodeAgent:
             return "New Conversation"
 
         # 1. Remove [SYSTEM INSTRUCTION: ... ] blocks (including multi-line)
-        text = re.sub(r"\[SYSTEM INSTRUCTION:.*?\]", "", text, flags=re.DOTALL)
+        # Match from [SYSTEM INSTRUCTION: to the double newline that separates it from the actual prompt
+        text = re.sub(r"\[SYSTEM INSTRUCTION:.*?\n\n", "", text, flags=re.DOTALL)
 
         # 2. Remove file path references starting with @
         # Matches @ followed by non-whitespace characters
