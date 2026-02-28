@@ -68,6 +68,12 @@ def recombine():
 
     # 4. Read components
     config_code = strip_local_imports(get_file_content("app/core/config.py"))
+    # Fix BASE_DIR: in modular layout it's 3 dirs up from app/core/config.py,
+    # but in the bundled single-file it sits at the project root.
+    config_code = config_code.replace(
+        "os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))",
+        "os.path.dirname(os.path.abspath(__file__))",
+    )
     patterns_code = strip_local_imports(get_file_content("app/core/patterns.py"))
     # Fix PATTERNS_FILE path for bundled app
     patterns_code = patterns_code.replace(

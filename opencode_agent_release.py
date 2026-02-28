@@ -32,7 +32,7 @@ ORIGIN = os.getenv("ORIGIN")
 SESSION_SECRET = os.getenv("SESSION_SECRET", secrets.token_hex(32))
 
 # Project paths
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Application Configuration
 UPLOAD_DIR = os.getenv(
