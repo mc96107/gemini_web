@@ -7,6 +7,9 @@ import json
 import re
 import shutil
 import os
+from pathlib import Path
+
+ACCOUNTS_FILE = Path.home() / ".config" / "opencode" / "antigravity-accounts.json"
 from app.core import config
 from app.services.pattern_sync_service import PatternSyncService
 from app.models.agent import AgentModel
@@ -26,6 +29,8 @@ def run_opencode_mcp_command(args):
         return result.stdout
     except subprocess.CalledProcessError as e:
         return f"Error: {e.stderr}"
+    except Exception as e:
+        return f"Error: {str(e)}"
 
 
 @router.get("/admin/mcp")
@@ -35,6 +40,8 @@ async def list_mcp(request: Request, user=Depends(get_user)):
         raise HTTPException(status_code=403, detail="Forbidden")
 
     output = run_opencode_mcp_command(["list"])
+    if not output:
+        return []
     servers = []
     lines = output.split("\n")
     for line in lines:
@@ -111,6 +118,41 @@ async def toggle_mcp(request: Request, user=Depends(get_user)):
     cmd = "enable" if enabled else "disable"
     output = run_opencode_mcp_command([cmd, name])
     return {"success": "Error" not in output, "output": output}
+
+
+@router.get("/admin/accounts")
+async def list_accounts(request: Request, user=Depends(get_user)):
+    user_manager = request.app.state.user_manager
+    if user_manager.get_role(user) != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    if not ACCOUNTS_FILE.exists():
+        return {"accounts": [], "error": "No accounts file found"}
+
+    try:
+        with open(ACCOUNTS_FILE, "r") as f:
+            data = json.load(f)
+
+        accounts = []
+        for acc in data.get("accounts", []):
+            quota = acc.get("cachedQuota", {})
+            accounts.append({
+                "email": acc.get("email"),
+                "enabled": acc.get("enabled", True),
+                "lastUsed": acc.get("lastUsed"),
+                "models": {
+                    model: {
+                        "remainingFraction": info.get("remainingFraction", 0),
+                        "resetTime": info.get("resetTime"),
+                        "modelCount": info.get("modelCount", 0),
+                    }
+                    for model, info in quota.items()
+                }
+            })
+
+        return {"accounts": accounts}
+    except Exception as e:
+        return {"accounts": [], "error": str(e)}
 
 
 # Agent Management Routes

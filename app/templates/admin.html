@@ -325,6 +325,34 @@
         </div>
     </div>
 
+    <hr class="border-secondary my-5">
+
+    <h2 class="mb-4">Account Usage</h2>
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Account</th>
+                                    <th>Enabled</th>
+                                    <th>Model</th>
+                                    <th>Remaining</th>
+                                    <th>Reset Time</th>
+                                </tr>
+                            </thead>
+                            <tbody id="accountsTableBody">
+                                <!-- Loaded via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- MCP Modal -->
     <div class="modal fade" id="mcpModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
@@ -406,7 +434,59 @@
             fetchMCP();
             fetchSkills();
             fetchGlobalSettings();
+            fetchAccounts();
         });
+
+        async function fetchAccounts() {
+            try {
+                const res = await fetch('/admin/accounts');
+                const data = await res.json();
+                const tbody = document.getElementById('accountsTableBody');
+                
+                if (data.error) {
+                    tbody.innerHTML = `<tr><td colspan="5" class="text-danger">${data.error}</td></tr>`;
+                    return;
+                }
+
+                tbody.innerHTML = '';
+                data.accounts.forEach(acc => {
+                    const models = acc.models || {};
+                    const modelKeys = Object.keys(models);
+                    
+                    if (modelKeys.length === 0) {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${acc.email}</td>
+                            <td><span class="badge ${acc.enabled ? 'bg-success' : 'bg-secondary'}">${acc.enabled ? 'Yes' : 'No'}</span></td>
+                            <td colspan="3" class="text-muted">No quota data</td>
+                        `;
+                        tbody.appendChild(tr);
+                        return;
+                    }
+
+                    modelKeys.forEach((model, idx) => {
+                        const m = models[model];
+                        const pct = Math.round(m.remainingFraction * 100);
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            ${idx === 0 ? `<td rowspan="${modelKeys.length}">${acc.email}</td>` : ''}
+                            ${idx === 0 ? `<td rowspan="${modelKeys.length}"><span class="badge ${acc.enabled ? 'bg-success' : 'bg-secondary'}">${acc.enabled ? 'Yes' : 'No'}</span></td>` : ''}
+                            <td><strong>${model}</strong></td>
+                            <td>
+                                <div class="progress" style="height: 20px; min-width: 100px;">
+                                    <div class="progress-bar ${pct > 50 ? 'bg-success' : pct > 20 ? 'bg-warning' : 'bg-danger'}" 
+                                         role="progressbar" style="width: ${pct}%;">${pct}%</div>
+                                </div>
+                            </td>
+                            <td class="small text-muted">${m.resetTime ? new Date(m.resetTime).toLocaleString() : 'N/A'}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                });
+            } catch (err) {
+                console.error('Error fetching accounts:', err);
+            }
+        }
 
         async function fetchSkills() {
             try {
