@@ -1984,8 +1984,8 @@ class OpenCodeAgent:
 
         global_log(f"User has {len(uuids)} session UUIDs")
 
-        # Check if we have metadata for all sessions
-        missing_metadata = [u for u in uuids if u not in session_metadata]
+        # Check if we have metadata for all sessions (including incomplete metadata missing 'time')
+        missing_metadata = [u for u in uuids if u not in session_metadata or not session_metadata[u].get("time")]
         global_log(f"Missing metadata for {len(missing_metadata)} sessions")
 
         all_sessions = []
@@ -2042,10 +2042,13 @@ class OpenCodeAgent:
                     )
 
                     # Update metadata cache and ensure it's in user's session list
-                    session_metadata[u] = {
+                    # Use .update() to preserve existing fields like 'model'
+                    if u not in session_metadata:
+                        session_metadata[u] = {}
+                    session_metadata[u].update({
                         "original_title": sess.get("title", "Unknown"),
                         "time": time_str,
-                    }
+                    })
                     
                     if u not in uuids:
                         uuids.append(u)
@@ -2110,8 +2113,8 @@ class OpenCodeAgent:
                             }
                         )
 
-                # Sort combined list by time descending
-                all_sessions.sort(key=lambda x: x.get("time", ""), reverse=True)
+                # Sort combined list by time descending (Unknown timestamps go to end)
+                all_sessions.sort(key=lambda x: x.get("time") or "" if x.get("time") != "Unknown" else "", reverse=True)
             except Exception as e:
                 global_log(
                     f"Error in get_user_sessions (fetching): {str(e)}", level="ERROR"
@@ -2147,7 +2150,8 @@ class OpenCodeAgent:
                     }
                 )
 
-            all_sessions.sort(key=lambda x: x.get("time", ""), reverse=True)
+            # Sort combined list by time descending (Unknown timestamps go to end)
+            all_sessions.sort(key=lambda x: x.get("time") or "" if x.get("time") != "Unknown" else "", reverse=True)
 
         global_log(f"Processing grouping for {len(all_sessions)} sessions")
         # --- Grouping Logic: Display them as one (the latest fork) ---
