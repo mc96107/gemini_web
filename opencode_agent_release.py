@@ -1408,10 +1408,12 @@ class OpenCodeAgent:
                         return
                     while True:
                         try:
-                            line = await pipe.readline(timeout=0.5)
-                        except:
+                            line = await asyncio.wait_for(pipe.readline(), timeout=0.5)
+                        except asyncio.TimeoutError:
                             line = None
-                            
+                        except Exception:
+                            line = None
+                        
                         if not line:
                             if proc and proc.poll() is not None:
                                 break
@@ -1443,7 +1445,16 @@ class OpenCodeAgent:
                     return
 
                 while True:
-                    line = await proc.stdout.readline(timeout=1.0)
+                    try:
+                        line = await asyncio.wait_for(proc.stdout.readline(), timeout=1.0)
+                    except asyncio.TimeoutError:
+                        if proc.poll() is not None:
+                            log_debug("Stdout closed (EOF) and process finished")
+                            break
+                        continue
+                    except Exception as e:
+                        log_debug(f"Error reading stdout: {e}")
+                        break
                     if not line:
                         if proc.poll() is not None:
                             log_debug("Stdout closed (EOF) and process finished")
