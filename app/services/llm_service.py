@@ -1483,9 +1483,9 @@ class OpenCodeAgent:
                         "time": time_str,
                     })
                     
+                    # Only process sessions that are already in the user's list
                     if u not in uuids:
-                        uuids.append(u)
-                        global_log(f"Auto-synced missing session {u} to user {user_id}")
+                        continue
 
                     current_tags = session_tags.get(u, [])
                     if tags:
