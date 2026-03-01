@@ -942,6 +942,12 @@ class OpenCodeAgent:
                                 self.user_data[user_id]["session_metadata"][new_id][
                                     "model"
                                 ] = current_model
+                                self.user_data[user_id]["session_metadata"][new_id][
+                                    "original_title"
+                                ] = filtered_title
+                                self.user_data[user_id]["session_metadata"][new_id][
+                                    "time"
+                                ] = dt_pkg.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
                                 self._save_user_data()
                                 yield {"type": "init", "session_id": new_id}
