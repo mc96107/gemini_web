@@ -39,3 +39,6 @@ Thumbs.db
 
 # Release Artifacts
 opencode_agent_release.py
+
+# Workspace Data (contains large files like emails.db)
+workspace/

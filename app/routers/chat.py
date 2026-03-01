@@ -14,6 +14,7 @@ import re
 import uuid
 from datetime import datetime
 from app.core import config
+from app.services.skill_service import SkillService
 
 router = APIRouter()
 
@@ -606,6 +607,29 @@ async def chat(
             return {
                 "response": "Commands: /reset, /pro, /plan, /p [pattern], /yolo, /help"
             }
+
+    # Skill Detection & Injection
+    try:
+        workspace = await get_effective_workspace(agent, user)
+        skill_service = SkillService(workspace)  # Create fresh instance per request
+        detected_skill = skill_service.detect_skill(msg)
+        
+        if detected_skill:
+            print(f"[SKILL] Detected skill: {detected_skill.name}")
+            
+            script_output = None
+            if detected_skill.execution_type == "script":
+                script_output = await skill_service.execute_skill_script(
+                    detected_skill, msg, user
+                )
+                print(f"[SKILL] Script output: {script_output[:200]}...")
+            
+            message = skill_service.inject_context(
+                detected_skill, msg, script_output
+            )
+            print(f"[SKILL] Context injected, new message length: {len(message)}")
+    except Exception as e:
+        print(f"[SKILL] Error in skill detection: {e}")
 
     async def event_generator():
         def log_sse(msg, level="DEBUG"):

@@ -100,6 +100,9 @@ def recombine():
     pdf_service_code = clean_config_ref(
         strip_local_imports(get_file_content("app/services/pdf_service.py"))
     )
+    skill_service_code = clean_config_ref(
+        strip_local_imports(get_file_content("app/services/skill_service.py"))
+    )
     agent_model_code = strip_local_imports(get_file_content("app/models/agent.py"))
     agent_manager_code = clean_config_ref(
         strip_local_imports(get_file_content("app/services/agent_manager.py"))
@@ -183,6 +186,8 @@ def recombine():
     combined.append(conversion_service_code)
     combined.append("\n")
     combined.append(pdf_service_code)
+    combined.append("\n")
+    combined.append(skill_service_code)
     combined.append("\n")
     combined.append(agent_manager_code)
     combined.append("\n")
