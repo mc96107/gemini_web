@@ -1,7 +1,8 @@
 {
   "name": "OpenCode Termux Agent",
   "short_name": "OpenCode Agent",
-  "description": "Mobile-first web interface for Gemini AI in Termux.",
+  "description": "Mobile-first web interface for Gemini AI.",
+  "version": "1.0.5",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -10,19 +11,25 @@
   "theme_color": "#6c757d",
   "icons": [
     {
-      "src": "/static/icon-192.png",
+      "src": "/static/icon.svg?v=2",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/icon-192.png?v=2",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/static/icon-512.png",
+      "src": "/static/icon-512.png?v=2",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/static/maskable-icon-512.png",
+      "src": "/static/maskable-icon-512.png?v=2",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
