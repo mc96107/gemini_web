@@ -636,7 +636,7 @@ class ThreadedStreamReader:
         try:
             while True:
                 # Read in small chunks to avoid blocking and ensure low latency
-                chunk = self.pipe.read(1) # Byte by byte is safest for unbuffered
+                chunk = self.pipe.read(1)  # Byte by byte is safest for unbuffered
                 if not chunk:
                     log_debug("Pipe EOF reached")
                     break
@@ -654,10 +654,12 @@ class ThreadedStreamReader:
                 # Use a short timeout internally to allow checking for cancellation
                 chunk = await asyncio.wait_for(self.queue.get(), timeout=0.1)
             except asyncio.TimeoutError:
-                if timeout: # If user provided a global timeout, check if we exceeded it
+                if (
+                    timeout
+                ):  # If user provided a global timeout, check if we exceeded it
                     # This is a bit simplified, but for our purposes 0.1s check is fine
                     continue
-                continue # Keep waiting for data
+                continue  # Keep waiting for data
 
             if chunk is None:
                 # EOF reached, return what we have (even if no newline)
@@ -759,14 +761,16 @@ class OpenCodeAgent:
         self.model_name = model
         self.working_dir = working_dir or os.getcwd()
         self.session_file = os.path.join(self.working_dir, "user_sessions.json")
-        
+
         # Cross-platform command resolution
         cmd_base = OPENCODE_CMD
         if sys.platform == "win32" and not cmd_base.lower().endswith(".cmd"):
-            self.opencode_cmd = shutil.which(f"{cmd_base}.cmd") or shutil.which(cmd_base) or cmd_base
+            self.opencode_cmd = (
+                shutil.which(f"{cmd_base}.cmd") or shutil.which(cmd_base) or cmd_base
+            )
         else:
             self.opencode_cmd = shutil.which(cmd_base) or cmd_base
-            
+
         self.user_data = self._load_user_data()
         self.yolo_mode = False
         self.active_tasks: Dict[str, asyncio.Task] = {}
@@ -775,7 +779,7 @@ class OpenCodeAgent:
         prompts_dir = os.path.join(self.working_dir, "prompts")
         if not os.path.exists(prompts_dir):
             os.makedirs(prompts_dir, exist_ok=True)
-            
+
         # Ensure workspace root exists
         if not os.path.exists(WORKSPACE_ROOT):
             try:
@@ -843,7 +847,7 @@ class OpenCodeAgent:
         """Fetch basic Git status for the workspace."""
         if not os.path.exists(os.path.join(workspace_path, ".git")):
             return {"is_repo": False}
-            
+
         try:
             # Get current branch
             proc = await self._create_subprocess(
@@ -854,7 +858,7 @@ class OpenCodeAgent:
             )
             stdout, _ = await proc.communicate()
             branch = stdout.decode().strip()
-            
+
             # Check for changes
             proc = await self._create_subprocess(
                 ["git", "status", "--porcelain"],
@@ -865,12 +869,12 @@ class OpenCodeAgent:
             stdout, _ = await proc.communicate()
             changes = stdout.decode().strip()
             has_changes = len(changes) > 0
-            
+
             return {
                 "is_repo": True,
                 "branch": branch,
                 "has_changes": has_changes,
-                "change_count": len(changes.splitlines()) if has_changes else 0
+                "change_count": len(changes.splitlines()) if has_changes else 0,
             }
         except Exception as e:
             global_log(f"Error fetching Git status: {e}", level="DEBUG")
@@ -905,31 +909,38 @@ class OpenCodeAgent:
             )
             stdout, stderr = await proc.communicate()
             content = stdout.decode().strip()
-            
+
             agents = [{"id": "default", "name": "Default Agent"}]
             seen = {"default"}
-            
+
             if content:
                 # Parse lines like "general (subagent)"
                 for line in content.splitlines():
                     line = line.strip()
-                    if "(" in line and ")" in line and not line.startswith("[") and not line.startswith("{"):
+                    if (
+                        "(" in line
+                        and ")" in line
+                        and not line.startswith("[")
+                        and not line.startswith("{")
+                    ):
                         parts = line.split("(")
                         agent_id = parts[0].strip()
                         if agent_id and agent_id not in seen:
-                            agents.append({
-                                "id": agent_id,
-                                "name": agent_id.capitalize() + " Agent"
-                            })
+                            agents.append(
+                                {
+                                    "id": agent_id,
+                                    "name": agent_id.capitalize() + " Agent",
+                                }
+                            )
                             seen.add(agent_id)
-            
+
             return agents
         except Exception as e:
             global_log(f"Error fetching agents: {e}", level="ERROR")
             return [
                 {"id": "default", "name": "Default Agent"},
                 {"id": "github", "name": "GitHub Agent"},
-                {"id": "expert", "name": "Expert Agent"}
+                {"id": "expert", "name": "Expert Agent"},
             ]
 
     def get_user_settings(self, user_id: str) -> Dict:
@@ -1000,7 +1011,7 @@ class OpenCodeAgent:
                 "env": kwargs.get("env"),
                 "bufsize": 0,  # Unbuffered
             }
-            
+
             # Explicitly find opencode.cmd if it exists to avoid shell dependency
             if args[0] == self.opencode_cmd and not args[0].lower().endswith(".cmd"):
                 cmd_path = shutil.which(f"{args[0]}.cmd") or shutil.which(args[0])
@@ -1241,7 +1252,7 @@ class OpenCodeAgent:
 
         settings = self.get_user_settings(user_id)
         current_model = model or settings.get("default_model") or self.model_name
-        
+
         # Signal start immediately to clear UI loading state
         yield {"type": "step_start", "message": "Initializing OpenCode Agent..."}
 
@@ -1317,9 +1328,9 @@ class OpenCodeAgent:
         workspace = self.get_session_workspace(user_id, session_uuid or "pending")
         norm_workspace = os.path.normcase(os.path.abspath(workspace))
         norm_root = os.path.normcase(os.path.abspath(WORKSPACE_ROOT))
-        
+
         log_debug(f"Resolved workspace: {workspace} (norm: {norm_workspace})")
-        
+
         # Check if workspace is within root in a cross-platform way
         is_within_root = False
         try:
@@ -1327,7 +1338,7 @@ class OpenCodeAgent:
             is_within_root = common == norm_root
         except:
             pass
-        
+
         # Sanitize for CLI (use forward slashes)
         cli_workspace = workspace.replace("\\", "/")
 
@@ -1379,12 +1390,16 @@ class OpenCodeAgent:
                         env=env,
                     )
                 except Exception as e:
-                    global_log(f"CRITICAL: Failed to start subprocess: {e}", level="ERROR")
-                    yield {"type": "error", "content": f"Failed to start backend: {str(e)}"}
+                    global_log(
+                        f"CRITICAL: Failed to start subprocess: {e}", level="ERROR"
+                    )
+                    yield {
+                        "type": "error",
+                        "content": f"Failed to start backend: {str(e)}",
+                    }
                     return
-                
-                if prompt:
 
+                if prompt:
                     log_debug("Writing prompt to stdin...")
 
                     async def write_to_stdin(proc, data):
@@ -1414,7 +1429,7 @@ class OpenCodeAgent:
                             line = None
                         except Exception:
                             line = None
-                        
+
                         if not line:
                             if proc and proc.poll() is not None:
                                 break
@@ -1447,7 +1462,9 @@ class OpenCodeAgent:
 
                 while True:
                     try:
-                        line = await asyncio.wait_for(proc.stdout.readline(), timeout=1.0)
+                        line = await asyncio.wait_for(
+                            proc.stdout.readline(), timeout=1.0
+                        )
                     except asyncio.TimeoutError:
                         if proc.poll() is not None:
                             log_debug("Stdout closed (EOF) and process finished")
@@ -1596,7 +1613,9 @@ class OpenCodeAgent:
                                 if not in_json_block:
                                     # Lookahead for potential JSON start
                                     # Only buffer if we see { or ` and NOT in reasoning
-                                    if (char == "{" or char == "`") and not in_reasoning:
+                                    if (
+                                        char == "{" or char == "`"
+                                    ) and not in_reasoning:
                                         # Peek ahead for "type": "question" or ```json
                                         rem = content[i:]
                                         # Aggressive peek: if we see { followed soon by "type"
@@ -1652,7 +1671,8 @@ class OpenCodeAgent:
                                             # Not a question. Flush it.
                                             # If buffer ends with ` (closing backtick) or looks too big
                                             if (
-                                                char == "`" and json_buffer.endswith("```")
+                                                char == "`"
+                                                and json_buffer.endswith("```")
                                             ) or len(json_buffer) > 50:
                                                 cleaned_content += json_buffer
                                                 in_json_block = False
@@ -1834,7 +1854,12 @@ class OpenCodeAgent:
     ) -> str:
         full_response = ""
         async for chunk in self.generate_response_stream(
-            user_id, prompt, model, agent_name, file_paths, resume_session=resume_session
+            user_id,
+            prompt,
+            model,
+            agent_name,
+            file_paths,
+            resume_session=resume_session,
         ):
             if chunk.get("type") == "message":
                 full_response += chunk.get("content", "")
@@ -1894,7 +1919,7 @@ class OpenCodeAgent:
         # Use abspath to ensure we have the full path
         norm_root = os.path.normcase(os.path.abspath(WORKSPACE_ROOT))
         norm_path = os.path.normcase(os.path.abspath(workspace_path))
-        
+
         # Security check: must be within root or equal to root
         try:
             common = os.path.normcase(os.path.commonpath([norm_root, norm_path]))
@@ -1970,7 +1995,9 @@ class OpenCodeAgent:
         tags: Optional[List[str]] = None,
         force_sync: bool = False,
     ) -> Dict[str, Any]:
-        global_log(f"get_user_sessions for {user_id}, limit={limit}, offset={offset}, force_sync={force_sync}")
+        global_log(
+            f"get_user_sessions for {user_id}, limit={limit}, offset={offset}, force_sync={force_sync}"
+        )
         if user_id not in self.user_data:
             self.user_data[user_id] = {
                 "active_session": None,
@@ -1992,7 +2019,11 @@ class OpenCodeAgent:
         global_log(f"User has {len(uuids)} session UUIDs")
 
         # Check if we have metadata for all sessions (including incomplete metadata missing 'time')
-        missing_metadata = [u for u in uuids if u not in session_metadata or not session_metadata[u].get("time")]
+        missing_metadata = [
+            u
+            for u in uuids
+            if u not in session_metadata or not session_metadata[u].get("time")
+        ]
         global_log(f"Missing metadata for {len(missing_metadata)} sessions")
 
         all_sessions = []
@@ -2052,11 +2083,13 @@ class OpenCodeAgent:
                     # Use .update() to preserve existing fields like 'model'
                     if u not in session_metadata:
                         session_metadata[u] = {}
-                    session_metadata[u].update({
-                        "original_title": sess.get("title", "Unknown"),
-                        "time": time_str,
-                    })
-                    
+                    session_metadata[u].update(
+                        {
+                            "original_title": sess.get("title", "Unknown"),
+                            "time": time_str,
+                        }
+                    )
+
                     # Only process sessions that are already in the user's list
                     if u not in uuids:
                         continue
@@ -2076,9 +2109,7 @@ class OpenCodeAgent:
                             "active": (u == user_info.get("active_session")),
                             "pinned": (u in pinned_uuids),
                             "tags": current_tags,
-                            "model": session_metadata[u].get(
-                                "model"
-                            ),  # Include model
+                            "model": session_metadata[u].get("model"),  # Include model
                             "workspace": self.get_session_workspace(user_id, u),
                         }
                     )
@@ -2121,7 +2152,12 @@ class OpenCodeAgent:
                         )
 
                 # Sort combined list by time descending (Unknown timestamps go to end)
-                all_sessions.sort(key=lambda x: x.get("time") or "" if x.get("time") != "Unknown" else "", reverse=True)
+                all_sessions.sort(
+                    key=lambda x: x.get("time") or ""
+                    if x.get("time") != "Unknown"
+                    else "",
+                    reverse=True,
+                )
             except Exception as e:
                 global_log(
                     f"Error in get_user_sessions (fetching): {str(e)}", level="ERROR"
@@ -2158,7 +2194,10 @@ class OpenCodeAgent:
                 )
 
             # Sort combined list by time descending (Unknown timestamps go to end)
-            all_sessions.sort(key=lambda x: x.get("time") or "" if x.get("time") != "Unknown" else "", reverse=True)
+            all_sessions.sort(
+                key=lambda x: x.get("time") or "" if x.get("time") != "Unknown" else "",
+                reverse=True,
+            )
 
         global_log(f"Processing grouping for {len(all_sessions)} sessions")
         # --- Grouping Logic: Display them as one (the latest fork) ---
@@ -2251,29 +2290,50 @@ class OpenCodeAgent:
     async def get_session_messages(
         self, session_uuid: str, limit: Optional[int] = None, offset: int = 0
     ) -> Dict:
+        async def run_export_with_retry(retries: int = 2, delay: float = 0.15) -> tuple:
+            stderr_output = ""
+            for attempt in range(retries + 1):
+                global_log(
+                    f"Exporting session {session_uuid} for messages (attempt {attempt + 1})..."
+                )
+                proc = await self._create_subprocess(
+                    [self.opencode_cmd, "export", session_uuid],
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    cwd=self.working_dir.replace("\\", "/"),
+                )
+                stdout, stderr = await proc.communicate()
+                content = stdout.decode().strip()
+                stderr_output = stderr.decode().strip() if stderr else ""
+
+                if stderr_output:
+                    global_log(f"Export stderr: {stderr_output[:500]}")
+
+                json_match = re.search(r"\{.*\}", content, re.DOTALL)
+                if json_match:
+                    try:
+                        data = json.loads(json_match.group(0))
+                        messages = data.get("messages", [])
+                        if messages or attempt == retries:
+                            return data, stderr_output
+                    except json.JSONDecodeError as e:
+                        global_log(f"Failed to parse session messages JSON: {e}")
+
+                if attempt < retries:
+                    global_log(f"Export returned empty, retrying in {delay}s...")
+                    await asyncio.sleep(delay)
+
+            return None, stderr_output
+
         try:
-            global_log(f"Exporting session {session_uuid} for messages...")
-            proc = await self._create_subprocess(
-                [self.opencode_cmd, "export", session_uuid],
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=self.working_dir.replace("\\", "/"),
-            )
-            stdout, stderr = await proc.communicate()
-            content = stdout.decode().strip()
+            data, stderr_output = await run_export_with_retry()
 
-            # OpenCode export output starts with "Exporting session: ..."
-            # We need to find the JSON start securely
-            json_match = re.search(r'\{.*\}', content, re.DOTALL)
-            if not json_match:
-                global_log(f"No JSON found in export output: {content[:100]}...")
-                return {"messages": [], "total": 0}
+            if not data:
+                global_log(
+                    f"No JSON found in export output after retries. stderr: {stderr_output[:200] if stderr_output else 'none'}"
+                )
+                return {"messages": [], "total": 0, "error": "export_failed"}
 
-            try:
-                data = json.loads(json_match.group(0))
-            except json.JSONDecodeError as e:
-                global_log(f"Failed to parse session messages JSON: {e}")
-                return {"messages": [], "total": 0}
             all_messages = data.get("messages", [])
             total = len(all_messages)
 
@@ -2311,49 +2371,65 @@ class OpenCodeAgent:
 
                 # Extract question JSON from content if present
                 question_match = re.search(
-                    r'\{\s*"type"\s*:\s*"question".*?\}',
-                    content_text,
-                    re.DOTALL
+                    r'\{\s*"type"\s*:\s*"question".*?\}', content_text, re.DOTALL
                 )
                 if question_match:
                     try:
                         question_data = json.loads(question_match.group(0))
                         # Validate it's not a placeholder
-                        if question_data.get("question") and question_data.get("question") != "Your question text here":
+                        if (
+                            question_data.get("question")
+                            and question_data.get("question")
+                            != "Your question text here"
+                        ):
                             msg_data["question"] = question_data
                             # Remove the question JSON from content to avoid rendering issues
-                            content_text = content_text.replace(question_match.group(0), "")
+                            content_text = content_text.replace(
+                                question_match.group(0), ""
+                            )
                             msg_data["content"] = content_text.strip()
                     except:
                         pass
-                
+
                 # Cleanup malformed/corrupted question patterns (e.g., missing type field, corrupted JSON)
                 # Match patterns containing options and allow_multiple that look like question data
                 if "question" not in msg_data:
                     malformed_pattern = re.search(
                         r'\{\s*"[^}]*"options"\s*:\s*\[[^\]]+\][^}]*"allow_multiple"\s*:\s*(?:true|false)[^}]*\}',
                         msg_data["content"],
-                        re.DOTALL
+                        re.DOTALL,
                     )
                     if malformed_pattern:
                         # Try to parse and extract as question
                         try:
                             potential_q = json.loads(malformed_pattern.group(0))
                             # Only accept if it has valid question text (not placeholder)
-                            if potential_q.get("question") and potential_q.get("question") != "Your question text here":
+                            if (
+                                potential_q.get("question")
+                                and potential_q.get("question")
+                                != "Your question text here"
+                            ):
                                 msg_data["question"] = potential_q
-                                msg_data["content"] = msg_data["content"].replace(malformed_pattern.group(0), "")
+                                msg_data["content"] = msg_data["content"].replace(
+                                    malformed_pattern.group(0), ""
+                                )
                         except:
                             # If parsing fails, just remove the pattern
-                            msg_data["content"] = msg_data["content"].replace(malformed_pattern.group(0), "")
-                
+                            msg_data["content"] = msg_data["content"].replace(
+                                malformed_pattern.group(0), ""
+                            )
+
                 # Also remove standalone "options": [...] patterns that appear corrupted
                 standalone_options = re.findall(
                     r'options"\s*:\s*\[[^\]]+\],\s*"allow_multiple"\s*:\s*(?:true|false)',
-                    msg_data["content"]
+                    msg_data["content"],
                 )
                 for opt in standalone_options:
-                    clean_opt = 'options": ' + opt.split('options": ')[1] if 'options": ' in opt else opt
+                    clean_opt = (
+                        'options": ' + opt.split('options": ')[1]
+                        if 'options": ' in opt
+                        else opt
+                    )
                     msg_data["content"] = msg_data["content"].replace(opt, "")
 
                 msg_data["content"] = msg_data["content"].strip()
@@ -2362,22 +2438,24 @@ class OpenCodeAgent:
             return {"messages": messages, "total": total}
         except Exception as e:
             print(f"Error loading session messages: {str(e)}")
-            return {"messages": [], "total": 0}
+            return {"messages": [], "total": 0, "error": str(e)}
 
     async def switch_session(self, user_id: str, uuid: str) -> bool:
         if user_id not in self.user_data:
             return False
-            
+
         user_info = self.user_data[user_id]
-        
+
         # More permissive switch: if it's in our metadata or we just found it
-        if uuid in user_info.get("sessions", []) or uuid in user_info.get("session_metadata", {}):
+        if uuid in user_info.get("sessions", []) or uuid in user_info.get(
+            "session_metadata", {}
+        ):
             user_info["active_session"] = uuid
             if uuid not in user_info.setdefault("sessions", []):
                 user_info["sessions"].append(uuid)
             self._save_user_data()
             return True
-            
+
         # Last resort: check if it exists in CLI
         try:
             proc = await self._create_subprocess(
@@ -2445,7 +2523,7 @@ class OpenCodeAgent:
             stdout, stderr = await proc.communicate()
             content = stdout.decode().strip()
 
-            json_match = re.search(r'\{.*\}', content, re.DOTALL)
+            json_match = re.search(r"\{.*\}", content, re.DOTALL)
             if not json_match:
                 return None
 
