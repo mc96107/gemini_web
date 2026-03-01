@@ -650,6 +650,15 @@ class OpenCodeAgent:
             global_log(f"Error in _get_latest_session_uuid: {str(e)}")
             return None
 
+    async def get_effective_workspace(self, user_id: str) -> str:
+        """Resolves the current active workspace for a user."""
+        active_session = self.user_data.get(user_id, {}).get("active_session")
+        if active_session:
+            return self.get_session_workspace(user_id, active_session)
+        return self.get_user_settings(user_id).get(
+            "default_workspace", self.WORKSPACE_ROOT
+        )
+
     async def generate_response_stream(
         self,
         user_id: str,
@@ -1155,7 +1164,12 @@ class OpenCodeAgent:
                                 # Save full output to a file
                                 try:
                                     fname = f"output_{uuid.uuid4().hex}.txt"
-                                    fpath = os.path.join(config.UPLOAD_DIR, fname)
+                                    # Save to workspace/tmp/user_attachments if possible
+                                    target_dir = os.path.join(
+                                        workspace, "tmp", "user_attachments"
+                                    )
+                                    os.makedirs(target_dir, exist_ok=True)
+                                    fpath = os.path.join(target_dir, fname)
                                     with open(fpath, "w", encoding="utf-8") as f:
                                         f.write(output)
                                     data["full_output_path"] = f"/uploads/{fname}"

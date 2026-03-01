@@ -148,11 +148,26 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 # Uploads
 @app.get("/uploads/{filename:path}")
-async def serve_upload(filename: str):
+async def serve_upload(filename: str, request: Request):
     import pathlib
 
     safe_filename = pathlib.Path(filename).name
-    fpath = os.path.join(UPLOAD_DIR, safe_filename)
+
+    # Try to find in active workspace first
+    user = request.session.get("user")
+    if user:
+        agent = request.app.state.agent
+        workspace = await agent.get_effective_workspace(user)
+        workspace_fpath = os.path.join(
+            workspace, "tmp", "user_attachments", safe_filename
+        )
+        if os.path.exists(workspace_fpath):
+            fpath = workspace_fpath
+        else:
+            fpath = os.path.join(UPLOAD_DIR, safe_filename)
+    else:
+        fpath = os.path.join(UPLOAD_DIR, safe_filename)
+
     if not os.path.exists(fpath):
         from fastapi import HTTPException
 

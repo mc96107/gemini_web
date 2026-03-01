@@ -1217,6 +1217,15 @@ class OpenCodeAgent:
             global_log(f"Error in _get_latest_session_uuid: {str(e)}")
             return None
 
+    async def get_effective_workspace(self, user_id: str) -> str:
+        """Resolves the current active workspace for a user."""
+        active_session = self.user_data.get(user_id, {}).get("active_session")
+        if active_session:
+            return self.get_session_workspace(user_id, active_session)
+        return self.get_user_settings(user_id).get(
+            "default_workspace", self.WORKSPACE_ROOT
+        )
+
     async def generate_response_stream(
         self,
         user_id: str,
@@ -1722,7 +1731,12 @@ class OpenCodeAgent:
                                 # Save full output to a file
                                 try:
                                     fname = f"output_{uuid.uuid4().hex}.txt"
-                                    fpath = os.path.join(UPLOAD_DIR, fname)
+                                    # Save to workspace/tmp/user_attachments if possible
+                                    target_dir = os.path.join(
+                                        workspace, "tmp", "user_attachments"
+                                    )
+                                    os.makedirs(target_dir, exist_ok=True)
+                                    fpath = os.path.join(target_dir, fname)
                                     with open(fpath, "w", encoding="utf-8") as f:
                                         f.write(output)
                                     data["full_output_path"] = f"/uploads/{fname}"
@@ -4238,20 +4252,13 @@ async def set_sess_tools(
     return {"success": True}
 
 
-async def get_effective_workspace(agent, user):
-    active_session = agent.user_data.get(user, {}).get("active_session")
-    if active_session:
-        return agent.get_session_workspace(user, active_session)
-    return agent.get_user_settings(user).get("default_workspace", agent.WORKSPACE_ROOT)
-
-
 @chat_router.get("/patterns")
 async def get_pats(request: Request, user=Depends(get_user)):
     agent = request.app.state.agent
     if not user:
         raise HTTPException(401)
 
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
 
     import re
 
@@ -4331,7 +4338,7 @@ async def get_prompt_content(filename: str, request: Request, user=Depends(get_u
     if ".." in filename or "/" in filename or "\\" in filename:
         raise HTTPException(400, "Invalid filename")
 
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     filepath = os.path.join(workspace, "prompts", filename)
     if os.path.exists(filepath):
         try:
@@ -4353,7 +4360,7 @@ async def delete_prompt(filename: str, request: Request, user=Depends(get_user))
     if ".." in filename or "/" in filename or "\\" in filename:
         raise HTTPException(400, "Invalid filename")
 
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     filepath = os.path.join(workspace, "prompts", filename)
     if os.path.exists(filepath):
         try:
@@ -4378,7 +4385,7 @@ async def update_prompt(filename: str, request: Request, user=Depends(get_user))
     if not content:
         raise HTTPException(400, "Content is required")
 
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     filepath = os.path.join(workspace, "prompts", filename)
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
 
@@ -4404,7 +4411,7 @@ async def create_prompt(request: Request, user=Depends(get_user)):
     content = str(data.get("content") or "")
 
     # Save to prompts/ directory
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     prompts_dir = os.path.join(workspace, "prompts")
     os.makedirs(prompts_dir, exist_ok=True)
 
@@ -4432,8 +4439,13 @@ async def chat(
     user=Depends(get_user),
 ):
     agent = request.app.state.agent
-    UPLOAD_DIR = request.app.state.UPLOAD_DIR
-    print(f"DEBUG: /chat request received. User: {user}, Model: {model}, Agent: {agent_name}, Plan: {plan_mode}")
+    workspace = await agent.get_effective_workspace(user)
+    UPLOAD_DIR = os.path.join(workspace, "tmp", "user_attachments")
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+    print(
+        f"DEBUG: /chat request received. User: {user}, Model: {model}, Agent: {agent_name}, Plan: {plan_mode}, Workspace: {workspace}"
+    )
     if not user:
         raise HTTPException(401)
 
@@ -4492,7 +4504,9 @@ async def chat(
                             f"PDF compression failed: {e}"
                         )
 
-                file_paths.append(os.path.relpath(fpath))
+                # Ensure path is relative to workspace for the AI model
+                rel_path = os.path.relpath(fpath, workspace)
+                file_paths.append(rel_path.replace("\\", "/"))
 
     # Handle model selection
     m_override = None
@@ -4555,23 +4569,21 @@ async def chat(
 
     # Skill Detection & Injection
     try:
-        workspace = await get_effective_workspace(agent, user)
+        workspace = await agent.get_effective_workspace(user)
         skill_service = SkillService(workspace)  # Create fresh instance per request
         detected_skill = skill_service.detect_skill(msg)
-        
+
         if detected_skill:
             print(f"[SKILL] Detected skill: {detected_skill.name}")
-            
+
             script_output = None
             if detected_skill.execution_type == "script":
                 script_output = await skill_service.execute_skill_script(
                     detected_skill, msg, user
                 )
                 print(f"[SKILL] Script output: {script_output[:200]}...")
-            
-            message = skill_service.inject_context(
-                detected_skill, msg, script_output
-            )
+
+            message = skill_service.inject_context(detected_skill, msg, script_output)
             print(f"[SKILL] Context injected, new message length: {len(message)}")
     except Exception as e:
         print(f"[SKILL] Error in skill detection: {e}")
@@ -4631,9 +4643,15 @@ async def chat(
                             return
                         except Exception as e:
                             import traceback
+
                             error_trace = traceback.format_exc()
-                            log_sse(f"Error in stream result: {str(e)}\n{error_trace}", level="ERROR")
-                            err_msg = json.dumps({"type": "error", "content": f"Stream error: {str(e)}"})
+                            log_sse(
+                                f"Error in stream result: {str(e)}\n{error_trace}",
+                                level="ERROR",
+                            )
+                            err_msg = json.dumps(
+                                {"type": "error", "content": f"Stream error: {str(e)}"}
+                            )
                             yield f"data: {err_msg}\n\n"
                             return
                     else:
@@ -4729,8 +4747,8 @@ async def get_git_status(request: Request, user=Depends(get_user)):
     agent = request.app.state.agent
     if not user:
         raise HTTPException(401)
-    
-    workspace = await get_effective_workspace(agent, user)
+
+    workspace = await agent.get_effective_workspace(user)
     return await agent.get_git_status(workspace)
 
 
@@ -4885,19 +4903,21 @@ async def list_accounts(request: Request, user=Depends(get_user)):
         accounts = []
         for acc in data.get("accounts", []):
             quota = acc.get("cachedQuota", {})
-            accounts.append({
-                "email": acc.get("email"),
-                "enabled": acc.get("enabled", True),
-                "lastUsed": acc.get("lastUsed"),
-                "models": {
-                    model: {
-                        "remainingFraction": info.get("remainingFraction", 0),
-                        "resetTime": info.get("resetTime"),
-                        "modelCount": info.get("modelCount", 0),
-                    }
-                    for model, info in quota.items()
+            accounts.append(
+                {
+                    "email": acc.get("email"),
+                    "enabled": acc.get("enabled", True),
+                    "lastUsed": acc.get("lastUsed"),
+                    "models": {
+                        model: {
+                            "remainingFraction": info.get("remainingFraction", 0),
+                            "resetTime": info.get("resetTime"),
+                            "modelCount": info.get("modelCount", 0),
+                        }
+                        for model, info in quota.items()
+                    },
                 }
-            })
+            )
 
         return {"accounts": accounts}
     except Exception as e:
@@ -4915,7 +4935,7 @@ async def list_agents(request: Request, user=Depends(get_user)):
 
     agent_manager = request.app.state.agent_manager
     agent = request.app.state.agent
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     agents = agent_manager.list_agents(project_root=workspace)
     return agents
 
@@ -4930,7 +4950,7 @@ async def get_agent_details(
 
     agent_manager = request.app.state.agent_manager
     agent = request.app.state.agent
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     agent_data = agent_manager.get_agent(category, name, project_root=workspace)
     if not agent_data:
         raise HTTPException(status_code=404, detail="Agent not found")
@@ -4945,7 +4965,7 @@ async def save_agent(request: Request, agent_data: AgentModel, user=Depends(get_
 
     agent_manager = request.app.state.agent_manager
     agent = request.app.state.agent
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     success = agent_manager.save_agent(agent_data, project_root=workspace)
     return {"success": success}
 
@@ -4958,7 +4978,7 @@ async def get_root_agent(request: Request, user=Depends(get_user)):
 
     agent_manager = request.app.state.agent_manager
     agent = request.app.state.agent
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     agent_data = agent_manager.get_root_orchestrator(project_root=workspace)
     if not agent_data:
         agent_manager.initialize_root_orchestrator(project_root=workspace)
@@ -4976,7 +4996,7 @@ async def save_root_agent(
 
     agent_manager = request.app.state.agent_manager
     agent = request.app.state.agent
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     success = agent_manager.save_root_orchestrator(agent_data, project_root=workspace)
     return {"success": success}
 
@@ -4991,7 +5011,7 @@ async def delete_agent(
 
     agent_manager = request.app.state.agent_manager
     agent = request.app.state.agent
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     success = agent_manager.delete_agent(category, name, project_root=workspace)
     return {"success": success}
 
@@ -5009,7 +5029,7 @@ async def toggle_agent_enabled(
 
     agent_manager = request.app.state.agent_manager
     agent = request.app.state.agent
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     success = agent_manager.set_agent_enabled(
         category, name, enabled, project_root=workspace
     )
@@ -5024,7 +5044,7 @@ async def validate_orchestration(request: Request, user=Depends(get_user)):
 
     agent_manager = request.app.state.agent_manager
     agent = request.app.state.agent
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     warnings = agent_manager.validate_orchestration(project_root=workspace)
     return {"warnings": warnings}
 
@@ -5036,7 +5056,7 @@ async def list_skills(request: Request, user=Depends(get_user)):
         raise HTTPException(status_code=403, detail="Forbidden")
 
     agent = request.app.state.agent
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     skills_dir = os.path.join(workspace, ".opencode", "skills")
 
     skills = []
@@ -5054,7 +5074,7 @@ async def get_skill(name: str, request: Request, user=Depends(get_user)):
         raise HTTPException(status_code=403, detail="Forbidden")
 
     agent = request.app.state.agent
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     skill_md = os.path.join(workspace, ".opencode", "skills", name, "SKILL.md")
 
     if os.path.exists(skill_md):
@@ -5085,7 +5105,7 @@ async def save_skill(request: Request, user=Depends(get_user)):
         raise HTTPException(status_code=400, detail="Name and content are required")
 
     agent = request.app.state.agent
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     skill_dir = os.path.join(workspace, ".opencode", "skills", name)
     os.makedirs(skill_dir, exist_ok=True)
 
@@ -5102,7 +5122,7 @@ async def delete_skill(name: str, request: Request, user=Depends(get_user)):
         raise HTTPException(status_code=403, detail="Forbidden")
 
     agent = request.app.state.agent
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     skill_dir = os.path.join(workspace, ".opencode", "skills", name)
 
     if os.path.exists(skill_dir):
@@ -5384,11 +5404,26 @@ static_dir = os.path.join(os.path.dirname(__file__), "static")
 
 # Uploads
 @app.get("/uploads/{filename:path}")
-async def serve_upload(filename: str):
+async def serve_upload(filename: str, request: Request):
     import pathlib
 
     safe_filename = pathlib.Path(filename).name
-    fpath = os.path.join(UPLOAD_DIR, safe_filename)
+
+    # Try to find in active workspace first
+    user = request.session.get("user")
+    if user:
+        agent = request.app.state.agent
+        workspace = await agent.get_effective_workspace(user)
+        workspace_fpath = os.path.join(
+            workspace, "tmp", "user_attachments", safe_filename
+        )
+        if os.path.exists(workspace_fpath):
+            fpath = workspace_fpath
+        else:
+            fpath = os.path.join(UPLOAD_DIR, safe_filename)
+    else:
+        fpath = os.path.join(UPLOAD_DIR, safe_filename)
+
     if not os.path.exists(fpath):
         from fastapi import HTTPException
 

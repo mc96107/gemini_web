@@ -288,20 +288,13 @@ async def set_sess_tools(
     return {"success": True}
 
 
-async def get_effective_workspace(agent, user):
-    active_session = agent.user_data.get(user, {}).get("active_session")
-    if active_session:
-        return agent.get_session_workspace(user, active_session)
-    return agent.get_user_settings(user).get("default_workspace", agent.WORKSPACE_ROOT)
-
-
 @router.get("/patterns")
 async def get_pats(request: Request, user=Depends(get_user)):
     agent = request.app.state.agent
     if not user:
         raise HTTPException(401)
 
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
 
     from app.core.patterns import PATTERNS
     import re
@@ -382,7 +375,7 @@ async def get_prompt_content(filename: str, request: Request, user=Depends(get_u
     if ".." in filename or "/" in filename or "\\" in filename:
         raise HTTPException(400, "Invalid filename")
 
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     filepath = os.path.join(workspace, "prompts", filename)
     if os.path.exists(filepath):
         try:
@@ -404,7 +397,7 @@ async def delete_prompt(filename: str, request: Request, user=Depends(get_user))
     if ".." in filename or "/" in filename or "\\" in filename:
         raise HTTPException(400, "Invalid filename")
 
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     filepath = os.path.join(workspace, "prompts", filename)
     if os.path.exists(filepath):
         try:
@@ -429,7 +422,7 @@ async def update_prompt(filename: str, request: Request, user=Depends(get_user))
     if not content:
         raise HTTPException(400, "Content is required")
 
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     filepath = os.path.join(workspace, "prompts", filename)
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
 
@@ -455,7 +448,7 @@ async def create_prompt(request: Request, user=Depends(get_user)):
     content = str(data.get("content") or "")
 
     # Save to prompts/ directory
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     prompts_dir = os.path.join(workspace, "prompts")
     os.makedirs(prompts_dir, exist_ok=True)
 
@@ -483,8 +476,13 @@ async def chat(
     user=Depends(get_user),
 ):
     agent = request.app.state.agent
-    UPLOAD_DIR = request.app.state.UPLOAD_DIR
-    print(f"DEBUG: /chat request received. User: {user}, Model: {model}, Agent: {agent_name}, Plan: {plan_mode}")
+    workspace = await agent.get_effective_workspace(user)
+    UPLOAD_DIR = os.path.join(workspace, "tmp", "user_attachments")
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+    print(
+        f"DEBUG: /chat request received. User: {user}, Model: {model}, Agent: {agent_name}, Plan: {plan_mode}, Workspace: {workspace}"
+    )
     if not user:
         raise HTTPException(401)
 
@@ -547,7 +545,9 @@ async def chat(
                             f"PDF compression failed: {e}"
                         )
 
-                file_paths.append(os.path.relpath(fpath))
+                # Ensure path is relative to workspace for the AI model
+                rel_path = os.path.relpath(fpath, workspace)
+                file_paths.append(rel_path.replace("\\", "/"))
 
     # Handle model selection
     m_override = None
@@ -610,23 +610,21 @@ async def chat(
 
     # Skill Detection & Injection
     try:
-        workspace = await get_effective_workspace(agent, user)
+        workspace = await agent.get_effective_workspace(user)
         skill_service = SkillService(workspace)  # Create fresh instance per request
         detected_skill = skill_service.detect_skill(msg)
-        
+
         if detected_skill:
             print(f"[SKILL] Detected skill: {detected_skill.name}")
-            
+
             script_output = None
             if detected_skill.execution_type == "script":
                 script_output = await skill_service.execute_skill_script(
                     detected_skill, msg, user
                 )
                 print(f"[SKILL] Script output: {script_output[:200]}...")
-            
-            message = skill_service.inject_context(
-                detected_skill, msg, script_output
-            )
+
+            message = skill_service.inject_context(detected_skill, msg, script_output)
             print(f"[SKILL] Context injected, new message length: {len(message)}")
     except Exception as e:
         print(f"[SKILL] Error in skill detection: {e}")
@@ -686,9 +684,15 @@ async def chat(
                             return
                         except Exception as e:
                             import traceback
+
                             error_trace = traceback.format_exc()
-                            log_sse(f"Error in stream result: {str(e)}\n{error_trace}", level="ERROR")
-                            err_msg = json.dumps({"type": "error", "content": f"Stream error: {str(e)}"})
+                            log_sse(
+                                f"Error in stream result: {str(e)}\n{error_trace}",
+                                level="ERROR",
+                            )
+                            err_msg = json.dumps(
+                                {"type": "error", "content": f"Stream error: {str(e)}"}
+                            )
                             yield f"data: {err_msg}\n\n"
                             return
                     else:
@@ -785,8 +789,8 @@ async def get_git_status(request: Request, user=Depends(get_user)):
     agent = request.app.state.agent
     if not user:
         raise HTTPException(401)
-    
-    workspace = await get_effective_workspace(agent, user)
+
+    workspace = await agent.get_effective_workspace(user)
     return await agent.get_git_status(workspace)
 
 

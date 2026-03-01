@@ -13,7 +13,6 @@ ACCOUNTS_FILE = Path.home() / ".config" / "opencode" / "antigravity-accounts.jso
 from app.core import config
 from app.services.pattern_sync_service import PatternSyncService
 from app.models.agent import AgentModel
-from app.routers.chat import get_effective_workspace
 
 router = APIRouter()
 
@@ -136,19 +135,21 @@ async def list_accounts(request: Request, user=Depends(get_user)):
         accounts = []
         for acc in data.get("accounts", []):
             quota = acc.get("cachedQuota", {})
-            accounts.append({
-                "email": acc.get("email"),
-                "enabled": acc.get("enabled", True),
-                "lastUsed": acc.get("lastUsed"),
-                "models": {
-                    model: {
-                        "remainingFraction": info.get("remainingFraction", 0),
-                        "resetTime": info.get("resetTime"),
-                        "modelCount": info.get("modelCount", 0),
-                    }
-                    for model, info in quota.items()
+            accounts.append(
+                {
+                    "email": acc.get("email"),
+                    "enabled": acc.get("enabled", True),
+                    "lastUsed": acc.get("lastUsed"),
+                    "models": {
+                        model: {
+                            "remainingFraction": info.get("remainingFraction", 0),
+                            "resetTime": info.get("resetTime"),
+                            "modelCount": info.get("modelCount", 0),
+                        }
+                        for model, info in quota.items()
+                    },
                 }
-            })
+            )
 
         return {"accounts": accounts}
     except Exception as e:
@@ -166,7 +167,7 @@ async def list_agents(request: Request, user=Depends(get_user)):
 
     agent_manager = request.app.state.agent_manager
     agent = request.app.state.agent
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     agents = agent_manager.list_agents(project_root=workspace)
     return agents
 
@@ -181,7 +182,7 @@ async def get_agent_details(
 
     agent_manager = request.app.state.agent_manager
     agent = request.app.state.agent
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     agent_data = agent_manager.get_agent(category, name, project_root=workspace)
     if not agent_data:
         raise HTTPException(status_code=404, detail="Agent not found")
@@ -196,7 +197,7 @@ async def save_agent(request: Request, agent_data: AgentModel, user=Depends(get_
 
     agent_manager = request.app.state.agent_manager
     agent = request.app.state.agent
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     success = agent_manager.save_agent(agent_data, project_root=workspace)
     return {"success": success}
 
@@ -209,7 +210,7 @@ async def get_root_agent(request: Request, user=Depends(get_user)):
 
     agent_manager = request.app.state.agent_manager
     agent = request.app.state.agent
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     agent_data = agent_manager.get_root_orchestrator(project_root=workspace)
     if not agent_data:
         agent_manager.initialize_root_orchestrator(project_root=workspace)
@@ -227,7 +228,7 @@ async def save_root_agent(
 
     agent_manager = request.app.state.agent_manager
     agent = request.app.state.agent
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     success = agent_manager.save_root_orchestrator(agent_data, project_root=workspace)
     return {"success": success}
 
@@ -242,7 +243,7 @@ async def delete_agent(
 
     agent_manager = request.app.state.agent_manager
     agent = request.app.state.agent
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     success = agent_manager.delete_agent(category, name, project_root=workspace)
     return {"success": success}
 
@@ -260,7 +261,7 @@ async def toggle_agent_enabled(
 
     agent_manager = request.app.state.agent_manager
     agent = request.app.state.agent
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     success = agent_manager.set_agent_enabled(
         category, name, enabled, project_root=workspace
     )
@@ -275,7 +276,7 @@ async def validate_orchestration(request: Request, user=Depends(get_user)):
 
     agent_manager = request.app.state.agent_manager
     agent = request.app.state.agent
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     warnings = agent_manager.validate_orchestration(project_root=workspace)
     return {"warnings": warnings}
 
@@ -287,7 +288,7 @@ async def list_skills(request: Request, user=Depends(get_user)):
         raise HTTPException(status_code=403, detail="Forbidden")
 
     agent = request.app.state.agent
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     skills_dir = os.path.join(workspace, ".opencode", "skills")
 
     skills = []
@@ -305,7 +306,7 @@ async def get_skill(name: str, request: Request, user=Depends(get_user)):
         raise HTTPException(status_code=403, detail="Forbidden")
 
     agent = request.app.state.agent
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     skill_md = os.path.join(workspace, ".opencode", "skills", name, "SKILL.md")
 
     if os.path.exists(skill_md):
@@ -336,7 +337,7 @@ async def save_skill(request: Request, user=Depends(get_user)):
         raise HTTPException(status_code=400, detail="Name and content are required")
 
     agent = request.app.state.agent
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     skill_dir = os.path.join(workspace, ".opencode", "skills", name)
     os.makedirs(skill_dir, exist_ok=True)
 
@@ -353,7 +354,7 @@ async def delete_skill(name: str, request: Request, user=Depends(get_user)):
         raise HTTPException(status_code=403, detail="Forbidden")
 
     agent = request.app.state.agent
-    workspace = await get_effective_workspace(agent, user)
+    workspace = await agent.get_effective_workspace(user)
     skill_dir = os.path.join(workspace, ".opencode", "skills", name)
 
     if os.path.exists(skill_dir):
