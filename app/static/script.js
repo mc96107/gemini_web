@@ -162,6 +162,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function renderKatex(element) {
+        if (!element) return;
+        try {
+            if (typeof renderMathInElement !== 'undefined') {
+                renderMathInElement(element, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false}
+                    ],
+                    throwOnError: false
+                });
+            }
+        } catch (e) {}
+    }
+
     function toggleStopButton(show) {
         if (!sendBtn || !stopBtn) return;
         if (show) {
@@ -928,6 +943,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const content = document.createElement('div'); content.className = 'message-content';
         content.innerHTML = parsedText;
+        if (sender === 'bot') renderKatex(content);
         div.appendChild(content);
         
         // Add a placeholder for tool logs in history if they exist in metadata (future)
@@ -974,6 +990,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateStreamingMessage(div, text, items, isFinal = false) {
         const content = div.querySelector('.message-content');
         content.innerHTML = (typeof marked !== 'undefined') ? marked.parse(text) : text;
+        renderKatex(content);
         
         const logsDiv = div.querySelector('.tool-logs');
         if (items.length) {
