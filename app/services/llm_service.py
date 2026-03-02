@@ -1885,6 +1885,9 @@ class OpenCodeAgent:
                 parts = msg.get("parts", [])
                 text_parts = []
                 for p in parts:
+                    # Skip synthetic parts (system-injected instructions)
+                    if p.get("synthetic"):
+                        continue
                     if p.get("type") == "text":
                         text_parts.append(p.get("text", ""))
                     elif p.get("type") == "reasoning":
@@ -1902,15 +1905,19 @@ class OpenCodeAgent:
                     "raw_index": start + idx,
                 }
 
-                question_match = re.search(
-                    r'\{\s*"type"\s*:\s*"question".*?\}', content_text, re.DOTALL
-                )
-                if question_match:
-                    try:
-                        q_data = json.loads(question_match.group(0))
-                        msg_data["question"] = q_data
-                    except:
-                        pass
+                # Only detect question cards in bot messages
+                if role != "user":
+                    question_match = re.search(
+                        r'\{\s*"type"\s*:\s*"question".*?\}', content_text, re.DOTALL
+                    )
+                    if question_match:
+                        try:
+                            q_data = json.loads(question_match.group(0))
+                            # Skip template/placeholder examples
+                            if q_data.get("question") != "Your question text here":
+                                msg_data["question"] = q_data
+                        except:
+                            pass
 
                 for opt in ["[Output]", "[Response]", "[Result]", "[Answer]"]:
                     if opt in msg_data["content"]:
