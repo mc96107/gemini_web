@@ -6,7 +6,7 @@ This document tracks the OpenCode SQLite database schema used by the application
 
 ---
 
-## Current Schema (as of 2026-03-02)
+## Current Schema (as of 2026-03-02, VERIFIED)
 
 ### Tables
 
@@ -14,11 +14,23 @@ This document tracks the OpenCode SQLite database schema used by the application
 | Column | Type | Description |
 |--------|------|-------------|
 | id | TEXT | Session UUID |
-| title | TEXT | Session title |
-| time_created | INTEGER | Unix timestamp |
-| time_updated | INTEGER | Unix timestamp (most recent activity) |
-| directory | TEXT | Session working directory |
+| project_id | TEXT | Foreign key to project |
+| parent_id | TEXT | Parent session (for forks) |
 | slug | TEXT | URL-safe identifier |
+| directory | TEXT | Session working directory |
+| title | TEXT | Session title |
+| version | TEXT | Schema version |
+| share_url | TEXT | Shared URL if published |
+| summary_additions | INTEGER | Git diff additions |
+| summary_deletions | INTEGER | Git diff deletions |
+| summary_files | INTEGER | Files changed count |
+| summary_diffs | TEXT | Diff details |
+| revert | TEXT | Revert info |
+| permission | TEXT | Permission level |
+| time_created | INTEGER | Unix timestamp |
+| time_updated | INTEGER | Unix timestamp |
+| time_compacting | INTEGER | Compaction timestamp |
+| time_archived | INTEGER | Archive timestamp |
 
 #### `message`
 | Column | Type | Description |
@@ -27,27 +39,64 @@ This document tracks the OpenCode SQLite database schema used by the application
 | session_id | TEXT | Foreign key to `session.id` |
 | time_created | INTEGER | Unix timestamp |
 | time_updated | INTEGER | Unix timestamp |
-| data | TEXT | JSON blob containing message content |
+| data | TEXT | JSON blob containing message METADATA (not content!) |
 
-#### `message.data` JSON Structure
+#### `message.data` JSON Structure (METADATA ONLY)
 ```json
 {
-  "info": {
-    "role": "user" | "assistant",
-    "model": "model name (optional)"
-  },
-  "parts": [
-    {
-      "type": "text",
-      "text": "message content here"
-    },
-    {
-      "type": "reasoning", 
-      "text": "AI reasoning/thinking (optional)"
-    }
-  ]
+  "role": "user" | "assistant",
+  "time": { "created": 1234567890, "completed": 1234567890 },
+  "parentID": "msg_...",
+  "modelID": "model-name",
+  "providerID": "provider-name",
+  "mode": "build" | "plan",
+  "path": { "cwd": "...", "root": "..." },
+  "cost": 0,
+  "tokens": { "input": 0, "output": 0, "reasoning": 0, "cache": { "read": 0, "write": 0 } }
 }
 ```
+NOTE: `role` is at TOP LEVEL (NOT nested under `info`). User messages may also have `summary` instead of model fields.
+
+#### `part` (NEW - message content lives here)
+| Column | Type | Description |
+|--------|------|-------------|
+| id | TEXT | Part UUID |
+| message_id | TEXT | Foreign key to `message.id` |
+| session_id | TEXT | Foreign key to `session.id` |
+| time_created | INTEGER | Unix timestamp |
+| time_updated | INTEGER | Unix timestamp |
+| data | TEXT | JSON blob containing part content |
+
+#### `part.data` JSON Structure (varies by type)
+```json
+// type: "text" - actual message text
+{ "type": "text", "text": "message content here", "synthetic": true|false }
+
+// type: "reasoning" - AI thinking/reasoning
+{ "type": "reasoning", "text": "thinking content", "time": { "start": ..., "end": ... } }
+
+// type: "tool" - tool call and result
+{ "type": "tool", "callID": "call_...", "tool": "bash|read|write|...",
+  "state": { "status": "completed", "input": {...}, "output": "...", "title": "..." } }
+
+// type: "step-start" - marks beginning of a step
+{ "type": "step-start" }
+
+// type: "step-finish" - marks end of a step with cost
+{ "type": "step-finish", "reason": "tool-calls|end-turn", "cost": 0, "tokens": {...} }
+
+// type: "file" - file reference
+{ "type": "file", ... }
+```
+
+---
+
+## CRITICAL: Schema Change History
+
+**2026-03-02**: Schema broke our SQLite reader because:
+- OLD assumption: `message.data` contained `{ info: {role}, parts: [{type, text}] }` (all-in-one)
+- NEW reality: `message.data` only has metadata; content is in separate `part` table
+- Fix: `read_session_from_sqlite()` now JOINs message + part tables and reconstructs the old format
 
 ---
 
@@ -58,10 +107,8 @@ If the schema changes, edit these files:
 1. **`app/services/llm_service.py`**
    - Function: `read_session_from_sqlite()`
    - Function: `get_session_messages()`
-   - Lines ~1723-1900 (get_session_messages with fallback logic)
 
-2. **`opencode_agent_release.py`** (auto-generated via recombine.py)
-   - Contains the combined/rebuilt version of llm_service.py
+2. **`opencode_agent_release.py`** (auto-generated via `scripts/recombine.py`)
 
 ---
 
@@ -71,15 +118,13 @@ The code uses `opencode export` as a fallback if direct SQLite reading fails:
 - Primary: Direct SQLite query (faster)
 - Fallback: `opencode export <session_uuid>` (slower but guaranteed compatible)
 
-To disable direct SQLite and always use export, set environment variable or add a flag (not currently implemented - would need code change).
-
 ---
 
 ## Updating This Document
 
 When OpenCode updates its schema:
-1. Query the database to get current schema: `PRAGMA table_info(message);`
-2. Update the tables above with new/removed columns
-3. Update the `message.data` JSON structure if it changes
-4. Update the affected functions in `app/services/llm_service.py`
-5. Document any breaking changes here
+1. Query the database: `SELECT name FROM sqlite_master WHERE type='table';`
+2. Get columns: `PRAGMA table_info(<table>);`
+3. Sample data: `SELECT data FROM <table> LIMIT 3;`
+4. Update this doc and `read_session_from_sqlite()`
+5. Run `scripts/recombine.py` to rebuild release

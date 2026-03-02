@@ -852,11 +852,10 @@
 </script>
 <script src="/static/script.js?v={{ range(1, 999999) | random }}"></script>
 <script>
+    // Unregister any stale service workers from previous versions
     if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/sw.js')
-                .then(reg => console.log('SW Registered', reg))
-                .catch(err => console.log('SW Reg Error', err));
+        navigator.serviceWorker.getRegistrations().then(regs => {
+            regs.forEach(r => r.unregister());
         });
     }
 </script>

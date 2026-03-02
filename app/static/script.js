@@ -174,7 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     throwOnError: false
                 });
             }
-        } catch (e) {}
+        } catch (e) { console.warn('KaTeX render error:', e); }
     }
 
     function toggleStopButton(show) {

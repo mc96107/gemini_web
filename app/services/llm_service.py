@@ -1736,6 +1736,14 @@ class OpenCodeAgent:
         return results
 
     def read_session_from_sqlite(self, session_uuid: str) -> Optional[Dict]:
+        # Schema notes for future maintenance (updated 2026-03-02):
+        # - message table: id, session_id, time_created, time_updated, data (JSON)
+        #   message.data = { role: "user"|"assistant", time: {...}, modelID, providerID, ... }
+        # - part table: id, message_id, session_id, time_created, time_updated, data (JSON)
+        #   part.data types: "text" ({type,text}), "reasoning" ({type,text,time}),
+        #     "tool" ({type,callID,tool,state}), "step-start", "step-finish", "file"
+        # - Role is at TOP LEVEL of message.data (NOT in info.role)
+        # - Parts are in SEPARATE 'part' table (NOT embedded in message.data)
         OPENCODE_DB_PATH = "/home/z/.local/share/opencode/opencode.db"
 
         if not os.path.exists(OPENCODE_DB_PATH):
@@ -1750,19 +1758,48 @@ class OpenCodeAgent:
                 "SELECT id, data FROM message WHERE session_id = ? ORDER BY time_created ASC",
                 (session_uuid,),
             )
-            rows = cursor.fetchall()
-            conn.close()
+            msg_rows = cursor.fetchall()
 
-            if not rows:
+            if not msg_rows:
+                conn.close()
                 return None
 
-            messages = []
-            for msg_id, data_json in rows:
+            # Get all parts for this session in one query
+            cursor.execute(
+                "SELECT message_id, data FROM part WHERE session_id = ? ORDER BY time_created ASC",
+                (session_uuid,),
+            )
+            part_rows = cursor.fetchall()
+            conn.close()
+
+            # Group parts by message_id
+            parts_by_msg = {}
+            for msg_id, part_data_json in part_rows:
+                if msg_id not in parts_by_msg:
+                    parts_by_msg[msg_id] = []
                 try:
-                    msg_data = json.loads(data_json)
-                    messages.append(msg_data)
+                    parts_by_msg[msg_id].append(json.loads(part_data_json))
                 except json.JSONDecodeError:
                     pass
+
+            # Reconstruct in the format the parser expects:
+            # { info: {role: ...}, parts: [{type: ..., text: ...}] }
+            messages = []
+            for msg_id, msg_data_json in msg_rows:
+                try:
+                    msg_data = json.loads(msg_data_json)
+                except json.JSONDecodeError:
+                    continue
+
+                role = msg_data.get("role", "user")
+                msg_parts = parts_by_msg.get(msg_id, [])
+
+                messages.append(
+                    {
+                        "info": {"role": role},
+                        "parts": msg_parts,
+                    }
+                )
 
             return {"messages": messages}
 
