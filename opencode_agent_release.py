@@ -575,6 +575,7 @@ import asyncio
 import shutil
 import uuid
 import subprocess
+import sqlite3
 import threading
 from datetime import datetime, timezone
 import datetime as dt_pkg
@@ -2301,6 +2302,41 @@ class OpenCodeAgent:
 
         return results
 
+    def read_session_from_sqlite(self, session_uuid: str) -> Optional[Dict]:
+        OPENCODE_DB_PATH = "/home/z/.local/share/opencode/opencode.db"
+
+        if not os.path.exists(OPENCODE_DB_PATH):
+            global_log(f"SQLite database not found at {OPENCODE_DB_PATH}")
+            return None
+
+        try:
+            conn = sqlite3.connect(OPENCODE_DB_PATH)
+            cursor = conn.cursor()
+
+            cursor.execute(
+                "SELECT id, data FROM message WHERE session_id = ? ORDER BY time_created ASC",
+                (session_uuid,),
+            )
+            rows = cursor.fetchall()
+            conn.close()
+
+            if not rows:
+                return None
+
+            messages = []
+            for msg_id, data_json in rows:
+                try:
+                    msg_data = json.loads(data_json)
+                    messages.append(msg_data)
+                except json.JSONDecodeError:
+                    pass
+
+            return {"messages": messages}
+
+        except Exception as e:
+            global_log(f"Failed to read session from SQLite: {e}")
+            return None
+
     async def get_session_messages(
         self, session_uuid: str, limit: Optional[int] = None, offset: int = 0
     ) -> Dict:
@@ -2339,16 +2375,29 @@ class OpenCodeAgent:
 
             return None, stderr_output
 
+        sqlite_data = self.read_session_from_sqlite(session_uuid)
+
+        if sqlite_data:
+            global_log(f"Loaded session {session_uuid} from SQLite (faster)")
+            data = sqlite_data
+        else:
+            global_log(
+                f"SQLite read failed, falling back to opencode export for {session_uuid}"
+            )
+            try:
+                data, stderr_output = await run_export_with_retry()
+
+                if not data:
+                    global_log(
+                        f"No JSON found in export output after retries. stderr: {stderr_output[:200] if stderr_output else 'none'}"
+                    )
+                    return {"messages": [], "total": 0, "error": "export_failed"}
+            except Exception as e:
+                global_log(f"Export failed: {e}")
+                return {"messages": [], "total": 0, "error": str(e)}
+
+        all_messages = data.get("messages", [])
         try:
-            data, stderr_output = await run_export_with_retry()
-
-            if not data:
-                global_log(
-                    f"No JSON found in export output after retries. stderr: {stderr_output[:200] if stderr_output else 'none'}"
-                )
-                return {"messages": [], "total": 0, "error": "export_failed"}
-
-            all_messages = data.get("messages", [])
             total = len(all_messages)
 
             if limit is not None:
@@ -2383,68 +2432,19 @@ class OpenCodeAgent:
                     "raw_index": start + idx,
                 }
 
-                # Extract question JSON from content if present
                 question_match = re.search(
                     r'\{\s*"type"\s*:\s*"question".*?\}', content_text, re.DOTALL
                 )
                 if question_match:
                     try:
-                        question_data = json.loads(question_match.group(0))
-                        # Validate it's not a placeholder
-                        if (
-                            question_data.get("question")
-                            and question_data.get("question")
-                            != "Your question text here"
-                        ):
-                            msg_data["question"] = question_data
-                            # Remove the question JSON from content to avoid rendering issues
-                            content_text = content_text.replace(
-                                question_match.group(0), ""
-                            )
-                            msg_data["content"] = content_text.strip()
+                        q_data = json.loads(question_match.group(0))
+                        msg_data["question"] = q_data
                     except:
                         pass
 
-                # Cleanup malformed/corrupted question patterns (e.g., missing type field, corrupted JSON)
-                # Match patterns containing options and allow_multiple that look like question data
-                if "question" not in msg_data:
-                    malformed_pattern = re.search(
-                        r'\{\s*"[^}]*"options"\s*:\s*\[[^\]]+\][^}]*"allow_multiple"\s*:\s*(?:true|false)[^}]*\}',
-                        msg_data["content"],
-                        re.DOTALL,
-                    )
-                    if malformed_pattern:
-                        # Try to parse and extract as question
-                        try:
-                            potential_q = json.loads(malformed_pattern.group(0))
-                            # Only accept if it has valid question text (not placeholder)
-                            if (
-                                potential_q.get("question")
-                                and potential_q.get("question")
-                                != "Your question text here"
-                            ):
-                                msg_data["question"] = potential_q
-                                msg_data["content"] = msg_data["content"].replace(
-                                    malformed_pattern.group(0), ""
-                                )
-                        except:
-                            # If parsing fails, just remove the pattern
-                            msg_data["content"] = msg_data["content"].replace(
-                                malformed_pattern.group(0), ""
-                            )
-
-                # Also remove standalone "options": [...] patterns that appear corrupted
-                standalone_options = re.findall(
-                    r'options"\s*:\s*\[[^\]]+\],\s*"allow_multiple"\s*:\s*(?:true|false)',
-                    msg_data["content"],
-                )
-                for opt in standalone_options:
-                    clean_opt = (
-                        'options": ' + opt.split('options": ')[1]
-                        if 'options": ' in opt
-                        else opt
-                    )
-                    msg_data["content"] = msg_data["content"].replace(opt, "")
+                for opt in ["[Output]", "[Response]", "[Result]", "[Answer]"]:
+                    if opt in msg_data["content"]:
+                        msg_data["content"] = msg_data["content"].replace(opt, "")
 
                 msg_data["content"] = msg_data["content"].strip()
 
