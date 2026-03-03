@@ -2152,6 +2152,8 @@ class OpenCodeAgent:
                 "parent": info.get("parent"),
                 "fork_point": info.get("fork_point"),
                 "title": title,
+                "time": meta.get("time", "Unknown"),
+                "active": uuid == user_info.get("active_session"),
             }
         return graph
 

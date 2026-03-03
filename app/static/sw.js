@@ -1,7 +1,7 @@
-const CACHE_NAME = 'opencode-agent-v6'; // Bump version for fresh install
+const CACHE_NAME = 'opencode-agent-v7'; // Bump version for fresh install
 
 self.addEventListener('install', (event) => {
-  console.log('Service Worker v6 installing...');
+  console.log('Service Worker v7 installing...');
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       // Pre-cache only essential, non-dynamic assets
@@ -22,7 +22,7 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  console.log('Service Worker v6 activating...');
+  console.log('Service Worker v7 activating...');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(

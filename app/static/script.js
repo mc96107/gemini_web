@@ -62,6 +62,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const treeViewModalEl = document.getElementById('treeViewModal');
     const treeContainer = document.getElementById('tree-container');
+    let treeNodeMenu = null;
+    let selectedTreeNode = null;
+
+    if (treeViewModalEl) {
+        treeViewModalEl.addEventListener('shown.bs.modal', loadForkGraph);
+    }
 
     const exportBtn = document.getElementById('export-btn');
     const exportBtnMobile = document.getElementById('export-btn-mobile');
@@ -721,10 +727,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const index = (msg.raw_index !== undefined) ? msg.raw_index : (window.TOTAL_MESSAGES - offset - messages.length + idx);
                 // Check if message has embedded question data
                 if (msg.question) {
+                    // Always render the response content first
+                    const div = createMessageDiv(msg.role, msg.content, null, null, index);
+                    if (div) {
+                        if (offset === 0) chatContainer.appendChild(div);
+                        else chatContainer.insertBefore(div, document.getElementById('scroll-sentinel').nextSibling);
+                    }
+                    // Then render the interactive question card
                     const card = createQuestionCard(msg.question);
-                    if (card) { 
-                        if (offset === 0) chatContainer.appendChild(card); 
-                        else chatContainer.insertBefore(card, document.getElementById('scroll-sentinel').nextSibling); 
+                    if (card) {
+                        if (offset === 0) chatContainer.appendChild(card);
+                        else chatContainer.insertBefore(card, document.getElementById('scroll-sentinel').nextSibling);
                     }
                 } else {
                     const div = createMessageDiv(msg.role, msg.content, null, null, index);
@@ -1119,6 +1132,152 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     function removeLoading(id) { const el = document.getElementById(id); if (el) el.remove(); }
 
+    async function loadForkGraph() {
+        if (!treeContainer) return;
+        treeContainer.innerHTML = '<div class="text-center p-5"><div class="spinner-border text-info" role="status"></div><p class="mt-2">Building conversation tree...</p></div>';
+        try {
+            const res = await fetch('/sessions/fork-graph');
+            const data = await res.json();
+            const graph = data.graph || {};
+            renderForkTree(graph, currentActiveUUID);
+        } catch (e) {
+            console.error('loadForkGraph error:', e);
+            treeContainer.innerHTML = '<p class="text-danger p-3">Failed to load tree</p>';
+        }
+    }
+
+    function buildTreeData(graph) {
+        const nodes = {};
+        const children = {};
+        
+        for (const [uuid, info] of Object.entries(graph)) {
+            nodes[uuid] = info;
+            if (!info.parent) {
+                if (!children['root']) children['root'] = [];
+                children['root'].push(uuid);
+            } else {
+                if (!children[info.parent]) children[info.parent] = [];
+                children[info.parent].push(uuid);
+            }
+        }
+        
+        return { nodes, children };
+    }
+
+    function renderForkTree(graph, currentUUID) {
+        if (!treeContainer) return;
+        
+        const graphKeys = Object.keys(graph);
+        if (graphKeys.length === 0) {
+            treeContainer.innerHTML = '<p class="text-muted p-3">No sessions yet. Start a conversation to see your tree.</p>';
+            return;
+        }
+
+        const { nodes, children } = buildTreeData(graph);
+        
+        function getRootNodes() {
+            const roots = [];
+            for (const [uuid, info] of Object.entries(nodes)) {
+                if (!info.parent) roots.push(uuid);
+            }
+            return roots;
+        }
+
+        function renderNode(uuid, depth = 0) {
+            const info = nodes[uuid];
+            const isActive = uuid === currentUUID;
+            const isRoot = !info.parent;
+            const forkLabel = info.fork_point != null ? ` (forked at msg #${info.fork_point + 1})` : '';
+            
+            const html = `
+                <div class="tree-node-wrapper" style="margin-left: ${depth * 24}px">
+                    <div class="tree-node ${isActive ? 'tree-node-active' : ''} bg-dark border border-secondary rounded p-2 mb-2 d-flex justify-content-between align-items-center" 
+                         data-uuid="${uuid}" onclick="showTreeNodeMenu(event, '${uuid}')">
+                        <div>
+                            <span class="${isActive ? 'text-info fw-bold' : 'text-light'}">${info.title || 'Untitled Chat'}</span>
+                            <span class="text-muted small">${info.time || ''}</span>
+                            ${forkLabel ? `<span class="text-warning small">${forkLabel}</span>` : ''}
+                            ${isActive ? '<span class="badge bg-info ms-2">Current</span>' : ''}
+                        </div>
+                        <i class="bi bi-chevron-right text-muted"></i>
+                    </div>
+                    ${children[uuid] ? '<div class="tree-children">' + children[uuid].map(child => renderNode(child, depth + 1)).join('') + '</div>' : ''}
+                </div>
+            `;
+            return html;
+        }
+
+        const roots = getRootNodes();
+        if (roots.length === 0) {
+            treeContainer.innerHTML = '<p class="text-muted p-3">No tree structure found.</p>';
+            return;
+        }
+
+        treeContainer.innerHTML = '<div class="tree-view">' + roots.map(root => renderNode(root)).join('') + '</div>';
+        
+        if (!treeNodeMenu) {
+            treeNodeMenu = document.createElement('div');
+            treeNodeMenu.id = 'tree-node-menu';
+            treeNodeMenu.className = 'd-none position-fixed bg-dark border border-secondary rounded p-2';
+            treeNodeMenu.style.zIndex = '9999';
+            treeNodeMenu.innerHTML = `
+                <button class="btn btn-sm btn-outline-light w-100 mb-1" onclick="viewTreeNode()">View</button>
+                <button class="btn btn-sm btn-outline-info w-100" onclick="forkFromTreeNode()">Fork from here</button>
+            `;
+            document.body.appendChild(treeNodeMenu);
+        }
+        
+        document.addEventListener('click', hideTreeNodeMenu);
+    }
+
+    window.showTreeNodeMenu = function(e, uuid) {
+        e.stopPropagation();
+        selectedTreeNode = uuid;
+        if (!treeNodeMenu) return;
+        treeNodeMenu.classList.remove('d-none');
+        const rect = e.currentTarget.getBoundingClientRect();
+        treeNodeMenu.style.top = (rect.bottom + 5) + 'px';
+        treeNodeMenu.style.left = Math.min(rect.left, window.innerWidth - 150) + 'px';
+    };
+
+    function hideTreeNodeMenu() {
+        if (treeNodeMenu) treeNodeMenu.classList.add('d-none');
+    }
+
+    window.viewTreeNode = function() {
+        hideTreeNodeMenu();
+        if (selectedTreeNode) {
+            switchSession(selectedTreeNode);
+            bootstrap.Modal.getInstance(treeViewModalEl).hide();
+        }
+    };
+
+    window.forkFromTreeNode = async function() {
+        hideTreeNodeMenu();
+        if (selectedTreeNode) {
+            try {
+                const res = await fetch(`/sessions/${selectedTreeNode}/clone`, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ message_index: -1 }) 
+                });
+                const data = await res.json();
+                if (data.success) {
+                    bootstrap.Modal.getInstance(treeViewModalEl).hide();
+                    showToast('Conversation forked!');
+                    if (data.new_uuid === "pending") {
+                        chatContainer.innerHTML = '';
+                        loadSessions();
+                    } else {
+                        switchSession(data.new_uuid);
+                    }
+                }
+            } catch (e) {
+                console.error('forkFromTreeNode error:', e);
+            }
+        }
+    };
+
     async function handleClone(uuid, messageIndex, showAlert = true) {
         try {
             const res = await fetch(`/sessions/${uuid}/clone`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message_index: messageIndex }) });
@@ -1205,6 +1364,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const index = (msg.raw_index !== undefined) ? msg.raw_index : idx;
                 // Check if message has embedded question data
                 if (msg.question) {
+                    // Always render the response content first
+                    const div = createMessageDiv(msg.role, msg.content, null, null, index);
+                    if (div) chatContainer.appendChild(div);
+                    // Then render the interactive question card
                     const card = createQuestionCard(msg.question);
                     chatContainer.appendChild(card);
                 } else {
