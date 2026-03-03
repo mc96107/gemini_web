@@ -1916,6 +1916,14 @@ class OpenCodeAgent:
                             # Skip template/placeholder examples
                             if q_data.get("question") != "Your question text here":
                                 msg_data["question"] = q_data
+                                # Remove the raw JSON from the content (same logic as streaming code)
+                                content_text = re.sub(
+                                    r"(?:```(?:json)?\s*)?\{\s*\"type\"\s*:\s*\"question\".*?\}(?:\s*```)?",
+                                    "",
+                                    content_text,
+                                    flags=re.DOTALL
+                                )
+                                msg_data["content"] = content_text
                         except:
                             pass
 
