@@ -451,10 +451,35 @@ footer {
 /* Fork Navigation in Messages */
 .fork-nav-controls {
     border-color: rgba(255,255,255,0.2) !important;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    vertical-align: middle;
+}
+
+.fork-nav-controls button {
+    color: rgba(255,255,255,0.5);
+    background: none;
+    border: none;
+    line-height: 1;
+    padding: 2px 4px;
+    font-size: 0.7rem;
 }
 
 .fork-nav-controls button:hover {
     color: #fff !important;
+}
+
+.fork-nav-controls button:disabled {
+    color: rgba(255,255,255,0.2) !important;
+    cursor: default;
+}
+
+.fork-nav-label {
+    color: rgba(255,255,255,0.55);
+    font-size: 0.7rem;
+    user-select: none;
+    white-space: nowrap;
 }
 
 @media (max-width: 768px) {

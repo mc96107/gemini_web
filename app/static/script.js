@@ -984,6 +984,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 else handleClone(currentActiveUUID, parseInt(index)); 
             };
             actions.appendChild(forkBtn);
+            const navControls = buildForkNavControls(index);
+            if (navControls) actions.appendChild(navControls);
         }
         div.prepend(actions); return div;
     }
@@ -1073,6 +1075,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const forkBtn = document.createElement('button'); forkBtn.className = 'clone-btn'; forkBtn.innerHTML = '<i class="bi bi-pencil-square"></i>';
             forkBtn.onclick = () => handleClone(currentActiveUUID, parseInt(div.dataset.index));
             actions.appendChild(forkBtn);
+            const navControls = buildForkNavControls(parseInt(div.dataset.index));
+            if (navControls) actions.appendChild(navControls);
             if (!div.querySelector('.message-actions')) div.prepend(actions);
         }
         chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -1186,25 +1190,28 @@ document.addEventListener('DOMContentLoaded', () => {
         function renderNode(uuid, depth = 0) {
             const info = nodes[uuid];
             const isActive = uuid === currentUUID;
-            const isRoot = !info.parent;
-            const forkLabel = info.fork_point != null ? ` (forked at msg #${info.fork_point + 1})` : '';
-            
-            const html = `
+            const forkLabel = (info.fork_point != null && info.fork_point >= 0)
+                ? `<span class="badge bg-warning text-dark ms-2 small">forked at msg #${info.fork_point + 1}</span>`
+                : '';
+            const activeBadge = isActive ? '<span class="badge bg-info ms-2">Current</span>' : '';
+            const childNodes = children[uuid] ? children[uuid].map(child => renderNode(child, depth + 1)).join('') : '';
+
+            return `
                 <div class="tree-node-wrapper" style="margin-left: ${depth * 24}px">
-                    <div class="tree-node ${isActive ? 'tree-node-active' : ''} bg-dark border border-secondary rounded p-2 mb-2 d-flex justify-content-between align-items-center" 
-                         data-uuid="${uuid}" onclick="showTreeNodeMenu(event, '${uuid}')">
-                        <div>
+                    <div class="tree-node ${isActive ? 'tree-node-active' : ''} bg-dark border border-secondary rounded p-2 mb-2 d-flex justify-content-between align-items-center">
+                        <div class="flex-grow-1 text-truncate" style="cursor:pointer; min-width:0" onclick="viewTreeNodeDirect('${uuid}')">
                             <span class="${isActive ? 'text-info fw-bold' : 'text-light'}">${info.title || 'Untitled Chat'}</span>
-                            <span class="text-muted small">${info.time || ''}</span>
-                            ${forkLabel ? `<span class="text-warning small">${forkLabel}</span>` : ''}
-                            ${isActive ? '<span class="badge bg-info ms-2">Current</span>' : ''}
+                            <span class="text-muted small ms-2">${info.time || ''}</span>
+                            ${forkLabel}
+                            ${activeBadge}
                         </div>
-                        <i class="bi bi-chevron-right text-muted"></i>
+                        <button class="btn btn-sm btn-outline-secondary ms-2 flex-shrink-0" title="Fork from here" onclick="forkFromTreeNodeDirect('${uuid}')">
+                            <i class="bi bi-diagram-2"></i>
+                        </button>
                     </div>
-                    ${children[uuid] ? '<div class="tree-children">' + children[uuid].map(child => renderNode(child, depth + 1)).join('') + '</div>' : ''}
+                    ${childNodes ? `<div class="tree-children">${childNodes}</div>` : ''}
                 </div>
             `;
-            return html;
         }
 
         const roots = getRootNodes();
@@ -1214,69 +1221,84 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         treeContainer.innerHTML = '<div class="tree-view">' + roots.map(root => renderNode(root)).join('') + '</div>';
-        
-        if (!treeNodeMenu) {
-            treeNodeMenu = document.createElement('div');
-            treeNodeMenu.id = 'tree-node-menu';
-            treeNodeMenu.className = 'd-none position-fixed bg-dark border border-secondary rounded p-2';
-            treeNodeMenu.style.zIndex = '9999';
-            treeNodeMenu.innerHTML = `
-                <button class="btn btn-sm btn-outline-light w-100 mb-1" onclick="viewTreeNode()">View</button>
-                <button class="btn btn-sm btn-outline-info w-100" onclick="forkFromTreeNode()">Fork from here</button>
-            `;
-            document.body.appendChild(treeNodeMenu);
-        }
-        
-        document.addEventListener('click', hideTreeNodeMenu);
     }
 
-    window.showTreeNodeMenu = function(e, uuid) {
-        e.stopPropagation();
-        selectedTreeNode = uuid;
-        if (!treeNodeMenu) return;
-        treeNodeMenu.classList.remove('d-none');
-        const rect = e.currentTarget.getBoundingClientRect();
-        treeNodeMenu.style.top = (rect.bottom + 5) + 'px';
-        treeNodeMenu.style.left = Math.min(rect.left, window.innerWidth - 150) + 'px';
+    window.viewTreeNodeDirect = function(uuid) {
+        switchSession(uuid);
+        bootstrap.Modal.getInstance(treeViewModalEl).hide();
     };
 
-    function hideTreeNodeMenu() {
-        if (treeNodeMenu) treeNodeMenu.classList.add('d-none');
-    }
-
-    window.viewTreeNode = function() {
-        hideTreeNodeMenu();
-        if (selectedTreeNode) {
-            switchSession(selectedTreeNode);
-            bootstrap.Modal.getInstance(treeViewModalEl).hide();
-        }
-    };
-
-    window.forkFromTreeNode = async function() {
-        hideTreeNodeMenu();
-        if (selectedTreeNode) {
-            try {
-                const res = await fetch(`/sessions/${selectedTreeNode}/clone`, { 
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'application/json' }, 
-                    body: JSON.stringify({ message_index: -1 }) 
-                });
-                const data = await res.json();
-                if (data.success) {
-                    bootstrap.Modal.getInstance(treeViewModalEl).hide();
-                    showToast('Conversation forked!');
-                    if (data.new_uuid === "pending") {
-                        chatContainer.innerHTML = '';
-                        loadSessions();
-                    } else {
-                        switchSession(data.new_uuid);
-                    }
+    window.forkFromTreeNodeDirect = async function(uuid) {
+        try {
+            const res = await fetch(`/sessions/${uuid}/clone`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message_index: -1 })
+            });
+            const data = await res.json();
+            if (data.success) {
+                bootstrap.Modal.getInstance(treeViewModalEl).hide();
+                showToast('Conversation forked!');
+                if (data.new_uuid === "pending") {
+                    chatContainer.innerHTML = '';
+                    loadSessions();
+                } else {
+                    switchSession(data.new_uuid);
                 }
-            } catch (e) {
-                console.error('forkFromTreeNode error:', e);
             }
+        } catch (e) {
+            console.error('forkFromTreeNodeDirect error:', e);
         }
     };
+
+    function buildForkNavControls(index) {
+        if (index === null || index === undefined) return null;
+        const forks = currentForkMap && currentForkMap.forks;
+        if (!forks) return null;
+        const siblings = forks[String(index)];
+        if (!siblings || siblings.length === 0) return null;
+
+        // Build a stable sorted list that includes the current session.
+        // Sort alphabetically so every sibling session sees the same ordering.
+        const allAtPoint = [...new Set([currentActiveUUID, ...siblings])].sort();
+        const currentPos = allAtPoint.indexOf(currentActiveUUID);
+        const total = allAtPoint.length;
+
+        // Only show controls if there are actual siblings (not just current)
+        if (total < 2) return null;
+
+        const nav = document.createElement('div');
+        nav.className = 'fork-nav-controls d-inline-flex align-items-center ms-1';
+
+        const prevBtn = document.createElement('button');
+        prevBtn.className = 'btn btn-sm p-0 px-1';
+        prevBtn.innerHTML = '<i class="bi bi-chevron-left"></i>';
+        prevBtn.title = 'Previous branch';
+        prevBtn.disabled = (currentPos === 0);
+        prevBtn.onclick = (e) => {
+            e.stopPropagation();
+            switchSession(allAtPoint[currentPos - 1]);
+        };
+
+        const label = document.createElement('span');
+        label.className = 'fork-nav-label small mx-1';
+        label.textContent = `${currentPos + 1}/${total}`;
+
+        const nextBtn = document.createElement('button');
+        nextBtn.className = 'btn btn-sm p-0 px-1';
+        nextBtn.innerHTML = '<i class="bi bi-chevron-right"></i>';
+        nextBtn.title = 'Next branch';
+        nextBtn.disabled = (currentPos === total - 1);
+        nextBtn.onclick = (e) => {
+            e.stopPropagation();
+            switchSession(allAtPoint[currentPos + 1]);
+        };
+
+        nav.appendChild(prevBtn);
+        nav.appendChild(label);
+        nav.appendChild(nextBtn);
+        return nav;
+    }
 
     async function handleClone(uuid, messageIndex, showAlert = true) {
         try {

@@ -976,6 +976,38 @@ class OpenCodeAgent:
                                     "time"
                                 ] = dt_pkg.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+                                # Apply pending fork relationship if one exists
+                                pending = self.user_data[user_id].get("pending_fork")
+                                if pending:
+                                    if "session_forks" not in self.user_data[user_id]:
+                                        self.user_data[user_id]["session_forks"] = {}
+                                    self.user_data[user_id]["session_forks"][new_id] = {
+                                        "parent": pending["parent"],
+                                        "fork_point": pending["fork_point"],
+                                    }
+                                    if pending.get("title"):
+                                        if "custom_titles" not in self.user_data[user_id]:
+                                            self.user_data[user_id]["custom_titles"] = {}
+                                        self.user_data[user_id]["custom_titles"][new_id] = (
+                                            f"{pending['title']} (Fork)"
+                                        )
+                                    if pending.get("tags"):
+                                        if "session_tags" not in self.user_data[user_id]:
+                                            self.user_data[user_id]["session_tags"] = {}
+                                        self.user_data[user_id]["session_tags"][new_id] = list(
+                                            pending["tags"]
+                                        )
+                                    if pending.get("tools"):
+                                        if "session_tools" not in self.user_data[user_id]:
+                                            self.user_data[user_id]["session_tools"] = {}
+                                        self.user_data[user_id]["session_tools"][new_id] = list(
+                                            pending["tools"]
+                                        )
+                                    del self.user_data[user_id]["pending_fork"]
+                                    log_debug(
+                                        f"Applied pending fork: {new_id} -> parent {pending['parent']}"
+                                    )
+
                                 self._save_user_data()
                                 yield {"type": "init", "session_id": new_id}
                                 session_uuid = new_id
