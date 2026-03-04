@@ -1600,8 +1600,11 @@ class OpenCodeAgent:
                                     )
 
                                 self._save_user_data()
-                                yield {"type": "init", "session_id": new_id}
                                 session_uuid = new_id
+
+                            # Always emit init so the frontend knows the active session ID,
+                            # even if session_uuid was already set by upfront fork truncation.
+                            yield {"type": "init", "session_id": new_id}
                             captured_session_id = True
 
                         # Transform OpenCode events to Gemini format
@@ -2603,90 +2606,140 @@ class OpenCodeAgent:
         self, user_id: str, original_uuid: str, message_index: int
     ) -> Optional[str]:
         """
-        Export the original session, truncate its messages to message_index,
-        import it as a new session, record the fork relationship, and return
-        the new session UUID.  Returns None on failure.
+        Fork original_uuid by directly copying its SQLite rows (session, message,
+        part) up to message_index, assigning new IDs throughout.  Returns the new
+        session UUID, or None on failure.
         """
-        global_log(f"Fork-truncating session {original_uuid} at index {message_index}...")
+        OPENCODE_DB_PATH = "/home/z/.local/share/opencode/opencode.db"
+        global_log(
+            f"SQLite-fork: {original_uuid} at message_index={message_index}"
+        )
+        conn = None
         try:
-            proc = await self._create_subprocess(
-                [self.opencode_cmd, "export", original_uuid],
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=self.working_dir.replace("\\", "/"),
+            conn = sqlite3.connect(OPENCODE_DB_PATH)
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+
+            # --- 1. Read original session row ---
+            cur.execute("SELECT * FROM session WHERE id = ?", (original_uuid,))
+            orig_sess = cur.fetchone()
+            if not orig_sess:
+                global_log(f"SQLite-fork: session {original_uuid} not found in DB", level="ERROR")
+                conn.close()
+                return None
+
+            # --- 2. Generate new session ID ---
+            new_sess_id = f"ses_{uuid.uuid4().hex}"
+
+            # --- 3. Read messages ordered by time ---
+            cur.execute(
+                "SELECT * FROM message WHERE session_id = ? ORDER BY time_created ASC",
+                (original_uuid,),
             )
-            stdout, _ = await proc.communicate()
-            content = stdout.decode().strip()
+            all_messages = cur.fetchall()
+            messages_to_copy = all_messages[: message_index + 1]
 
-            json_match = re.search(r"\{.*\}", content, re.DOTALL)
-            if not json_match:
-                global_log("Fork-truncation: no JSON found in export output", level="ERROR")
+            if not messages_to_copy:
+                global_log(
+                    f"SQLite-fork: no messages to copy up to index {message_index}",
+                    level="ERROR",
+                )
+                conn.close()
                 return None
 
-            try:
-                data = json.loads(json_match.group(0))
-            except json.JSONDecodeError as e:
-                global_log(f"Fork-truncation: failed to parse export JSON: {e}", level="ERROR")
-                return None
+            # --- 4. Insert new session row ---
+            sess_cols = orig_sess.keys()
+            sess_dict = dict(orig_sess)
+            sess_dict["id"] = new_sess_id
+            sess_dict["parent_id"] = original_uuid  # native fork relationship
+            # Give it a distinct slug and reset share URL
+            sess_dict["slug"] = f"fork-{uuid.uuid4().hex[:8]}"
+            sess_dict["share_url"] = None
+            sess_dict["time_created"] = int(dt_pkg.datetime.now().timestamp() * 1000)
+            sess_dict["time_updated"] = sess_dict["time_created"]
 
-            if "messages" in data:
-                data["messages"] = data["messages"][: message_index + 1]
-
-            temp_file = os.path.join(
-                self.working_dir, f"temp_clone_{uuid.uuid4().hex}.json"
+            placeholders = ", ".join(["?"] * len(sess_cols))
+            col_names = ", ".join(sess_cols)
+            cur.execute(
+                f"INSERT INTO session ({col_names}) VALUES ({placeholders})",
+                [sess_dict[c] for c in sess_cols],
             )
-            with open(temp_file, "w") as f:
-                json.dump(data, f)
 
-            try:
-                proc = await self._create_subprocess(
-                    [self.opencode_cmd, "import", temp_file.replace("\\", "/")],
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    cwd=self.working_dir.replace("\\", "/"),
+            # --- 5. Copy each message with a new ID, plus its parts ---
+            for msg_row in messages_to_copy:
+                old_msg_id = msg_row["id"]
+                new_msg_id = f"msg_{uuid.uuid4().hex}"
+
+                msg_dict = dict(msg_row)
+                msg_dict["id"] = new_msg_id
+                msg_dict["session_id"] = new_sess_id
+                msg_dict["time_created"] = msg_row["time_created"]
+                msg_dict["time_updated"] = msg_row["time_updated"]
+
+                msg_cols = msg_row.keys()
+                placeholders = ", ".join(["?"] * len(msg_cols))
+                col_names = ", ".join(msg_cols)
+                cur.execute(
+                    f"INSERT INTO message ({col_names}) VALUES ({placeholders})",
+                    [msg_dict[c] for c in msg_cols],
                 )
-                stdout, _ = await proc.communicate()
-                output = stdout.decode().strip()
 
-                new_uuid_match = re.search(r"ses_[a-zA-Z0-9]+", output)
-                new_uuid = (
-                    new_uuid_match.group(0)
-                    if new_uuid_match
-                    else await self._get_latest_session_uuid()
+                # Copy parts for this message
+                cur.execute(
+                    "SELECT * FROM part WHERE message_id = ? ORDER BY time_created ASC",
+                    (old_msg_id,),
+                )
+                parts = cur.fetchall()
+                for part_row in parts:
+                    part_dict = dict(part_row)
+                    part_dict["id"] = f"prt_{uuid.uuid4().hex}"
+                    part_dict["message_id"] = new_msg_id
+                    part_dict["session_id"] = new_sess_id
+
+                    part_cols = part_row.keys()
+                    placeholders = ", ".join(["?"] * len(part_cols))
+                    col_names = ", ".join(part_cols)
+                    cur.execute(
+                        f"INSERT INTO part ({col_names}) VALUES ({placeholders})",
+                        [part_dict[c] for c in part_cols],
+                    )
+
+            conn.commit()
+            conn.close()
+
+            # --- 6. Register in our user_data ---
+            user_info = self.user_data[user_id]
+            if new_sess_id not in user_info["sessions"]:
+                user_info["sessions"].append(new_sess_id)
+
+            user_info.setdefault("session_forks", {})[new_sess_id] = {
+                "parent": original_uuid,
+                "fork_point": message_index,
+            }
+
+            orig_title = user_info.get("custom_titles", {}).get(original_uuid)
+            if orig_title:
+                user_info.setdefault("custom_titles", {})[new_sess_id] = (
+                    f"{orig_title} (Fork)"
                 )
 
-                if new_uuid and new_uuid != original_uuid:
-                    user_info = self.user_data[user_id]
-                    if new_uuid not in user_info["sessions"]:
-                        user_info["sessions"].append(new_uuid)
+            orig_tags = user_info.get("session_tags", {}).get(original_uuid)
+            if orig_tags:
+                user_info.setdefault("session_tags", {})[new_sess_id] = list(orig_tags)
 
-                    user_info.setdefault("session_forks", {})[new_uuid] = {
-                        "parent": original_uuid,
-                        "fork_point": message_index,
-                    }
+            self._save_user_data()
+            global_log(f"SQLite-fork complete: {original_uuid} → {new_sess_id}")
+            return new_sess_id
 
-                    orig_title = user_info.get("custom_titles", {}).get(original_uuid)
-                    if orig_title:
-                        user_info.setdefault("custom_titles", {})[new_uuid] = (
-                            f"{orig_title} (Fork)"
-                        )
-
-                    orig_tags = user_info.get("session_tags", {}).get(original_uuid)
-                    if orig_tags:
-                        user_info.setdefault("session_tags", {})[new_uuid] = list(orig_tags)
-
-                    self._save_user_data()
-                    log_debug(f"Fork-truncation complete: new session {new_uuid}")
-                    return new_uuid
-
-                global_log("Fork-truncation: could not determine new session UUID", level="ERROR")
-                return None
-            finally:
-                if os.path.exists(temp_file):
-                    os.remove(temp_file)
         except Exception as e:
-            global_log(f"Fork-truncation error: {e}", level="ERROR")
+            global_log(f"SQLite-fork error: {e}", level="ERROR")
             return None
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     async def clone_session(
         self, user_id: str, original_uuid: str, message_index: int
