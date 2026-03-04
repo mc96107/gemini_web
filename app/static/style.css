@@ -383,7 +383,7 @@ footer {
     gap: 4px;
     z-index: 10;
 }
-.copy-btn, .clone-btn {
+.copy-btn, .clone-btn, .system-mode-btn {
     background: rgba(0,0,0,0.2); 
     border: 1px solid rgba(255,255,255,0.1);
     color: rgba(255, 255, 255, 0.5); 
@@ -396,7 +396,7 @@ footer {
     align-items: center; 
     justify-content: center; 
 }
-.copy-btn:hover, .clone-btn:hover { 
+.copy-btn:hover, .clone-btn:hover, .system-mode-btn:hover { 
     color: #fff; 
     background: rgba(255, 255, 255, 0.2); 
 }

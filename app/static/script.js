@@ -168,6 +168,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function extractSystemInstructions(text) {
+        if (typeof text !== 'string') return { mode: null, displayText: text };
+        
+        const enabledPattern = /\[SYSTEM INSTRUCTION: INTERACTIVE QUESTIONING ENABLED\][\s\S]*?(?=\n\n|\[|$)/i;
+        const disabledPattern = /\[SYSTEM INSTRUCTION: Provide standard text responses only\. Do not use JSON formatting for questions\.\][\s\S]*?(?=\n\n|\[|$)/i;
+        
+        let displayText = text;
+        let mode = null;
+        
+        const enabledMatch = text.match(enabledPattern);
+        const disabledMatch = text.match(disabledPattern);
+        
+        if (enabledMatch) {
+            mode = 'enabled';
+            displayText = displayText.replace(enabledMatch[0], '').trim();
+        } else if (disabledMatch) {
+            mode = 'disabled';
+            displayText = displayText.replace(disabledMatch[0], '').trim();
+        }
+        
+        return { mode, displayText };
+    }
+
     function renderKatex(element) {
         if (!element) return;
         try {
@@ -939,11 +962,19 @@ document.addEventListener('DOMContentLoaded', () => {
     function createMessageDiv(sender, text, info, file, index) {
         const div = document.createElement('div'); div.className = `message ${sender}`;
         if (index !== null) div.dataset.index = index;
-        let parsedText = text;
+        
+        let displayText = text;
+        let systemMode = null;
+        
+        if (sender === 'user') {
+            const extracted = extractSystemInstructions(text);
+            displayText = extracted.displayText;
+            systemMode = extracted.mode;
+        }
+        
+        let parsedText = displayText;
         if (sender === 'bot') {
-            // First parse markdown, then transform [Thinking] blocks in the HTML
-            parsedText = (typeof marked !== 'undefined') ? marked.parse(text) : text;
-            // Legacy/History: transform [Thinking] blocks into collapsible details
+            parsedText = (typeof marked !== 'undefined') ? marked.parse(displayText) : displayText;
             parsedText = parsedText.replace(/\[Thinking\]([\s\S]*?)\[\/Thinking\]/g, (m, c) => `
                 <details class="reasoning-details mb-2">
                     <summary class="small text-muted cursor-pointer d-flex align-items-center gap-2">
@@ -959,7 +990,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (sender === 'bot') renderKatex(content);
         div.appendChild(content);
         
-        // Add a placeholder for tool logs in history if they exist in metadata (future)
         const logsDiv = document.createElement('div');
         logsDiv.className = 'tool-logs mt-2 d-none';
         div.appendChild(logsDiv);
@@ -967,20 +997,34 @@ document.addEventListener('DOMContentLoaded', () => {
         const actions = document.createElement('div'); actions.className = 'message-actions';
         const copyBtn = document.createElement('button'); copyBtn.className = 'copy-btn'; copyBtn.innerHTML = '<i class="bi bi-clipboard"></i>';
         copyBtn.onclick = () => {
+            const textToCopy = sender === 'user' ? displayText : text;
             if (navigator.clipboard) {
-                navigator.clipboard.writeText(text).then(() => showToast('Copied!'));
+                navigator.clipboard.writeText(textToCopy).then(() => showToast('Copied!'));
             } else {
                 const ta = document.createElement('textarea');
-                ta.value = text; document.body.appendChild(ta); ta.select();
+                ta.value = textToCopy; document.body.appendChild(ta); ta.select();
                 document.execCommand('copy'); document.body.removeChild(ta);
                 showToast('Copied!');
             }
         };
         actions.appendChild(copyBtn);
+        
+        if (systemMode) {
+            const modeIcon = document.createElement('button');
+            modeIcon.className = 'system-mode-btn';
+            modeIcon.innerHTML = `<i class="bi ${systemMode === 'enabled' ? 'bi-chat-square-quote' : 'bi-chat-square'}"></i>`;
+            modeIcon.setAttribute('data-bs-toggle', 'tooltip');
+            modeIcon.setAttribute('data-bs-title', systemMode === 'enabled' ? 'Interactive Mode Enabled' : 'Interactive Mode Disabled');
+            modeIcon.title = systemMode === 'enabled' ? 'Interactive Mode Enabled' : 'Interactive Mode Disabled';
+            actions.appendChild(modeIcon);
+            try { new bootstrap.Tooltip(modeIcon); } catch (e) {}
+        }
+        
         if (index !== null) {
             const forkBtn = document.createElement('button'); forkBtn.className = 'clone-btn'; forkBtn.innerHTML = '<i class="bi bi-pencil-square"></i>';
             forkBtn.onclick = () => { 
-                if (sender === 'user') { messageInput.value = text; messageInput.focus(); handleClone(currentActiveUUID, parseInt(index) - 1, false); } 
+                const textToEdit = sender === 'user' ? displayText : text;
+                if (sender === 'user') { messageInput.value = textToEdit; messageInput.focus(); handleClone(currentActiveUUID, parseInt(index) - 1, false); } 
                 else handleClone(currentActiveUUID, parseInt(index)); 
             };
             actions.appendChild(forkBtn);
