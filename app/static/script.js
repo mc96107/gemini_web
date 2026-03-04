@@ -171,8 +171,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function extractSystemInstructions(text) {
         if (typeof text !== 'string') return { mode: null, displayText: text };
         
-        const enabledPattern = /\[SYSTEM INSTRUCTION: INTERACTIVE QUESTIONING ENABLED\][\s\S]*?(?=\n\n|\[|$)/i;
-        const disabledPattern = /\[SYSTEM INSTRUCTION: Provide standard text responses only\. Do not use JSON formatting for questions\.\][\s\S]*?(?=\n\n|\[|$)/i;
+        const enabledPattern = /\[SYSTEM INSTRUCTION: INTERACTIVE QUESTIONING ENABLED\][\s\S]*?\n\n/;
+        const disabledPattern = /\[SYSTEM INSTRUCTION: Provide standard text responses only\. Do not use JSON formatting for questions\.\][\s\S]*?\n\n/;
         
         let displayText = text;
         let mode = null;
