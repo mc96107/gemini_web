@@ -1304,7 +1304,20 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const res = await fetch(`/sessions/${uuid}/clone`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message_index: messageIndex }) });
             const data = await res.json();
-            if (data.success) { if (showAlert) showToast('Conversation forked!'); if (data.new_uuid === "pending") { chatContainer.innerHTML = ''; loadSessions(); } else switchSession(data.new_uuid); }
+            if (data.success) {
+                if (showAlert) showToast('Conversation forked!');
+                if (data.new_uuid === "pending") {
+                    // Immediately clear the chat and reset the active session so
+                    // the next Send goes to a fresh branch (no race condition).
+                    currentActiveUUID = null;
+                    window.ACTIVE_SESSION_UUID = null;
+                    chatContainer.innerHTML = '';
+                    currentForkMap = {};
+                    loadSessions();
+                } else {
+                    switchSession(data.new_uuid);
+                }
+            }
         } catch (e) { console.error('handleClone error:', e); }
     }
 

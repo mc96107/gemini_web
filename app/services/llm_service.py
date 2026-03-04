@@ -793,6 +793,30 @@ class OpenCodeAgent:
                 global_log(f"Error creating workspace {workspace}: {e}", level="ERROR")
                 workspace = WORKSPACE_ROOT.replace("\\", "/")  # Fallback
 
+        # If a pending fork with a specific truncation point exists, perform it now
+        # before starting the subprocess so the new branch session is ready.
+        if not session_uuid:
+            pending = self.user_data.get(user_id, {}).get("pending_fork")
+            if pending and pending.get("fork_point", -1) >= 0:
+                log_debug(
+                    f"Pending fork detected: truncating {pending['parent']} "
+                    f"at index {pending['fork_point']}"
+                )
+                new_uuid = await self._perform_fork_truncation(
+                    user_id, pending["parent"], pending["fork_point"]
+                )
+                if new_uuid:
+                    session_uuid = new_uuid
+                    # pending_fork metadata (title/tags/tools) already recorded by
+                    # _perform_fork_truncation; clear the pending marker now.
+                    self.user_data[user_id].pop("pending_fork", None)
+                    self._save_user_data()
+                    log_debug(f"Fork truncation done, continuing with session {session_uuid}")
+                else:
+                    global_log("Fork truncation failed, starting fresh session", level="ERROR")
+                    self.user_data[user_id].pop("pending_fork", None)
+                    self._save_user_data()
+
         while attempt < max_attempts:
             attempt += 1
 
@@ -2008,17 +2032,125 @@ class OpenCodeAgent:
 
         return False
 
+    async def _perform_fork_truncation(
+        self, user_id: str, original_uuid: str, message_index: int
+    ) -> Optional[str]:
+        """
+        Export the original session, truncate its messages to message_index,
+        import it as a new session, record the fork relationship, and return
+        the new session UUID.  Returns None on failure.
+        """
+        global_log(f"Fork-truncating session {original_uuid} at index {message_index}...")
+        try:
+            proc = await self._create_subprocess(
+                [self.opencode_cmd, "export", original_uuid],
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=self.working_dir.replace("\\", "/"),
+            )
+            stdout, _ = await proc.communicate()
+            content = stdout.decode().strip()
+
+            json_match = re.search(r"\{.*\}", content, re.DOTALL)
+            if not json_match:
+                global_log("Fork-truncation: no JSON found in export output", level="ERROR")
+                return None
+
+            try:
+                data = json.loads(json_match.group(0))
+            except json.JSONDecodeError as e:
+                global_log(f"Fork-truncation: failed to parse export JSON: {e}", level="ERROR")
+                return None
+
+            if "messages" in data:
+                data["messages"] = data["messages"][: message_index + 1]
+
+            temp_file = os.path.join(
+                self.working_dir, f"temp_clone_{uuid.uuid4().hex}.json"
+            )
+            with open(temp_file, "w") as f:
+                json.dump(data, f)
+
+            try:
+                proc = await self._create_subprocess(
+                    [self.opencode_cmd, "import", temp_file.replace("\\", "/")],
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    cwd=self.working_dir.replace("\\", "/"),
+                )
+                stdout, _ = await proc.communicate()
+                output = stdout.decode().strip()
+
+                new_uuid_match = re.search(r"ses_[a-zA-Z0-9]+", output)
+                new_uuid = (
+                    new_uuid_match.group(0)
+                    if new_uuid_match
+                    else await self._get_latest_session_uuid()
+                )
+
+                if new_uuid and new_uuid != original_uuid:
+                    user_info = self.user_data[user_id]
+                    if new_uuid not in user_info["sessions"]:
+                        user_info["sessions"].append(new_uuid)
+
+                    user_info.setdefault("session_forks", {})[new_uuid] = {
+                        "parent": original_uuid,
+                        "fork_point": message_index,
+                    }
+
+                    orig_title = user_info.get("custom_titles", {}).get(original_uuid)
+                    if orig_title:
+                        user_info.setdefault("custom_titles", {})[new_uuid] = (
+                            f"{orig_title} (Fork)"
+                        )
+
+                    orig_tags = user_info.get("session_tags", {}).get(original_uuid)
+                    if orig_tags:
+                        user_info.setdefault("session_tags", {})[new_uuid] = list(orig_tags)
+
+                    self._save_user_data()
+                    log_debug(f"Fork-truncation complete: new session {new_uuid}")
+                    return new_uuid
+
+                global_log("Fork-truncation: could not determine new session UUID", level="ERROR")
+                return None
+            finally:
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+        except Exception as e:
+            global_log(f"Fork-truncation error: {e}", level="ERROR")
+            return None
+
     async def clone_session(
         self, user_id: str, original_uuid: str, message_index: int
     ) -> Optional[str]:
         """
-        Clone a session up to a certain message index.
-        Returns the new session UUID if successful.
+        Queue a fork of original_uuid at message_index.
+        Always returns "pending" — the actual truncation happens lazily inside
+        stream_chat when the user sends their first message on the new branch.
         """
         if (
             user_id not in self.user_data
             or original_uuid not in self.user_data[user_id]["sessions"]
         ):
+            return None
+
+        try:
+            user_info = self.user_data[user_id]
+            user_info["active_session"] = None  # force a new session on next run
+
+            user_info["pending_fork"] = {
+                "parent": original_uuid,
+                "fork_point": message_index,  # -1 means fresh branch, >=0 means truncate
+                "title": user_info.get("custom_titles", {}).get(original_uuid),
+                "tags": list(user_info.get("session_tags", {}).get(original_uuid, [])),
+                "tools": list(user_info.get("session_tools", {}).get(original_uuid, [])),
+            }
+
+            self._save_user_data()
+            return "pending"
+        except Exception as e:
+            global_log(f"clone_session error: {e}", level="ERROR")
             return None
 
         try:
