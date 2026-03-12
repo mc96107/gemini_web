@@ -88,6 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const editPromptModalEl = document.getElementById('editPromptModal');
     const btnSavePrompt = document.getElementById('btn-save-prompt');
+    const btnNewPrompt = document.getElementById('btn-new-prompt');
 
     const sidebarLoadMoreBtn = document.getElementById('sidebar-load-more-btn');
     // Bug 7: Wire sidebar "Load More" button
@@ -1410,13 +1411,21 @@ document.addEventListener('DOMContentLoaded', () => {
             bootstrap.Modal.getInstance(patternsModalEl).hide(); messageInput.focus();
         }; });
         document.querySelectorAll('.edit-prompt-btn').forEach(btn => { btn.onclick = async (e) => { e.stopPropagation(); const res = await fetch(`/prompts/${btn.dataset.name}`); const d = await res.json(); if (d.content) { document.getElementById('edit-prompt-filename').value = btn.dataset.name; document.getElementById('edit-prompt-content').value = d.content; editPromptModalEl.dataset.mode = 'edit'; new bootstrap.Modal(editPromptModalEl).show(); } }; });
+        if (btnNewPrompt) {
+            btnNewPrompt.onclick = () => {
+                document.getElementById('edit-prompt-filename').value = '';
+                document.getElementById('edit-prompt-content').value = '';
+                editPromptModalEl.dataset.mode = 'create';
+                new bootstrap.Modal(editPromptModalEl).show();
+            };
+        }
     }
 
     if (btnSavePrompt) {
         btnSavePrompt.onclick = async () => {
             const name = document.getElementById('edit-prompt-filename').value.trim(), content = document.getElementById('edit-prompt-content').value, mode = editPromptModalEl.dataset.mode || 'create';
             const fd = new FormData(); fd.append('content', content); if (mode === 'create') fd.append('filename', name);
-            const res = await fetch(mode === 'create' ? '/prompts' : `/prompts/${name}`, { method: mode === 'create' ? 'POST' : 'PUT', body: fd });
+            const res = await fetch(mode === 'create' ? '/prompts/new' : `/prompts/${name}`, { method: mode === 'create' ? 'POST' : 'PUT', body: fd });
             if (res.ok) { bootstrap.Modal.getInstance(editPromptModalEl).hide(); loadPatterns(); }
         };
     }
