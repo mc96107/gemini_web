@@ -174,8 +174,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const enabledPattern = /\[SYSTEM INSTRUCTION: INTERACTIVE QUESTIONING ENABLED\][\s\S]*?\n\n/;
         const disabledPattern = /\[SYSTEM INSTRUCTION: Provide standard text responses only\. Do not use JSON formatting for questions\.\][\s\S]*?\n\n/;
         
+        const skillPattern = /\[SKILL ACTIVATED: ([^\]]+)\][\s\S]*?\[END SKILL CONTEXT\]\s*/g;
+        
         let displayText = text;
         let mode = null;
+        
+        const skillMatch = displayText.match(skillPattern);
+        if (skillMatch) {
+            const skillNameMatch = displayText.match(/\[SKILL ACTIVATED: ([^\]]+)\]/);
+            if (skillNameMatch) {
+                displayText = displayText.replace(skillMatch[0], `[Skill: ${skillNameMatch[1]}] `).trim();
+            }
+        }
         
         const enabledMatch = text.match(enabledPattern);
         const disabledMatch = text.match(disabledPattern);
