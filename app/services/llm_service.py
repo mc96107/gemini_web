@@ -208,6 +208,7 @@ class OpenCodeAgent:
         self.user_data = self._load_user_data()
         self.yolo_mode = False
         self.active_tasks: Dict[str, asyncio.Task] = {}
+        self.attach_url = config.OPENCODE_ATTACH_URL
 
         # Ensure prompts directory exists
         prompts_dir = os.path.join(self.working_dir, "prompts")
@@ -829,6 +830,33 @@ class OpenCodeAgent:
                 "--dir",
                 workspace.replace("\\", "/"),
             ]
+            # Probe the attach server with a fast TCP connect before
+            # committing to --attach mode.  Falls back to cold start
+            # if the server is unreachable.
+            use_attach = False
+            if self.attach_url:
+                try:
+                    from urllib.parse import urlparse
+                    import socket
+
+                    parsed = urlparse(self.attach_url)
+                    host = parsed.hostname or "127.0.0.1"
+                    port = parsed.port or 80
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.settimeout(1.0)
+                    sock.connect((host, port))
+                    sock.close()
+                    use_attach = True
+                    log_debug(
+                        f"Attach server at {self.attach_url} is reachable"
+                    )
+                except Exception as e:
+                    log_debug(
+                        f"Attach server at {self.attach_url} unreachable "
+                        f"({e}), falling back to cold start"
+                    )
+            if use_attach:
+                args.extend(["--attach", self.attach_url])
             if session_uuid:
                 args.extend(["-s", session_uuid])
             if current_model:
@@ -858,7 +886,8 @@ class OpenCodeAgent:
                     )
                 except Exception as e:
                     global_log(
-                        f"CRITICAL: Failed to start subprocess: {e}", level="ERROR"
+                        f"CRITICAL: Failed to start subprocess: {e}",
+                        level="ERROR",
                     )
                     yield {
                         "type": "error",

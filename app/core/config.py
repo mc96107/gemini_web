@@ -28,6 +28,7 @@ SETTINGS_FILE = os.path.join(BASE_DIR, "data", "settings.json")
 MODEL_NAME = os.getenv("MODEL_NAME", "google/antigravity-gemini-3.1-pro")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 OPENCODE_CMD = os.getenv("OPENCODE_CMD", "opencode")
+OPENCODE_ATTACH_URL = os.getenv("OPENCODE_ATTACH_URL", "")
 WORKSPACE_ROOT = os.getenv("WORKSPACE_ROOT", BASE_DIR)
 
 import json
